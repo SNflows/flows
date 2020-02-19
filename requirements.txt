@@ -1,0 +1,8 @@
+numpy
+matplotlib
+scipy
+requests
+astropy < 4.0
+photutils < 0.7
+pandas
+psycopg2-binary
