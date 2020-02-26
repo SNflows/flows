@@ -9,4 +9,4 @@ from flows import photometry
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
-	photometry.photometry(fileid=21)
+	photometry.photometry(fileid=25)
