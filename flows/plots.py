@@ -9,7 +9,7 @@ Plotting utilities.
 import logging
 import os
 import numpy as np
-from bottleneck import allnan
+from bottleneck import allnan, anynan
 import matplotlib
 from matplotlib.ticker import MaxNLocator
 import matplotlib.pyplot as plt
@@ -48,6 +48,9 @@ def plot_image(image, scale='log', origin='lower', xlabel='Pixel Column Number',
 		logger = logging.getLogger(__name__)
 		logger.error("Image is all NaN")
 		return None
+
+	#if not isinstance(image, np.ma.MaskedArray) and anynan(image):
+	#	image = np.ma.masked_array(image, mask=np.isnan(image))
 
 	# Special treatment for boolean arrays:
 	if isinstance(image, np.ndarray) and image.dtype == 'bool':
@@ -96,7 +99,7 @@ def plot_image(image, scale='log', origin='lower', xlabel='Pixel Column Number',
 	ax.set_ylim([extent[2], extent[3]])
 
 	if make_cbar:
-		cbar = plt.colorbar(im, norm=norm, ax=ax, orientation='vertical', pad=0.02)
+		cbar = plt.colorbar(im, norm=norm, ax=ax, orientation='vertical') # , pad=0.02
 		cbar.set_label(clabel)
 		if cbar_ticks is not None: cbar.set_ticks(cbar_ticks)
 		if cbar_ticklabels is not None: cbar.set_ticklabels(cbar_ticklabels)

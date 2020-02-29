@@ -9,6 +9,8 @@ Flows photometry code.
 import os
 import numpy as np
 from bottleneck import nanstd
+from timeit import default_timer
+import logging
 
 import astropy.units as u
 import astropy.coordinates as coords
@@ -23,6 +25,8 @@ from astropy.modeling import models, fitting
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.psf import EPSFBuilder, EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
 from photutils import Background2D, SExtractorBackground
+
+from scipy.interpolate import UnivariateSpline
 
 from imexam.imexamine import Imexamine
 
@@ -75,14 +79,22 @@ def photometry(fileid=None):
 
 	plt.switch_backend('Qt5Agg')
 
+	logger = logging.getLogger(__name__)
+	tic = default_timer()
+
 	if fileid is not None:
 		with AADC_DB() as db:
 			db.cursor.execute("SELECT files.*, files_archives.path AS archive_path FROM flows.files INNER JOIN files_archives ON files.archive=files_archives.archive WHERE fileid=%s;", [fileid])
 			row = db.cursor.fetchone()
 
 			FILENAME = os.path.join(r'C:\Users\au195407\Documents\flows_archive', row['path']) # row['archive_path']
-			target = row['targetid']
+			targetid = row['targetid']
 			photfilter = row['photfilter']
+
+	# Settings:
+	background_cutoff = 1000 # All pixels above this threshold are masked during background estimation
+	ref_mag_limit = 17 # Lower limit on reference target brightness
+	ref_target_dist_limit = 30 # Reference star must be further than this away to be included
 
 	# Translate photometric filter into table column:
 	if photfilter in ('B', 'V', 'gp'):
@@ -96,28 +108,23 @@ def photometry(fileid=None):
 	else:
 		ref_filter = 'g_mag'
 
-	background_cutoff = 1000 # All pixels above this threshold are masked during background estimation
-	ref_mag_limit = 17 # Lower limit on reference target brightness
-	ref_target_dist_limit = 30 # Reference star must be further than this away to be included
-
 	# Load the image from the FITS file:
 	image = load_image(FILENAME)
 
 	# Get the catalog containing the target and reference stars:
 	# TODO: Include proper-motion to the time of observation
-	catalog = get_catalog(target)
+	catalog = get_catalog(targetid, output='table')
+	target = catalog['target'][0]
+	references = catalog['references']
+	references.sort(ref_filter)
 
 	# Extract information about target:
-	target_name = catalog['target']['target_name']
-	target_coord = coords.SkyCoord(ra=catalog['target']['ra'], dec=catalog['target']['decl'], unit='deg', frame='icrs')
+	target_name = str(target['target_name'])
+	target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
 
 	# Folder to save output:
-	output_folder = os.path.join(r'C:\Users\au195407\Documents\flows_archive', target_name, '%04d' % fileid)
+	output_folder = os.path.join(os.path.dirname(FILENAME), '%04d' % fileid)
 	os.makedirs(output_folder, exist_ok=True)
-
-	# Reference stars:
-	references = Table(rows=catalog['references'])
-	references.sort(ref_filter)
 
 	# Calculate pixel-coordinates of references:
 	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra'], ref['decl']] for ref in references]), 0)
@@ -125,7 +132,7 @@ def photometry(fileid=None):
 	references['pixel_row'] = row_col_coords[:,1]
 
 	# Calculate the targets position in the image:
-	target_pixel_pos = image.wcs.all_world2pix([[catalog['target']['ra'], catalog['target']['decl']]], 0)[0]
+	target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
 
 	# Clean out the references:
 	hsize = 10
@@ -187,7 +194,7 @@ def photometry(fileid=None):
 
 	fwhms_clean = sigma_clip(masked_fwhms, maxiters=20, sigma=2.0)
 	fwhm = np.mean(fwhms_clean)
-	print(fwhm)
+	logger.debug("FWHM: %f", fwhm)
 
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
@@ -201,7 +208,7 @@ def photometry(fileid=None):
 	references = references[indx_good]
 
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
-	plot_image(image.subclean, ax=ax, scale='log', make_cbar=True)
+	plot_image(image.subclean, ax=ax, scale='log', make_cbar=True, title=target_name)
 	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', alpha=0.3)
 	ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', alpha=0.3)
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', c='r')
@@ -226,10 +233,8 @@ def photometry(fileid=None):
 	stars_for_epsf['y'] = y[mask_near_edge]
 
 	# Store which stars were used in ePSF in the table:
-	print("Number of stars used for ePSF: %d" % len(stars_for_epsf))
+	logger.info("Number of stars used for ePSF: %d", len(stars_for_epsf))
 	references['used_for_epsf'] = mask_near_edge
-
-	print(stars_for_epsf)
 
 	# Extract stars sub-images:
 	stars = extract_stars(
@@ -263,21 +268,44 @@ def photometry(fileid=None):
 		progress_bar=True
 	)(stars)[0]
 
-	print('Successfully built PSF model')
+	logger.info('Successfully built PSF model')
 
-	profile = image.epsf.data.sum(axis=0)
-	itop = profile.argmax()
-	left = np.argmin((profile[:itop] - profile.max()/2)**2)
-	right = np.argmin((profile[itop:] - profile.max()/2)**2) + itop
-	fwhm = (right - left) / image.epsf.oversampling
-	print(fwhm)
+	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 15))
+	plot_image(image.epsf.data, ax=ax1, cmap='viridis', xlabel=None, ylabel=None)
 
-	fig, ax = plt.subplots(2, 1)
-	plot_image(image.epsf.data, ax=ax[0], cmap='viridis', make_cbar=True)
-	ax[1].plot(profile, 'k-')
-	ax[1].axvline(itop)
-	ax[1].axvline(itop - fwhm/2)
-	ax[1].axvline(itop + fwhm/2)
+	fwhms = []
+	for a, ax in ((0, ax3), (1, ax2)):
+		# Collapse the PDF along this axis:
+		profile = image.epsf.data.sum(axis=a)
+		itop = profile.argmax()
+		poffset = profile[itop]/2
+
+		# Run a spline through the points, but subtract half of the peak value, and find the roots:
+		# We have to use a cubic spline, since roots() is not supported for other splines
+		# for some reason
+		profile_intp = UnivariateSpline(np.arange(0, len(profile)), profile - poffset, k=3, s=0, ext=3)
+		lr = profile_intp.roots()
+		axis_fwhm = lr[1] - lr[0]
+
+		fwhms.append(axis_fwhm)
+		print(axis_fwhm)
+
+		x_fine = np.linspace(-0.5, len(profile)-0.5, 500)
+
+		ax.plot(profile, 'k.-')
+		ax.plot(x_fine, profile_intp(x_fine) + poffset, 'g-')
+		ax.axvline(itop)
+		ax.axvspan(lr[0], lr[1], facecolor='g', alpha=0.2)
+		ax.set_xlim(-0.5, len(profile)-0.5)
+
+	# Let's make the final FWHM the largest one we found:
+	fwhm = np.max(fwhms)
+	logger.info("Final FWHM based on ePSF: %f", fwhm)
+
+	#ax2.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
+	#ax3.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
+	ax4.axis('off')
+
 	fig.savefig(os.path.join(output_folder, 'epsf.png'))
 	plt.show()
 
@@ -300,13 +328,14 @@ def photometry(fileid=None):
 
 	apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli], mask=image.mask)
 
-	print(apphot_tbl)
+	logger.debug("Aperture Photometry Table: %s", apphot_tbl)
 
 	# Subtract background estimated from annuli:
 	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
-	#error = np.sqrt(error**2 + (phot['aperture_sum_err_1']/annuli.area() * apertures.area() )**2)
+	#flux_aperture_error = np.sqrt(error**2 + (phot['aperture_sum_err_1']/annuli.area() * apertures.area() )**2)
+	flux_aperture_error = 0
 
-	print('App. Phot Success')
+	logger.info('Apperature Photometry Success')
 
 	#==============================================================================================
 	# PSF PHOTOMETRY
@@ -330,17 +359,17 @@ def photometry(fileid=None):
 		init_guesses=Table(coordinates, names=['x_0', 'y_0'])
 	)
 
-	print(psfphot_tbl)
-	print('Psf Phot Success')
+	logger.debug("PSF Photometry Table: %s", psfphot_tbl)
+	logger.info('PSF Photometry Success')
 
 	# Build results table:
 	tab = references.copy()
-	tab.insert_row(0, {'starid': 0, 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
+	tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
 	tab[0]['H_mag'] = None
 	#
 
 	tab['flux_aperture'] = flux_aperture
-	tab['flux_aperture_error'] = 0
+	tab['flux_aperture_error'] = flux_aperture_error
 	tab['flux_psf'] = psfphot_tbl['flux_fit']
 	tab['flux_psf_error'] = psfphot_tbl['flux_unc']
 	tab['pixel_column_psf_fit'] = psfphot_tbl['x_fit']
@@ -373,7 +402,6 @@ def photometry(fileid=None):
 
 	# Extract zero-point and estimate its error:
 	# I don't know why there is not an error-estimate attached directly to the Parameter?
-	print(best_fit)
 	zp = best_fit.intercept.value
 	zp_error = nanstd(y[~sigma_clipped] - best_fit(x[~sigma_clipped]))
 
@@ -395,14 +423,6 @@ def photometry(fileid=None):
 	#==============================================================================================
 
 	# Descriptions of columns:
-	tab['starid'].description = 'Unique identifier in REFCAT2 catalog'
-	tab['ra'].description = 'Right ascension'
-	tab['ra'].unit = u.deg
-	tab['decl'].description = 'Declination'
-	tab['decl'].unit = u.deg
-	tab['pm_ra'].unit = u.mas/u.yr
-	tab['pm_dec'].unit = u.mas/u.yr
-	tab['distance'].unit = u.deg
 	tab['pixel_column'].unit = u.pixel
 	tab['pixel_row'].unit = u.pixel
 	tab['pixel_column_psf_fit'].unit = u.pixel
@@ -411,12 +431,15 @@ def photometry(fileid=None):
 	tab['pixel_row_psf_fit_error'].unit = u.pixel
 
 	# Meta-data:
-	tab.meta['targetid'] = target
 	tab.meta['fileid'] = fileid
 	tab.meta['photfilter'] = photfilter
 	tab.meta['fwhm'] = fwhm
-	tab.meta['obstime'] = image.obstime
+	tab.meta['obstime-bmjd'] = float(image.obstime.mjd)
 	tab.meta['zp'] = zp
+	tab.meta['zp_error'] = zp_error
 
 	print(tab)
 	tab.write(os.path.join(output_folder, 'photometry.ecsv'), format='ascii.ecsv', delimiter=',', overwrite=True)
+
+	toc = default_timer()
+	logger.info("Photometry took: %f seconds", toc-tic)
