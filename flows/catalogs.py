@@ -41,16 +41,23 @@ def configure_casjobs():
 		return
 
 	config = load_config()
+	wsid = config.get('casjobs', 'wsid', fallback=None)
+	passwd = config.get('casjobs', 'password', fallback=None)
+	if wsid is None or passwd is None:
+		raise CasjobsException("CasJobs WSID and PASSWORD not in config.ini")
 
-	with open(casjobs_config, 'w') as fid:
-		fid.write("wsid={0:d}\n".format(config.get('casjobs', 'wsid')))
-		fid.write("password={0:s}\n".format(config.get('casjobs', 'password')))
-		fid.write("default_target=HLSP_ATLAS_REFCAT2\n")
-		fid.write("default_queue=1\n")
-		fid.write("default_days=1\n")
-		fid.write("verbose=false\n")
-		fid.write("debug=false\n")
-		fid.write("jobs_location=http://mastweb.stsci.edu/gcasjobs/services/jobs.asmx\n")
+	try:
+		with open(casjobs_config, 'w') as fid:
+			fid.write("wsid={0:s}\n".format(wsid))
+			fid.write("password={0:s}\n".format(passwd))
+			fid.write("default_target=HLSP_ATLAS_REFCAT2\n")
+			fid.write("default_queue=1\n")
+			fid.write("default_days=1\n")
+			fid.write("verbose=false\n")
+			fid.write("debug=false\n")
+			fid.write("jobs_location=http://mastweb.stsci.edu/gcasjobs/services/jobs.asmx\n")
+	except:
+		os.remove(casjobs_config)
 
 #--------------------------------------------------------------------------------------------------
 def query_casjobs_refcat2(ra, dec, radius=24.0/60.0):
@@ -138,6 +145,8 @@ def query_casjobs_refcat2(ra, dec, radius=24.0/60.0):
 #--------------------------------------------------------------------------------------------------
 def download_catalog(target=None):
 
+	logger = logging.getLogger(__name__)
+
 	with AADC_DB() as db:
 
 		# Get the information about the target from the database:
@@ -190,6 +199,7 @@ def download_catalog(target=None):
 				%(H_mag)s,
 				%(K_mag)s)
 			ON CONFLICT DO NOTHING;""", results)
+			logger.info("%d catalog entries inserted.", db.cursor.rowcount)
 
 			# Mark the target that the catalog has been downloaded:
 			db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE WHERE targetid=%s;", (targetid,))

@@ -21,7 +21,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	# Set logging level:
-	logging_level = logging.INFO
+	logging_level = logging.DEBUG
 	if args.quiet:
 		logging_level = logging.WARNING
 	elif args.debug:
@@ -31,7 +31,7 @@ if __name__ == '__main__':
 	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 	console = logging.StreamHandler()
 	console.setFormatter(formatter)
-	logger = logging.getLogger(__name__)
+	logger = logging.getLogger('flows')
 	logger.addHandler(console)
 	logger.setLevel(logging_level)
 

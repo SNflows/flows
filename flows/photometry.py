@@ -11,6 +11,7 @@ import numpy as np
 from bottleneck import nanstd
 from timeit import default_timer
 import logging
+import sys
 
 import astropy.units as u
 import astropy.coordinates as coords
@@ -28,10 +29,8 @@ from photutils import Background2D, SExtractorBackground
 
 from scipy.interpolate import UnivariateSpline
 
-from imexam.imexamine import Imexamine
-
 from .catalogs import get_catalog
-from .aadc_db import AADC_DB
+from .datafiles import get_datafile
 from .plots import plt, plot_image
 
 #--------------------------------------------------------------------------------------------------
@@ -82,14 +81,12 @@ def photometry(fileid=None):
 	logger = logging.getLogger(__name__)
 	tic = default_timer()
 
-	if fileid is not None:
-		with AADC_DB() as db:
-			db.cursor.execute("SELECT files.*, files_archives.path AS archive_path FROM flows.files INNER JOIN files_archives ON files.archive=files_archives.archive WHERE fileid=%s;", [fileid])
-			row = db.cursor.fetchone()
-
-			FILENAME = os.path.join(r'C:\Users\au195407\Documents\flows_archive', row['path']) # row['archive_path']
-			targetid = row['targetid']
-			photfilter = row['photfilter']
+	# Get datafile dict from API:
+	datafile = get_datafile(fileid)
+	print(datafile)
+	FILENAME = os.path.join(r'C:\Users\au195407\Documents\flows_archive', datafile['path']) # datafile['archive_path']
+	targetid = datafile['targetid']
+	photfilter = datafile['photfilter']
 
 	# Settings:
 	background_cutoff = 1000 # All pixels above this threshold are masked during background estimation
@@ -179,22 +176,43 @@ def photometry(fileid=None):
 
 	print(references)
 
-	# Do an initial estimation of the PSF Full-width-half-maximum:
-	# TODO: Could we do this ourselves, without using external dependency
-	plots = Imexamine()
+	radius=10
+
+	# Extract stars sub-images:
+	#stars = extract_stars(
+	#	NDData(data=image.subclean, mask=image.mask),
+	#	stars_for_epsf,
+	#	size=size
+	#)
+
+	# Set up 2D Gaussian model for fitting to reference stars:
+	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius)
+	g2d.y_stddev.tied = lambda model: model.x_stddev
+	g2d.theta.fixed = True
+
+	gfitter = fitting.LevMarLSQFitter()
+
 	fwhms = np.full(len(references), np.NaN)
 	for i, (x, y) in enumerate(zip(references['pixel_column'], references['pixel_row'])):
-		try:
-			fwhms[i] = (plots.line_fit(x, y, image.subclean, genplot=False).stddev_0 * gaussian_sigma_to_fwhm)
-		except ValueError:
-			fwhms[i] = np.NaN
+		x = np.round(x).astype(int)
+		y = np.round(y).astype(int)
+		x0, y0, width, height = x - radius, y - radius, 2 * radius, 2 * radius
+		cutout = slice(y0 - 1, y0 + height), slice(x0 - 1, x0 + width)
+
+		curr_star = image.subclean[cutout] / np.max(image.subclean[cutout])
+		npix=len(curr_star)
+
+		ypos, xpos = np.mgrid[:npix, :npix]
+
+		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
+
+		fwhms[i] = gfit.x_stddev * gaussian_sigma_to_fwhm
 
 	mask = ~np.isfinite(fwhms) | (fwhms < 3.5) | (fwhms > 11.0)
 	masked_fwhms = np.ma.MaskedArray(fwhms, mask)
 
-	fwhms_clean = sigma_clip(masked_fwhms, maxiters=20, sigma=2.0)
-	fwhm = np.mean(fwhms_clean)
-	logger.debug("FWHM: %f", fwhm)
+	fwhm = np.mean(sigma_clip(masked_fwhms, maxiters=20, sigma=2.0))
+	logger.info("FWHM: %f", fwhm)
 
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
