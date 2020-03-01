@@ -18,7 +18,7 @@ import astropy.coordinates as coords
 from astropy.time import Time
 from astropy.wcs import WCS
 from astropy.io import fits
-from astropy.stats import sigma_clip, gaussian_sigma_to_fwhm, SigmaClip
+from astropy.stats import sigma_clip, gaussian_sigma_to_fwhm, SigmaClip, gaussian_fwhm_to_sigma
 from astropy.table import Table
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
@@ -174,9 +174,12 @@ def photometry(fileid=None):
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
 	#==============================================================================================
 
-	print(references)
+	logger.info("References:\n%s", references)
 
 	radius=10
+	fwhm_guess = 6.0
+	fwhm_min = 3.5
+	fwhm_max = 13.5
 
 	# Extract stars sub-images:
 	#stars = extract_stars(
@@ -186,7 +189,11 @@ def photometry(fileid=None):
 	#)
 
 	# Set up 2D Gaussian model for fitting to reference stars:
-	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius)
+	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius, x_stddev=fwhm_guess*gaussian_fwhm_to_sigma)
+	g2d.amplitude.bounds = (0.1, 2.0)
+	g2d.x_mean.bounds = (0.5*radius, 1.5*radius)
+	g2d.y_mean.bounds = (0.5*radius, 1.5*radius)
+	g2d.x_stddev.bounds = (fwhm_min * gaussian_fwhm_to_sigma, fwhm_max * gaussian_fwhm_to_sigma)
 	g2d.y_stddev.tied = lambda model: model.x_stddev
 	g2d.theta.fixed = True
 
@@ -194,21 +201,20 @@ def photometry(fileid=None):
 
 	fwhms = np.full(len(references), np.NaN)
 	for i, (x, y) in enumerate(zip(references['pixel_column'], references['pixel_row'])):
-		x = np.round(x).astype(int)
-		y = np.round(y).astype(int)
+		x = int(np.round(x))
+		y = int(np.round(y))
 		x0, y0, width, height = x - radius, y - radius, 2 * radius, 2 * radius
 		cutout = slice(y0 - 1, y0 + height), slice(x0 - 1, x0 + width)
 
 		curr_star = image.subclean[cutout] / np.max(image.subclean[cutout])
-		npix=len(curr_star)
+		npix = len(curr_star)
 
 		ypos, xpos = np.mgrid[:npix, :npix]
-
 		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
 
-		fwhms[i] = gfit.x_stddev * gaussian_sigma_to_fwhm
+		fwhms[i] = gfit.x_fwhm
 
-	mask = ~np.isfinite(fwhms) | (fwhms < 3.5) | (fwhms > 11.0)
+	mask = ~np.isfinite(fwhms) | (fwhms <= fwhm_min) | (fwhms >= fwhm_max)
 	masked_fwhms = np.ma.MaskedArray(fwhms, mask)
 
 	fwhm = np.mean(sigma_clip(masked_fwhms, maxiters=20, sigma=2.0))
@@ -306,7 +312,6 @@ def photometry(fileid=None):
 		axis_fwhm = lr[1] - lr[0]
 
 		fwhms.append(axis_fwhm)
-		print(axis_fwhm)
 
 		x_fine = np.linspace(-0.5, len(profile)-0.5, 500)
 
