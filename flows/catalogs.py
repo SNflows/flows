@@ -28,16 +28,20 @@ def intval(value):
 	return None if value == '' else int(value)
 
 #--------------------------------------------------------------------------------------------------
-def configure_casjobs():
+def configure_casjobs(overwrite=False):
 	"""
 	Set up CasJobs if needed.
+
+	Parameters:
+		overwrite (bool, optional): Overwrite existing configuration. Default (False) is to not
+			overwrite existing configuration.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
 	__dir__ = os.path.dirname(os.path.realpath(__file__))
 	casjobs_config = os.path.join(__dir__, 'casjobs', 'CasJobs.config')
-	if os.path.exists(casjobs_config):
+	if os.path.isfile(casjobs_config) and not overwrite:
 		return
 
 	config = load_config()

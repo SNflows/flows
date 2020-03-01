@@ -32,7 +32,8 @@ if __name__ == '__main__':
 	console = logging.StreamHandler()
 	console.setFormatter(formatter)
 	logger = logging.getLogger('flows')
-	logger.addHandler(console)
+	if not logger.hasHandlers():
+		logger.addHandler(console)
 	logger.setLevel(logging_level)
 
 	photometry.photometry(fileid=25)

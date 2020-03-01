@@ -346,7 +346,7 @@ def photometry(fileid=None):
 
 	apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli], mask=image.mask)
 
-	logger.debug("Aperture Photometry Table: %s", apphot_tbl)
+	logger.debug("Aperture Photometry Table:\n%s", apphot_tbl)
 
 	# Subtract background estimated from annuli:
 	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
@@ -377,7 +377,7 @@ def photometry(fileid=None):
 		init_guesses=Table(coordinates, names=['x_0', 'y_0'])
 	)
 
-	logger.debug("PSF Photometry Table: %s", psfphot_tbl)
+	logger.debug("PSF Photometry Table:\n%s", psfphot_tbl)
 	logger.info('PSF Photometry Success')
 
 	# Build results table:
