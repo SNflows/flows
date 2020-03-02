@@ -7,6 +7,7 @@
 
 import astropy.units as u
 from astropy.table import Table
+from astropy.time import Time
 import os.path
 import subprocess
 import shlex
@@ -248,9 +249,13 @@ def get_catalog(target, radius=None, output='table'):
 
 	dict_tables = {}
 
+	# Convert timestamps to actual Time objects:
+	jsn['target']['inserted'] = Time(jsn['target']['inserted'], scale='utc')
+	jsn['target']['discovery_date'] = Time(jsn['target']['discovery_date'], scale='utc')
+
 	tab = Table(
-		names=('targetid', 'target_name', 'ra', 'decl', 'catalog_downloaded'),
-		dtype=('int32', 'str', 'float64', 'float64', 'bool'),
+		names=('targetid', 'target_name', 'ra', 'decl', 'redshift', 'redshift_error', 'discovery_mag', 'catalog_downloaded', 'pointing_model_created', 'inserted', 'discovery_date'),
+		dtype=('int32', 'str', 'float64', 'float64', 'float32', 'float32', 'float32', 'bool', 'bool', 'object', 'object'),
 		rows=[jsn['target']])
 
 	tab['ra'].description = 'Right ascension'

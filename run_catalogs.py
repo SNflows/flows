@@ -32,4 +32,6 @@ if __name__ == '__main__':
 	logger.setLevel(logging_level)
 
 	download_catalog(2)
-	get_catalog(2)
+	cat = get_catalog(2)
+
+	print(cat)
