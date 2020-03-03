@@ -39,7 +39,7 @@ class AADC_DB(object): # pragma: no cover
 		config = load_config()
 
 		if username is None:
-			username = config.get('database', 'username')
+			username = config.get('database', 'username', fallback=None)
 			if username is None:
 				default_username = getpass.getuser()
 				username = input('Username [%s]: ' % default_username)
@@ -47,7 +47,7 @@ class AADC_DB(object): # pragma: no cover
 					username = default_username
 
 		if password is None:
-			password = config.get('database', 'password')
+			password = config.get('database', 'password', fallback=None)
 			if password is None:
 				password = getpass.getpass('Password: ')
 

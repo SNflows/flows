@@ -30,8 +30,7 @@ from photutils.utils import calc_total_error
 
 from scipy.interpolate import UnivariateSpline
 
-from .catalogs import get_catalog
-from .datafiles import get_datafile
+from . import api
 from .plots import plt, plot_image
 
 #--------------------------------------------------------------------------------------------------
@@ -83,7 +82,7 @@ def photometry(fileid=None):
 	tic = default_timer()
 
 	# Get datafile dict from API:
-	datafile = get_datafile(fileid)
+	datafile = api.get_datafile(fileid)
 	logger.debug("Datafile: %s", datafile)
 	FILENAME = os.path.join(r'C:\Users\au195407\Documents\flows_archive', datafile['path']) # datafile['archive_path']
 	targetid = datafile['targetid']
@@ -111,7 +110,7 @@ def photometry(fileid=None):
 
 	# Get the catalog containing the target and reference stars:
 	# TODO: Include proper-motion to the time of observation
-	catalog = get_catalog(targetid, output='table')
+	catalog = api.get_catalog(targetid, output='table')
 	target = catalog['target'][0]
 	references = catalog['references']
 	references.sort(ref_filter)

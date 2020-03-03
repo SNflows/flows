@@ -7,8 +7,7 @@ Created on Mon Feb 24 14:31:29 2020
 
 import argparse
 import logging
-from flows import photometry
-from flows.datafiles import get_datafiles
+from flows import api, photometry
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
@@ -37,7 +36,7 @@ if __name__ == '__main__':
 
 	#photometry.photometry(fileid=25)
 
-	fileids = get_datafiles(targetid=2)
+	fileids = api.get_datafiles(targetid=2)
 	print(fileids)
 	for fid in fileids:
 		photometry.photometry(fileid=fid)

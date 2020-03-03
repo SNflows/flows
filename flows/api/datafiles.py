@@ -7,7 +7,7 @@ Created on Sun Mar  1 12:50:36 2020
 
 import requests
 from datetime import datetime
-from .config import load_config
+from ..config import load_config
 
 #--------------------------------------------------------------------------------------------------
 def get_datafile(fileid):

@@ -7,7 +7,7 @@ Created on Thu Feb 27 12:43:21 2020
 
 import argparse
 import logging
-from flows.catalogs import get_catalog, download_catalog, get_catalog_missing
+from flows import api, download_catalog
 
 if __name__ == '__main__':
 	# Parse command line arguments:
@@ -32,9 +32,9 @@ if __name__ == '__main__':
 		logger.addHandler(console)
 	logger.setLevel(logging_level)
 
-	for targetid in get_catalog_missing():
+	for targetid in api.get_catalog_missing():
 		logger.info("Downloading catalog for targetid=%d...", targetid)
 		download_catalog(targetid)
 
-	cat = get_catalog(2)
+	cat = api.get_catalog(2)
 	print(cat)
