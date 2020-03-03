@@ -31,6 +31,9 @@ from scipy.interpolate import UnivariateSpline
 
 from . import api
 from .plots import plt, plot_image
+from .version import get_version
+
+__version__ = get_version(pep440=False)
 
 #--------------------------------------------------------------------------------------------------
 def load_image(FILENAME):
@@ -458,7 +461,8 @@ def photometry(fileid):
 	tab['pixel_row_psf_fit_error'].unit = u.pixel
 
 	# Meta-data:
-	tab.meta['version'] = 'devel' # TODO: Use actualy version here
+	print(__version__)
+	tab.meta['version'] = __version__
 	tab.meta['fileid'] = fileid
 	tab.meta['photfilter'] = photfilter
 	tab.meta['fwhm'] = fwhm
