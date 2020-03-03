@@ -12,13 +12,11 @@ from flows.datafiles import get_datafiles
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
-
 	# Parse command line arguments:
-	parser = argparse.ArgumentParser(description='Run TESS Photometry pipeline on single star.')
+	parser = argparse.ArgumentParser(description='Run photometry pipeline.')
 	parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
 	parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
 	parser.add_argument('-o', '--overwrite', help='Overwrite existing results.', action='store_true')
-	parser.add_argument('-p', '--plot', help='Save plots when running.', action='store_true')
 	args = parser.parse_args()
 
 	# Set logging level:
