@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Feb 24 14:31:29 2020
 
-@author: au195407
+.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
 import argparse

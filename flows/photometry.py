@@ -11,7 +11,6 @@ import numpy as np
 from bottleneck import nanstd
 from timeit import default_timer
 import logging
-import sys
 
 import astropy.units as u
 import astropy.coordinates as coords
@@ -69,9 +68,9 @@ def load_image(FILENAME):
 	return image
 
 #--------------------------------------------------------------------------------------------------
-def photometry(fileid=None):
+def photometry(fileid):
 	"""
-
+	Run photometry.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""

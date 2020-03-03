@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Mar  1 12:50:36 2020
 
-@author: au195407
+.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
 import requests
