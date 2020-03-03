@@ -8,6 +8,7 @@ Created on Mon Feb 24 14:31:29 2020
 import argparse
 import logging
 from flows import photometry
+from flows.datafiles import get_datafiles
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
@@ -36,4 +37,9 @@ if __name__ == '__main__':
 		logger.addHandler(console)
 	logger.setLevel(logging_level)
 
-	photometry.photometry(fileid=25)
+	#photometry.photometry(fileid=25)
+
+	fileids = get_datafiles(targetid=2)
+	print(fileids)
+	for fid in fileids:
+		photometry.photometry(fileid=fid)

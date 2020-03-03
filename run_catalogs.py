@@ -7,11 +7,11 @@ Created on Thu Feb 27 12:43:21 2020
 
 import argparse
 import logging
-from flows.catalogs import get_catalog, download_catalog
+from flows.catalogs import get_catalog, download_catalog, get_catalog_missing
 
 if __name__ == '__main__':
 	# Parse command line arguments:
-	parser = argparse.ArgumentParser(description='Run TESS Photometry pipeline on single star.')
+	parser = argparse.ArgumentParser(description='Run catalog.')
 	parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
 	parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
 	args = parser.parse_args()
@@ -28,10 +28,13 @@ if __name__ == '__main__':
 	console = logging.StreamHandler()
 	console.setFormatter(formatter)
 	logger = logging.getLogger('flows')
-	logger.addHandler(console)
+	if not logger.hasHandlers():
+		logger.addHandler(console)
 	logger.setLevel(logging_level)
 
-	download_catalog(2)
-	cat = get_catalog(2)
+	for targetid in get_catalog_missing():
+		logger.info("Downloading catalog for targetid=%d...", targetid)
+		download_catalog(targetid)
 
+	cat = get_catalog(2)
 	print(cat)

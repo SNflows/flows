@@ -18,7 +18,7 @@ import astropy.coordinates as coords
 from astropy.time import Time
 from astropy.wcs import WCS
 from astropy.io import fits
-from astropy.stats import sigma_clip, gaussian_sigma_to_fwhm, SigmaClip, gaussian_fwhm_to_sigma
+from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
 from astropy.table import Table
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
@@ -26,6 +26,7 @@ from astropy.modeling import models, fitting
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.psf import EPSFBuilder, EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
 from photutils import Background2D, SExtractorBackground
+from photutils.utils import calc_total_error
 
 from scipy.interpolate import UnivariateSpline
 
@@ -83,7 +84,7 @@ def photometry(fileid=None):
 
 	# Get datafile dict from API:
 	datafile = get_datafile(fileid)
-	print(datafile)
+	logger.debug("Datafile: %s", datafile)
 	FILENAME = os.path.join(r'C:\Users\au195407\Documents\flows_archive', datafile['path']) # datafile['archive_path']
 	targetid = datafile['targetid']
 	photfilter = datafile['photfilter']
@@ -168,7 +169,10 @@ def photometry(fileid=None):
 	plot_image(image.clean, ax=ax[0], scale='log', title='Original')
 	plot_image(image.background, ax=ax[1], scale='log', title='Background')
 	plot_image(image.subclean, ax=ax[2], scale='log', title='Background subtracted')
-	fig.savefig(os.path.join(output_folder, 'background.png'))
+	fig.savefig(os.path.join(output_folder, 'background.png'), bbox_inches='tight')
+
+	# TODO: Is this correct?!
+	image.error = calc_total_error(image.clean, bkg.background_rms, 1.0) # image.exptime
 
 	#==============================================================================================
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
@@ -236,7 +240,7 @@ def photometry(fileid=None):
 	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', alpha=0.3)
 	ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', alpha=0.3)
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', c='r')
-	fig.savefig(os.path.join(output_folder, 'positions.png'))
+	fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
 	plt.show()
 
 	#==============================================================================================
@@ -281,7 +285,7 @@ def photometry(fileid=None):
 				plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis', xlabel=None, ylabel=None)
 			imgnr += 1
 
-		fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k+1)))
+		fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k+1)), bbox_inches='tight')
 		plt.close(fig)
 
 	# Build the ePSF:
@@ -328,8 +332,7 @@ def photometry(fileid=None):
 	#ax2.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
 	#ax3.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
 	ax4.axis('off')
-
-	fig.savefig(os.path.join(output_folder, 'epsf.png'))
+	fig.savefig(os.path.join(output_folder, 'epsf.png'), bbox_inches='tight')
 	plt.show()
 
 	#==============================================================================================
@@ -349,14 +352,13 @@ def photometry(fileid=None):
 	apertures = CircularAperture(coordinates, r=fwhm)
 	annuli = CircularAnnulus(coordinates, r_in=1.5*fwhm, r_out=2.5*fwhm)
 
-	apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli], mask=image.mask)
+	apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli], mask=image.mask, error=image.error)
 
 	logger.debug("Aperture Photometry Table:\n%s", apphot_tbl)
 
 	# Subtract background estimated from annuli:
 	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
-	#flux_aperture_error = np.sqrt(error**2 + (phot['aperture_sum_err_1']/annuli.area() * apertures.area() )**2)
-	flux_aperture_error = 0
+	flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0']**2 + (apphot_tbl['aperture_sum_err_1']/annuli.area() * apertures.area())**2)
 
 	logger.info('Apperature Photometry Success')
 
@@ -388,9 +390,10 @@ def photometry(fileid=None):
 	# Build results table:
 	tab = references.copy()
 	tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
-	tab[0]['H_mag'] = None
-	#
+	for key in ('pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'H_mag','J_mag','K_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'):
+		tab[0][key] = np.NaN
 
+	# Add table columns with results:
 	tab['flux_aperture'] = flux_aperture
 	tab['flux_aperture_error'] = flux_aperture_error
 	tab['flux_psf'] = psfphot_tbl['flux_fit']
@@ -404,16 +407,19 @@ def photometry(fileid=None):
 	# CALIBRATE
 	#==============================================================================================
 
-	mag_catalog = tab[ref_filter]
+	# Convert PSF fluxes to magnitudes:
 	mag_inst = -2.5 * np.log10(tab['flux_psf'] / image.exptime)
-	mag_inst_err = tab['flux_psf_error'] / tab['flux_psf']/image.exptime * 1.0857 # ??????????????
-	print(mag_inst_err)
+	mag_inst_err = (2.5/np.log(10)) * (tab['flux_psf_error'] / (tab['flux_psf']/image.exptime))
+
+	# Corresponding magnitudes in catalog:
+	mag_catalog = tab[ref_filter]
 
 	# Mask out things that should not be used in calibration:
 	use_for_calibration = np.ones_like(mag_catalog, dtype='bool')
 	use_for_calibration[0] = False # Do not use target for calibration
 	use_for_calibration[~np.isfinite(mag_inst) | ~np.isfinite(mag_catalog)] = False
 
+	# Just creating some short-hands:
 	x = mag_catalog[use_for_calibration]
 	y = mag_inst[use_for_calibration]
 	yerr = mag_inst_err[use_for_calibration]
@@ -438,7 +444,7 @@ def photometry(fileid=None):
 	ax.plot(x, best_fit(x), color='g', linewidth=3)
 	ax.set_xlabel('Catalog magnitude')
 	ax.set_ylabel('Instrumental magnitude')
-	fig.savefig(os.path.join(output_folder, 'calibration.png'))
+	fig.savefig(os.path.join(output_folder, 'calibration.png'), bbox_inches='tight')
 	plt.show()
 
 	#==============================================================================================
@@ -454,6 +460,7 @@ def photometry(fileid=None):
 	tab['pixel_row_psf_fit_error'].unit = u.pixel
 
 	# Meta-data:
+	tab.meta['version'] = 'devel' # TODO: Use actualy version here
 	tab.meta['fileid'] = fileid
 	tab.meta['photfilter'] = photfilter
 	tab.meta['fwhm'] = fwhm
@@ -461,8 +468,13 @@ def photometry(fileid=None):
 	tab.meta['zp'] = zp
 	tab.meta['zp_error'] = zp_error
 
-	print(tab)
-	tab.write(os.path.join(output_folder, 'photometry.ecsv'), format='ascii.ecsv', delimiter=',', overwrite=True)
+	# Filepath where to save photometry:
+	photometry_output = os.path.join(output_folder, 'photometry.ecsv')
+
+	# Write the final table to file:
+	tab.write(photometry_output, format='ascii.ecsv', delimiter=',', overwrite=True)
 
 	toc = default_timer()
 	logger.info("Photometry took: %f seconds", toc-tic)
+
+	return photometry_output

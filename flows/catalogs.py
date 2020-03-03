@@ -8,6 +8,7 @@
 import astropy.units as u
 from astropy.table import Table
 from astropy.time import Time
+import datetime
 import os.path
 import subprocess
 import shlex
@@ -238,20 +239,20 @@ def get_catalog(target, radius=None, output='table'):
 		raise Exception("No API token has been defined")
 
 	#
-	r = requests.get('https://neo.phys.au.dk/pipeline/reference_stars.php',
+	r = requests.get('https://flows.phys.au.dk/pipeline/reference_stars.php',
 		params={'target': target},
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
 	jsn = r.json()
 
+	# Convert timestamps to actual Time objects:
+	jsn['target']['inserted'] = Time(jsn['target']['inserted'], scale='utc')
+	jsn['target']['discovery_date'] = Time(jsn['target']['discovery_date'], scale='utc')
+
 	if output in ('json', 'dict'):
 		return jsn
 
 	dict_tables = {}
-
-	# Convert timestamps to actual Time objects:
-	jsn['target']['inserted'] = Time(jsn['target']['inserted'], scale='utc')
-	jsn['target']['discovery_date'] = Time(jsn['target']['discovery_date'], scale='utc')
 
 	tab = Table(
 		names=('targetid', 'target_name', 'ra', 'decl', 'redshift', 'redshift_error', 'discovery_mag', 'catalog_downloaded', 'pointing_model_created', 'inserted', 'discovery_date'),
@@ -301,3 +302,18 @@ def get_catalog(target, radius=None, output='table'):
 		dict_tables[table_name] = tab
 
 	return dict_tables
+
+#--------------------------------------------------------------------------------------------------
+def get_catalog_missing():
+
+	# Get API token from config file:
+	config = load_config()
+	token = config.get('api', 'token', fallback=None)
+	if token is None:
+		raise Exception("No API token has been defined")
+
+	#
+	r = requests.get('https://flows.phys.au.dk/pipeline/catalog_missing.php',
+		headers={'Authorization': 'Bearer ' + token})
+	r.raise_for_status()
+	return r.json()
