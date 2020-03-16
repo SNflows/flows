@@ -13,6 +13,7 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Run catalog.')
 	parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
 	parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
+	parser.add_argument('-t', '--target', type=str, help='Target to print catalog for.', nargs='?', default=None)
 	args = parser.parse_args()
 
 	# Set logging level:
@@ -35,5 +36,6 @@ if __name__ == '__main__':
 		logger.info("Downloading catalog for targetid=%d...", targetid)
 		download_catalog(targetid)
 
-	cat = api.get_catalog(2)
-	print(cat)
+	if args.target is not None:
+		cat = api.get_catalog(args.target)
+		print(cat)
