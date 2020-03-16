@@ -11,7 +11,10 @@ import numpy as np
 from bottleneck import nanstd
 from timeit import default_timer
 import logging
+import warnings
 
+from astropy.utils.exceptions import AstropyDeprecationWarning
+warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 import astropy.units as u
 import astropy.coordinates as coords
 from astropy.time import Time
