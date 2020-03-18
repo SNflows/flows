@@ -1,0 +1,54 @@
+language: python
+cache: pip
+os: linux
+dist: xenial
+
+# We are specifying the build matrix manually, since there is too little overlap
+# between the different builds:
+jobs:
+  include:
+    - name: "Python 3.5 on Linux"
+      python: "3.5"
+
+    - name: "Python 3.6 on Linux"
+      python: "3.6"
+
+    - name: "Python 3.7 on Linux"
+      python: "3.7"
+
+    - name: "Flake8"
+      python: "3.6"
+      git:
+        lfs_skip_smudge: true
+      install:
+        - pip install flake8
+      script:
+        - flake8
+
+  # Allow some newer versions of Python to fail for now
+  # This will be changed once the required packages starts
+  # supporting the newer versions of Python:
+  fast_finish: true
+  allow_failures:
+    - name: "Flake8"
+
+branches:
+  only:
+    - master
+    - devel
+    - /^v\d+\.\d+.*$/
+
+before_install:
+  - sudo apt-get update
+  - sudo apt-get -y install sextractor
+
+install:
+  - python -m pip install --upgrade pip
+  - pip install -r requirements.txt
+  - pip install codecov pytest-cov
+
+script:
+  - pytest --cov=flows/
+
+after_success:
+  - codecov
