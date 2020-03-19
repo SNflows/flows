@@ -21,7 +21,7 @@ from astropy.time import Time
 from astropy.wcs import WCS
 from astropy.io import fits
 from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
-from astropy.table import Table
+from astropy.table import Table, vstack
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
 
@@ -35,43 +35,9 @@ from scipy.interpolate import UnivariateSpline
 from . import api
 from .plots import plt, plot_image
 from .version import get_version
+from .load_image import load_image
 
 __version__ = get_version(pep440=False)
-
-#--------------------------------------------------------------------------------------------------
-def load_image(FILENAME):
-	"""
-	Load FITS image.
-
-	Parameters:
-		FILENAME (string): Path to FITS file to be loaded.
-
-	Returns:
-		object: Image constainer.
-
-	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
-	"""
-
-	# Get image and WCS, find stars, remove galaxies
-	image = type('image', (object,), dict()) # image container
-
-	# get image and wcs solution
-	with fits.open(FILENAME, mode='readonly') as hdul:
-		hdr = hdul[0].header
-
-		image.image = hdul[0].data
-		image.wcs = WCS(hdr)
-		image.mask = np.asarray(hdul[2].data, dtype='bool')
-		image.clean = np.ma.masked_array(image.image, image.mask)
-		image.shape = image.image.shape
-
-		# Specific headers:
-		image.exptime = float(hdul[0].header['EXPTIME']) # * u.second
-
-		observatory = coords.EarthLocation.from_geodetic(lat=hdr['LATITUDE'], lon=hdr['LONGITUD'], height=hdr['HEIGHT'])
-		image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=observatory)
-
-	return image
 
 #--------------------------------------------------------------------------------------------------
 def photometry(fileid):
@@ -89,7 +55,8 @@ def photometry(fileid):
 	# Get datafile dict from API:
 	datafile = api.get_datafile(fileid)
 	logger.debug("Datafile: %s", datafile)
-	FILENAME = os.path.join(r'C:\Users\au195407\Documents\flows_archive', datafile['path']) # datafile['archive_path']
+	datafile['archive_path'] = r'C:\Users\au195407\Documents\flows_archive'
+	FILENAME = os.path.join(datafile['archive_path'], datafile['path'])
 	targetid = datafile['targetid']
 	photfilter = datafile['photfilter']
 
@@ -293,7 +260,7 @@ def photometry(fileid):
 		plt.close(fig)
 
 	# Build the ePSF:
-	image.epsf = EPSFBuilder(
+	epsf = EPSFBuilder(
 		oversampling=1.0,
 		maxiters=500,
 		fitter=EPSFFitter(fit_boxsize=2*fwhm),
@@ -303,12 +270,12 @@ def photometry(fileid):
 	logger.info('Successfully built PSF model')
 
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 15))
-	plot_image(image.epsf.data, ax=ax1, cmap='viridis', xlabel=None, ylabel=None)
+	plot_image(epsf.data, ax=ax1, cmap='viridis', xlabel=None, ylabel=None)
 
 	fwhms = []
 	for a, ax in ((0, ax3), (1, ax2)):
 		# Collapse the PDF along this axis:
-		profile = image.epsf.data.sum(axis=a)
+		profile = epsf.data.sum(axis=a)
 		itop = profile.argmax()
 		poffset = profile[itop]/2
 
@@ -346,7 +313,8 @@ def photometry(fileid):
 	coordinates = np.array([[ref['pixel_column'], ref['pixel_row']] for ref in references])
 
 	# Add the main target position as the first entry:
-	coordinates = np.concatenate(([target_pixel_pos], coordinates), axis=0)
+	if datafile.get('template') is None:
+		coordinates = np.concatenate(([target_pixel_pos], coordinates), axis=0)
 
 	#==============================================================================================
 	# APERTURE PHOTOMETRY
@@ -359,11 +327,6 @@ def photometry(fileid):
 	apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli], mask=image.mask, error=image.error)
 
 	logger.debug("Aperture Photometry Table:\n%s", apphot_tbl)
-
-	# Subtract background estimated from annuli:
-	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
-	flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0']**2 + (apphot_tbl['aperture_sum_err_1']/annuli.area() * apertures.area())**2)
-
 	logger.info('Apperature Photometry Success')
 
 	#==============================================================================================
@@ -371,13 +334,13 @@ def photometry(fileid):
 	#==============================================================================================
 
 	# Are we fixing the postions?
-	image.epsf.fixed.update({'x_0': False, 'y_0': False})
+	epsf.fixed.update({'x_0': False, 'y_0': False})
 
 	# Create photometry object:
 	photometry = BasicPSFPhotometry(
 		group_maker=DAOGroup(fwhm),
 		bkg_estimator=SExtractorBackground(),
-		psf_model=image.epsf,
+		psf_model=epsf,
 		fitter=fitting.LevMarLSQFitter(),
 		fitshape=size,
 		aperture_radius=fwhm
@@ -391,11 +354,41 @@ def photometry(fileid):
 	logger.debug("PSF Photometry Table:\n%s", psfphot_tbl)
 	logger.info('PSF Photometry Success')
 
+	#==============================================================================================
+	# TEMPLATE SUBTRACTION AND TARGET PHOTOMETRY
+	#==============================================================================================
+
+	if datafile.get('template') is not None:
+		# Run the template subtraction, and get back
+		# the science image where the template has been subtracted:
+		diffimage = run_imagematch(datafile, target, star_coord=coordinates, fwhm=fwhm)
+
+		# Run aperture photometry on subtracted image:
+		apertures = CircularAperture(target_pixel_pos, r=fwhm)
+		annuli = CircularAnnulus(target_pixel_pos, r_in=1.5*fwhm, r_out=2.5*fwhm)
+		target_apphot_tbl = aperture_photometry(diffimage, [apertures, annuli], mask=image.mask, error=image.error)
+		
+		# Run PSF photometry on template subtracted image:
+		# TODO: Include image.mask?
+		target_psfphot_tbl = photometry(
+			diffimage,
+			init_guesses=Table(target_pixel_pos, names=['x_0', 'y_0'])
+		)
+		print( target_psfphot_tbl )
+
+		# Combine the output tables from the target and the reference stars into one:
+		apphot_tbl = vstack([target_apphot_tbl, apphot_tbl], join_type='exact')
+		psfphot_tbl = vstack([target_psfphot_tbl, psfphot_tbl], join_type='exact')
+
 	# Build results table:
 	tab = references.copy()
 	tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
 	for key in ('pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'H_mag','J_mag','K_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'):
 		tab[0][key] = np.NaN
+
+	# Subtract background estimated from annuli:
+	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
+	flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0']**2 + (apphot_tbl['aperture_sum_err_1']/annuli.area() * apertures.area())**2)
 
 	# Add table columns with results:
 	tab['flux_aperture'] = flux_aperture
