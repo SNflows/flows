@@ -7,8 +7,10 @@
 
 import os.path
 import configparser
+from functools import lru_cache
 
 #--------------------------------------------------------------------------------------------------
+@lru_cache
 def load_config():
 	"""
 	Load configuration file.

@@ -30,6 +30,7 @@ from photutils.utils import calc_total_error
 from scipy.interpolate import UnivariateSpline
 
 from . import api
+from .config import load_config
 from .plots import plt, plot_image
 from .version import get_version
 from .load_image import load_image
@@ -52,12 +53,23 @@ def photometry(fileid):
 	datafile = api.get_datafile(fileid)
 	logger.debug("Datafile: %s", datafile)
 
-	# TODO: Use local copy of archive
-	#datafile['archive_path'] = r'C:\Users\au195407\Documents\flows_archive'
+	# Use local copy of archive if configured to do so:
+	config = load_config()
+	archive_local = config.get('photometry', 'archive_local', fallback=None)
+	if archive_local is not None:
+		datafile['archive_path'] = archive_local
 	if not os.path.isdir(datafile['archive_path']):
-		raise Exception("ARCHIVE is not available")
+		raise FileNotFoundError("ARCHIVE is not available")
 
-	FILENAME = os.path.join(datafile['archive_path'], datafile['path'])
+	# The paths to the science image and template image (if there is one):
+	filepath = os.path.join(datafile['archive_path'], datafile['path'])
+
+	# TODO: Download datafile using API to local drive:
+	# TODO: Is this a security concern?
+	if archive_local:
+		raise NotImplementedError("Here we could download data to local drive")
+		#api.download_datafile(datafile, archive_local)
+
 	targetid = datafile['targetid']
 	photfilter = datafile['photfilter']
 
@@ -80,7 +92,7 @@ def photometry(fileid):
 		ref_filter = 'g_mag'
 
 	# Load the image from the FITS file:
-	image = load_image(FILENAME)
+	image = load_image(filepath)
 
 	# Get the catalog containing the target and reference stars:
 	# TODO: Include proper-motion to the time of observation
@@ -94,7 +106,8 @@ def photometry(fileid):
 	target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
 
 	# Folder to save output:
-	output_folder = os.path.join(os.path.dirname(FILENAME), '%04d' % fileid)
+	# TODO: Change this!
+	output_folder = os.path.join(os.path.dirname(filepath), '%04d' % fileid)
 	os.makedirs(output_folder, exist_ok=True)
 
 	# Calculate pixel-coordinates of references:
