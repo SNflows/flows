@@ -39,7 +39,7 @@ def get_catalog(target, radius=None, output='table'):
 		raise Exception("No API token has been defined")
 
 	#
-	r = requests.get('https://flows.phys.au.dk/pipeline/reference_stars.php',
+	r = requests.get('https://flows.phys.au.dk/api/reference_stars.php',
 		params={'target': target},
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
@@ -112,7 +112,7 @@ def get_catalog_missing():
 		raise Exception("No API token has been defined")
 
 	#
-	r = requests.get('https://flows.phys.au.dk/pipeline/catalog_missing.php',
+	r = requests.get('https://flows.phys.au.dk/api/catalog_missing.php',
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
 	return r.json()

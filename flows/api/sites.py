@@ -18,7 +18,7 @@ def get_site(siteid):
 	if token is None:
 		raise Exception("No API token has been defined")
 
-	r = requests.get('https://flows.phys.au.dk/pipeline/sites.php',
+	r = requests.get('https://flows.phys.au.dk/api/sites.php',
 		params={'siteid': siteid},
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()

@@ -17,9 +17,6 @@ from astropy.utils.exceptions import AstropyDeprecationWarning
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 import astropy.units as u
 import astropy.coordinates as coords
-from astropy.time import Time
-from astropy.wcs import WCS
-from astropy.io import fits
 from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
 from astropy.table import Table, vstack
 from astropy.nddata import NDData
@@ -36,6 +33,7 @@ from . import api
 from .plots import plt, plot_image
 from .version import get_version
 from .load_image import load_image
+from .run_imagematch import run_imagematch
 
 __version__ = get_version(pep440=False)
 
@@ -47,15 +45,18 @@ def photometry(fileid):
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
-	plt.switch_backend('Qt5Agg')
-
 	logger = logging.getLogger(__name__)
 	tic = default_timer()
 
 	# Get datafile dict from API:
 	datafile = api.get_datafile(fileid)
 	logger.debug("Datafile: %s", datafile)
-	datafile['archive_path'] = r'C:\Users\au195407\Documents\flows_archive'
+
+	# TODO: Use local copy of archive
+	#datafile['archive_path'] = r'C:\Users\au195407\Documents\flows_archive'
+	if not os.path.isdir(datafile['archive_path']):
+		raise Exception("ARCHIVE is not available")
+
 	FILENAME = os.path.join(datafile['archive_path'], datafile['path'])
 	targetid = datafile['targetid']
 	photfilter = datafile['photfilter']
@@ -66,7 +67,7 @@ def photometry(fileid):
 	ref_target_dist_limit = 30 # Reference star must be further than this away to be included
 
 	# Translate photometric filter into table column:
-	if photfilter in ('B', 'V', 'gp'):
+	if photfilter == 'gp':
 		ref_filter = 'g_mag'
 	elif photfilter == 'rp':
 		ref_filter = 'r_mag'
@@ -75,6 +76,7 @@ def photometry(fileid):
 	elif photfilter == 'zp':
 		ref_filter = 'z_mag'
 	else:
+		logger.warning("Could not find matching filter in catalogs. Using defalt gp filter.")
 		ref_filter = 'g_mag'
 
 	# Load the image from the FITS file:
@@ -141,9 +143,10 @@ def photometry(fileid):
 	plot_image(image.background, ax=ax[1], scale='log', title='Background')
 	plot_image(image.subclean, ax=ax[2], scale='log', title='Background subtracted')
 	fig.savefig(os.path.join(output_folder, 'background.png'), bbox_inches='tight')
+	plt.close(fig)
 
 	# TODO: Is this correct?!
-	image.error = calc_total_error(image.clean, bkg.background_rms, 1.0) # image.exptime
+	image.error = calc_total_error(image.clean, bkg.background_rms, 1.0)
 
 	#==============================================================================================
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
@@ -190,7 +193,7 @@ def photometry(fileid):
 		fwhms[i] = gfit.x_fwhm
 
 	mask = ~np.isfinite(fwhms) | (fwhms <= fwhm_min) | (fwhms >= fwhm_max)
-	masked_fwhms = np.ma.MaskedArray(fwhms, mask)
+	masked_fwhms = np.ma.masked_array(fwhms, mask)
 
 	fwhm = np.mean(sigma_clip(masked_fwhms, maxiters=20, sigma=2.0))
 	logger.info("FWHM: %f", fwhm)
@@ -212,7 +215,7 @@ def photometry(fileid):
 	ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', alpha=0.3)
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', c='r')
 	fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
-	plt.show()
+	plt.close(fig)
 
 	#==============================================================================================
 	# CREATE EFFECTIVE PSF MODEL
@@ -304,7 +307,7 @@ def photometry(fileid):
 	#ax3.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
 	ax4.axis('off')
 	fig.savefig(os.path.join(output_folder, 'epsf.png'), bbox_inches='tight')
-	plt.show()
+	plt.close(fig)
 
 	#==============================================================================================
 	# COORDINATES TO DO PHOTOMETRY AT
@@ -363,18 +366,33 @@ def photometry(fileid):
 		# the science image where the template has been subtracted:
 		diffimage = run_imagematch(datafile, target, star_coord=coordinates, fwhm=fwhm)
 
-		# Run aperture photometry on subtracted image:
+		# Include mask from original image:
+		diffimage = np.ma.masked_array(diffimage, image.mask)
+
+		# Create apertures around the target:
 		apertures = CircularAperture(target_pixel_pos, r=fwhm)
 		annuli = CircularAnnulus(target_pixel_pos, r_in=1.5*fwhm, r_out=2.5*fwhm)
+
+		# Create two plots of the difference image:
+		fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
+		plot_image(diffimage, ax=ax, make_cbar=True, title=target_name)
+		ax.plot(target_pixel_pos[0], target_pixel_pos[1], marker='+', color='r')
+		fig.savefig(os.path.join(output_folder, 'diffimg.png'), bbox_inches='tight')
+		apertures.plot(axes=ax, color='r')
+		annuli.plot(axes=ax, color='k')
+		ax.set_xlim(target_pixel_pos[0]-50, target_pixel_pos[0]+50)
+		ax.set_ylim(target_pixel_pos[1]-50, target_pixel_pos[1]+50)
+		fig.savefig(os.path.join(output_folder, 'diffimg_zoom.png'), bbox_inches='tight')
+		plt.close(fig)
+
+		# Run aperture photometry on subtracted image:
 		target_apphot_tbl = aperture_photometry(diffimage, [apertures, annuli], mask=image.mask, error=image.error)
-		
+
 		# Run PSF photometry on template subtracted image:
-		# TODO: Include image.mask?
 		target_psfphot_tbl = photometry(
 			diffimage,
 			init_guesses=Table(target_pixel_pos, names=['x_0', 'y_0'])
 		)
-		print( target_psfphot_tbl )
 
 		# Combine the output tables from the target and the reference stars into one:
 		apphot_tbl = vstack([target_apphot_tbl, apphot_tbl], join_type='exact')
@@ -391,10 +409,10 @@ def photometry(fileid):
 	flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0']**2 + (apphot_tbl['aperture_sum_err_1']/annuli.area() * apertures.area())**2)
 
 	# Add table columns with results:
-	tab['flux_aperture'] = flux_aperture
-	tab['flux_aperture_error'] = flux_aperture_error
-	tab['flux_psf'] = psfphot_tbl['flux_fit']
-	tab['flux_psf_error'] = psfphot_tbl['flux_unc']
+	tab['flux_aperture'] = flux_aperture/image.exptime
+	tab['flux_aperture_error'] = flux_aperture_error/image.exptime
+	tab['flux_psf'] = psfphot_tbl['flux_fit']/image.exptime
+	tab['flux_psf_error'] = psfphot_tbl['flux_unc']/image.exptime
 	tab['pixel_column_psf_fit'] = psfphot_tbl['x_fit']
 	tab['pixel_row_psf_fit'] = psfphot_tbl['y_fit']
 	tab['pixel_column_psf_fit_error'] = psfphot_tbl['x_0_unc']
@@ -405,8 +423,8 @@ def photometry(fileid):
 	#==============================================================================================
 
 	# Convert PSF fluxes to magnitudes:
-	mag_inst = -2.5 * np.log10(tab['flux_psf'] / image.exptime)
-	mag_inst_err = (2.5/np.log(10)) * (tab['flux_psf_error'] / (tab['flux_psf']/image.exptime))
+	mag_inst = -2.5 * np.log10(tab['flux_psf'])
+	mag_inst_err = (2.5/np.log(10)) * (tab['flux_psf_error'] / tab['flux_psf'])
 
 	# Corresponding magnitudes in catalog:
 	mag_catalog = tab[ref_filter]
@@ -428,11 +446,11 @@ def photometry(fileid):
 
 	# Extract zero-point and estimate its error:
 	# I don't know why there is not an error-estimate attached directly to the Parameter?
-	zp = best_fit.intercept.value
+	zp = -1*best_fit.intercept.value # Negative, because that is the way zeropoints are usually defined
 	zp_error = nanstd(y[~sigma_clipped] - best_fit(x[~sigma_clipped]))
 
 	# Add calibrated magnitudes to the photometry table:
-	tab['mag'] = mag_inst - zp
+	tab['mag'] = mag_inst + zp
 	tab['mag_error'] = np.sqrt(mag_inst_err**2 + zp_error**2)
 
 	fig, ax = plt.subplots(1, 1)
@@ -442,13 +460,17 @@ def photometry(fileid):
 	ax.set_xlabel('Catalog magnitude')
 	ax.set_ylabel('Instrumental magnitude')
 	fig.savefig(os.path.join(output_folder, 'calibration.png'), bbox_inches='tight')
-	plt.show()
+	plt.close(fig)
 
 	#==============================================================================================
 	# SAVE PHOTOMETRY
 	#==============================================================================================
 
 	# Descriptions of columns:
+	tab['flux_aperture'].unit = u.count/u.second
+	tab['flux_aperture_error'].unit = u.count/u.second
+	tab['flux_psf'].unit = u.count/u.second
+	tab['flux_psf_error'].unit = u.count/u.second
 	tab['pixel_column'].unit = u.pixel
 	tab['pixel_row'].unit = u.pixel
 	tab['pixel_column_psf_fit'].unit = u.pixel
@@ -457,9 +479,9 @@ def photometry(fileid):
 	tab['pixel_row_psf_fit_error'].unit = u.pixel
 
 	# Meta-data:
-	print(__version__)
 	tab.meta['version'] = __version__
 	tab.meta['fileid'] = fileid
+	tab.meta['template'] = None if datafile.get('template') is None else datafile['template']['fileid']
 	tab.meta['photfilter'] = photfilter
 	tab.meta['fwhm'] = fwhm
 	tab.meta['obstime-bmjd'] = float(image.obstime.mjd)

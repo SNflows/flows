@@ -33,9 +33,9 @@ if __name__ == '__main__':
 		logger.addHandler(console)
 	logger.setLevel(logging_level)
 
-	#photometry.photometry(fileid=25)
+	#photometry(fileid=25)
 
 	fileids = api.get_datafiles(targetid=2)
 	print(fileids)
 	for fid in fileids:
-		photometry.photometry(fileid=fid)
+		photometry(fileid=fid)

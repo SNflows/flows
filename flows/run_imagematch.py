@@ -18,7 +18,7 @@ import re
 from astropy.io import fits
 from setuptools import Distribution
 from setuptools.command.install import install
-#from . import api
+from . import api
 
 #--------------------------------------------------------------------------------------------------
 class OnlyGetScriptPath(install):
@@ -44,8 +44,11 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
 
 	logger = logging.getLogger(__name__)
 
+	if datafile.get('template') is None:
+		raise ValueError("DATAFILE input does not specify a template to use.")
+
 	# Extract paths to science and reference images:
-	reference_image = os.path.join(datafile['archive_path'], datafile['template'])
+	reference_image = os.path.join(datafile['archive_path'], datafile['template']['path'])
 	science_image = os.path.join(datafile['archive_path'], datafile['path'])
 
 	# If the target was not provided in the function call,
@@ -85,15 +88,13 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
 	# a lot of extra output files that we don't want to have lying around
 	# after it completes
 	with tempfile.TemporaryDirectory() as tmpdir:
-		tmpdir = os.path.abspath('./tmp12304543235')
-		os.makedirs(tmpdir)
 
 		# Copy the science and reference image to the temp dir:
 		shutil.copy(reference_image, tmpdir)
 		shutil.copy(science_image, tmpdir)
 
 		# Construct the command to run ImageMatch:
-		cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -v -snx {target_ra:.10f}d -sny {target_dec:.10f}d -m "{reference_image:s}" -sub "{science_image:s}"'.format(
+		cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -m "{reference_image:s}" "{science_image:s}"'.format(
 			python=sys.executable,
 			imgmatch=imgmatch,
 			config_file=config_file,
@@ -102,28 +103,24 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
 			target_ra=target['ra'],
 			target_dec=target['decl']
 		)
-		print(cmd)
+		logger.info("Executing command: %s", cmd)
 
 		# Run the command in a subprocess:
 		cmd = shlex.split(cmd)
 		proc = subprocess.Popen(cmd,
 			cwd=tmpdir,
-			#stdout=subprocess.PIPE,
+			stdout=subprocess.PIPE,
 			stderr=subprocess.PIPE,
 			universal_newlines=True)
 		stdout_data, stderr_data = proc.communicate()
 
 		# Check the outputs from the subprocess:
-		print("Return code: %d" % proc.returncode)
+		logger.info("Return code: %d", proc.returncode)
+		logger.info("STDOUT:\n%s", stdout_data.strip())
+		if stderr_data.strip() != '':
+			logger.error("STDERR:\n%s", stderr_data.strip())
 		if proc.returncode < 0:
-			raise Exception("")
-
-		#if stderr_data is not None:
-		print("ERROR: " + stderr_data)
-		#raise Exception("ImageMatch failed")
-		#print(stdout_data)
-
-		print(os.listdir(tmpdir))
+			raise Exception("ImageMatch failed. Processed killed by OS.")
 
 		# Load the resulting difference image into memory:
 		diffimg_path = os.path.join(tmpdir, os.path.splitext(os.path.basename(science_image))[0] + 'diff.fits')
@@ -135,14 +132,3 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
 
 	return diffimg
 
-#--------------------------------------------------------------------------------------------------
-if __name__ == '__main__':
-
-	datafile = {'site': 1, 'archive_path': r'C:\Users\au195407\Documents\flows_archive', 'path': 'SN2019yvr/elp1m008-fa05-20200107-0439-e91.fits', 'template': 'SN2019yvr/templates/20170420T193430_Sloan_i_cpt1m010-fl16-20170420-0097-e91.fits'}
-	target = {'ra': 191.283890127, 'decl': -0.45909033652}
-
-	diffimg = run_imagematch(datafile, target)
-
-	#ImageMatch -cfg "sample.cfg" *_g_*e91.fits -m "20170420T190451_Sloan_g_cpt1m010-fl16-20170420-0091-e91.fits"
-	#ImageMatch -cfg "sample.cfg" *_r_*e91.fits -m "20170420T192210_Sloan_r_cpt1m010-fl16-20170420-0094-e91.fits"
-	#ImageMatch -cfg "sample.cfg" *_i_*e91.fits -m "20170420T193430_Sloan_i_cpt1m010-fl16-20170420-0097-e91.fits"
