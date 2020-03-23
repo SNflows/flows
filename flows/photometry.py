@@ -66,9 +66,8 @@ def photometry(fileid):
 
 	# TODO: Download datafile using API to local drive:
 	# TODO: Is this a security concern?
-	if archive_local:
-		raise NotImplementedError("Here we could download data to local drive")
-		#api.download_datafile(datafile, archive_local)
+	#if archive_local:
+	#	api.download_datafile(datafile, archive_local)
 
 	targetid = datafile['targetid']
 	photfilter = datafile['photfilter']
@@ -88,7 +87,7 @@ def photometry(fileid):
 	elif photfilter == 'zp':
 		ref_filter = 'z_mag'
 	else:
-		logger.warning("Could not find matching filter in catalogs. Using defalt gp filter.")
+		logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
 		ref_filter = 'g_mag'
 
 	# Load the image from the FITS file:

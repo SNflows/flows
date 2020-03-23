@@ -120,7 +120,9 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
 		if stderr_data.strip() != '':
 			logger.error("STDERR:\n%s", stderr_data.strip())
 		if proc.returncode < 0:
-			raise Exception("ImageMatch failed. Processed killed by OS.")
+			raise Exception("ImageMatch failed. Processed killed by OS with returncode %d." % proc.returncode)
+		elif proc.returncode > 0:
+			raise Exception("ImageMatch failed.")
 
 		# Load the resulting difference image into memory:
 		diffimg_path = os.path.join(tmpdir, os.path.splitext(os.path.basename(science_image))[0] + 'diff.fits')
