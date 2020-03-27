@@ -9,9 +9,11 @@ import astropy.units as u
 from astropy.table import Table
 from astropy.time import Time
 import requests
+from functools import lru_cache
 from ..config import load_config
 
 #--------------------------------------------------------------------------------------------------
+@lru_cache(maxsize=10)
 def get_catalog(target, radius=None, output='table'):
 	"""
 

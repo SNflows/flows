@@ -33,11 +33,19 @@ def load_image(FILENAME):
 	# get image and wcs solution
 	with fits.open(FILENAME, mode='readonly') as hdul:
 		hdr = hdul[0].header
+		origin = hdr.get('ORIGIN')
 
 		image.image = np.asarray(hdul[0].data)
-		image.mask = np.asarray(hdul[2].data, dtype='bool')
-		image.clean = np.ma.masked_array(image.image, image.mask)
 		image.shape = image.image.shape
+
+		if origin == 'LCOGT':
+			image.mask = np.asarray(hdul['BPM'].data, dtype='bool')
+		else:
+			image.mask = np.zeros_like(image.image, dtype='bool')
+
+		image.mask |= ~np.isfinite(image.image)
+
+		image.clean = np.ma.masked_array(image.image, image.mask)
 
 		# World Coordinate System:
 		with warnings.catch_warnings():
