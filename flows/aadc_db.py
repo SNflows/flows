@@ -32,8 +32,8 @@ class AADC_DB(object): # pragma: no cover
 		the user will be prompted for them.
 
 		Parameters:
-			username (string or None, optional): Username for TASOC database.
-			password (string or None, optional): Password for TASOC database.
+			username (string or None, optional): Username for AADC database.
+			password (string or None, optional): Password for AADC database.
 		"""
 
 		config = load_config()

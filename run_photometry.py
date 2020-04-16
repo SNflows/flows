@@ -38,4 +38,5 @@ if __name__ == '__main__':
 	fileids = api.get_datafiles(targetid=2)
 	print(fileids)
 	for fid in fileids:
-		photometry(fileid=fid)
+		photfile = photometry(fileid=fid)
+		#ingest_photometry(photfile)
