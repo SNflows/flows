@@ -21,6 +21,7 @@ from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
 from astropy.table import Table, vstack
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
+from astropy.wcs.utils import proj_plane_pixel_area
 
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.psf import EPSFBuilder, EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
@@ -56,6 +57,7 @@ def photometry(fileid):
 	# Use local copy of archive if configured to do so:
 	config = load_config()
 	archive_local = config.get('photometry', 'archive_local', fallback=None)
+	output_folder_root = config.get('photometry', 'output', fallback='.')
 	if archive_local is not None:
 		datafile['archive_path'] = archive_local
 	if not os.path.isdir(datafile['archive_path']):
@@ -106,7 +108,7 @@ def photometry(fileid):
 
 	# Folder to save output:
 	# TODO: Change this!
-	output_folder = os.path.join(os.path.dirname(filepath), '%04d' % fileid)
+	output_folder = os.path.join(output_folder_root, target_name, '%04d' % fileid)
 	os.makedirs(output_folder, exist_ok=True)
 
 	# Calculate pixel-coordinates of references:
@@ -137,12 +139,19 @@ def photometry(fileid):
 	# BACKGROUND ESITMATION
 	#==============================================================================================
 
+	fig, ax = plt.subplots(1, 2, figsize=(20, 18))
+	plot_image(image.clean, ax=ax[0], scale='log', cbar='right', title='Image')
+	plot_image(image.mask, ax=ax[1], scale='linear', cbar='right', title='Mask')
+	fig.savefig(os.path.join(output_folder, 'original.png'), bbox_inches='tight')
+	plt.close(fig)
+
 	# Estimate image background:
 	# Not using image.clean here, since we are redefining the mask anyway
-	bkg = Background2D(image.image, (64, 64), filter_size=(5, 5),
-		mask=image.mask | (image.clean > background_cutoff),
+	bkg = Background2D(image.clean, (128, 128), filter_size=(5, 5),
+		#mask=image.mask | (image.clean > background_cutoff),
 		sigma_clip=SigmaClip(sigma=3.0),
-		bkg_estimator=SExtractorBackground()
+		bkg_estimator=SExtractorBackground(),
+		exclude_percentile=50.0
 		)
 	image.background = bkg.background
 
@@ -166,7 +175,7 @@ def photometry(fileid):
 
 	logger.info("References:\n%s", references)
 
-	radius=10
+	radius = 10
 	fwhm_guess = 6.0
 	fwhm_min = 3.5
 	fwhm_max = 13.5
@@ -212,19 +221,23 @@ def photometry(fileid):
 
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
-	daofind_tbl = DAOStarFinder(100, fwhm=fwhm, roundlo=-0.5, roundhi=0.5).find_stars(image.subclean, mask=image.mask)
-	indx_good = np.zeros(len(references), dtype='bool')
-	for k, ref in enumerate(references):
-		dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
-		if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrery
-			indx_good[k] = True
+	cleanout_references = (len(references) > 50)
 
-	references = references[indx_good]
+	if cleanout_references:
+		daofind_tbl = DAOStarFinder(100, fwhm=fwhm, roundlo=-0.5, roundhi=0.5).find_stars(image.subclean, mask=image.mask)
+		indx_good = np.zeros(len(references), dtype='bool')
+		for k, ref in enumerate(references):
+			dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
+			if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
+				indx_good[k] = True
+
+		references = references[indx_good]
 
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
-	plot_image(image.subclean, ax=ax, scale='log', make_cbar=True, title=target_name)
+	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
 	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', alpha=0.3)
-	ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', alpha=0.3)
+	if cleanout_references:
+		ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', alpha=0.3)
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', c='r')
 	fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
 	plt.close(fig)
@@ -234,7 +247,11 @@ def photometry(fileid):
 	#==============================================================================================
 
 	# Make cutouts of stars using extract_stars:
-	size = 29 # TODO: Scale with fwhm
+	# Scales with FWHM
+	size = int(np.round(29*fwhm/6))
+	if size % 2 == 0:
+		size += 1 # Make sure it's a uneven number
+	size = max(size, 15) # Never go below 15 pixels
 	hsize = (size - 1) / 2
 
 	x = references['pixel_column']
@@ -268,7 +285,7 @@ def photometry(fileid):
 			if imgnr > len(stars_for_epsf)-1:
 				ax[i].axis('off')
 			else:
-				plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis', xlabel=None, ylabel=None)
+				plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis')
 			imgnr += 1
 
 		fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k+1)), bbox_inches='tight')
@@ -285,7 +302,7 @@ def photometry(fileid):
 	logger.info('Successfully built PSF model')
 
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 15))
-	plot_image(epsf.data, ax=ax1, cmap='viridis', xlabel=None, ylabel=None)
+	plot_image(epsf.data, ax=ax1, cmap='viridis')
 
 	fwhms = []
 	for a, ax in ((0, ax3), (1, ax2)):
@@ -374,9 +391,15 @@ def photometry(fileid):
 	#==============================================================================================
 
 	if datafile.get('template') is not None:
+		# Find the pixel-scale of the science image:
+		pixel_area = proj_plane_pixel_area(image.wcs.celestial)
+		pixel_scale = np.sqrt(pixel_area)*3600 # arcsec/pixel
+		#print(image.wcs.celestial.cunit) % Doesn't work?
+		logger.info("Science image pixel scale: %f", pixel_scale)
+
 		# Run the template subtraction, and get back
 		# the science image where the template has been subtracted:
-		diffimage = run_imagematch(datafile, target, star_coord=coordinates, fwhm=fwhm)
+		diffimage = run_imagematch(datafile, target, star_coord=coordinates, fwhm=fwhm, pixel_scale=pixel_scale)
 
 		# Include mask from original image:
 		diffimage = np.ma.masked_array(diffimage, image.mask)
@@ -387,11 +410,11 @@ def photometry(fileid):
 
 		# Create two plots of the difference image:
 		fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
-		plot_image(diffimage, ax=ax, make_cbar=True, title=target_name)
+		plot_image(diffimage, ax=ax, cbar='right', title=target_name)
 		ax.plot(target_pixel_pos[0], target_pixel_pos[1], marker='+', color='r')
 		fig.savefig(os.path.join(output_folder, 'diffimg.png'), bbox_inches='tight')
-		apertures.plot(axes=ax, color='r')
-		annuli.plot(axes=ax, color='k')
+		apertures.plot(color='r')
+		annuli.plot(color='k')
 		ax.set_xlim(target_pixel_pos[0]-50, target_pixel_pos[0]+50)
 		ax.set_ylim(target_pixel_pos[1]-50, target_pixel_pos[1]+50)
 		fig.savefig(os.path.join(output_folder, 'diffimg_zoom.png'), bbox_inches='tight')

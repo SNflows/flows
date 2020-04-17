@@ -11,6 +11,7 @@ import astropy.coordinates as coords
 from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS, FITSFixedWarning
+from . import api
 import warnings
 
 #--------------------------------------------------------------------------------------------------
@@ -55,7 +56,15 @@ def load_image(FILENAME):
 		# Specific headers:
 		image.exptime = float(hdr['EXPTIME']) # * u.second
 
-		observatory = coords.EarthLocation.from_geodetic(lat=hdr['LATITUDE'], lon=hdr['LONGITUD'], height=hdr['HEIGHT'])
-		image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=observatory)
+		# Timestamp:
+		if origin == 'LCOGT':
+			observatory = coords.EarthLocation.from_geodetic(lat=hdr['LATITUDE'], lon=hdr['LONGITUD'], height=hdr['HEIGHT'])
+			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=observatory)
+		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') in ('ALFOSC FASU', 'ALFOSC_FASU'):
+			site = api.get_site(5) # Hard-coded the siteid for NOT
+			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=site['EarthLocation'])
+		elif hdr.get('FPA.TELESCOPE') == 'PS1' and hdr.get('FPA.INSTRUMENT') == 'GPC1':
+			site = api.get_site(6) # Hard-coded the siteid for Pan-STARRS1
+			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=site['EarthLocation'])
 
 	return image

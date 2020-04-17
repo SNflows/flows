@@ -16,8 +16,10 @@ import sys
 import shutil
 import re
 from astropy.io import fits
+from astropy.wcs.utils import proj_plane_pixel_area
 from setuptools import Distribution
 from setuptools.command.install import install
+from .load_image import load_image
 from . import api
 
 #--------------------------------------------------------------------------------------------------
@@ -36,7 +38,7 @@ def get_setuptools_script_dir():
     return dist.install_scripts
 
 #--------------------------------------------------------------------------------------------------
-def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
+def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scale=None):
 	"""
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
@@ -79,12 +81,41 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
 		config_file = os.path.join(__dir__, 'imagematch', 'imagematch_lcogt.cfg')
 	elif datafile['site'] == 2:
 		config_file = os.path.join(__dir__, 'imagematch', 'imagematch_hawki.cfg')
+	elif datafile['site'] == 5:
+		config_file = os.path.join(__dir__, 'imagematch', 'imagematch_alfosc.cfg')
 	else:
 		config_file = os.path.join(__dir__, 'imagematch', 'imagematch_default.cfg')
 	if not os.path.isfile(config_file):
 		raise FileNotFoundError(config_file)
 
-	# We will work in a temprary directory, since ImageMatch produces
+	if pixel_scale is None:
+		if datafile['site'] in (1,3,4,6):
+			# LCOGT provides the pixel scale directly in the header
+			pixel_scale = 'PIXSCALE'
+		else:
+			image = load_image(science_image)
+			pixel_area = proj_plane_pixel_area(image.wcs)
+			pixel_scale = np.sqrt(pixel_area)*3600 # arcsec/pixel
+			logger.info("Calculated science image pixel scale: %f", pixel_scale)
+
+	if datafile['template']['site'] in (1,3,4,6):
+		# LCOGT provides the pixel scale directly in the header
+		mscale = 'PIXSCALE'
+	else:
+		template = load_image(reference_image)
+		template_pixel_area = proj_plane_pixel_area(template.wcs.celestial)
+		mscale = np.sqrt(template_pixel_area)*3600 # arcsec/pixel
+		logger.info("Calculated template pixel scale: %f", mscale)
+
+	# Scale kernel radius with FWHM:
+	if fwhm is None:
+		kernel_radius = 9
+	else:
+		kernel_radius = max(9, int(np.ceil(1.5*fwhm)))
+		if kernel_radius % 2 == 0:
+			kernel_radius += 1
+
+	# We will work in a temporary directory, since ImageMatch produces
 	# a lot of extra output files that we don't want to have lying around
 	# after it completes
 	with tempfile.TemporaryDirectory() as tmpdir:
@@ -94,14 +125,18 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
 		shutil.copy(science_image, tmpdir)
 
 		# Construct the command to run ImageMatch:
-		cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -m "{reference_image:s}" "{science_image:s}"'.format(
+		cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -p {kernel_radius:d} -s {match:f} -scale {pixel_scale:} -mscale {mscale:} -m "{reference_image:s}" "{science_image:s}"'.format(
 			python=sys.executable,
 			imgmatch=imgmatch,
 			config_file=config_file,
 			reference_image=os.path.basename(reference_image),
 			science_image=os.path.basename(science_image),
 			target_ra=target['ra'],
-			target_dec=target['decl']
+			target_dec=target['decl'],
+			match=2*fwhm,
+			kernel_radius=kernel_radius,
+			pixel_scale=pixel_scale,
+			mscale=mscale
 		)
 		logger.info("Executing command: %s", cmd)
 
@@ -121,6 +156,8 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None):
 			logger.error("STDERR:\n%s", stderr_data.strip())
 		if proc.returncode < 0:
 			raise Exception("ImageMatch failed. Processed killed by OS with returncode %d." % proc.returncode)
+		elif 'Failed object match... giving up.' in stdout_data:
+			raise Exception("ImageMatch giving up matching objects")
 		elif proc.returncode > 0:
 			raise Exception("ImageMatch failed.")
 

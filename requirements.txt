@@ -5,8 +5,9 @@ matplotlib == 3.0.3
 requests
 astropy < 4.0
 photutils < 0.7
+PyYAML
 psycopg2-binary
 jplephem
 vtk
-scikit-image == 0.16.2
+scikit-image
 git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
