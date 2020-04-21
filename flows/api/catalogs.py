@@ -69,8 +69,8 @@ def get_catalog(target, radius=None, output='table'):
 
 	for table_name in ('references', 'avoid'):
 		tab = Table(
-		   names=('starid', 'ra', 'decl', 'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'gaia_variability', 'H_mag', 'J_mag', 'K_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag', 'distance'),
-		   dtype=('int64', 'float64', 'float64', 'float32', 'float32', 'float32', 'float32', 'float32', 'int32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float64'),
+		   names=('starid', 'ra', 'decl', 'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'gaia_variability', 'B_mag', 'V_mag', 'H_mag', 'J_mag', 'K_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag', 'distance'),
+		   dtype=('int64', 'float64', 'float64', 'float32', 'float32', 'float32', 'float32', 'float32', 'int32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float64'),
 		   rows=jsn[table_name])
 
 		tab['starid'].description = 'Unique identifier in REFCAT2 catalog'
@@ -89,6 +89,8 @@ def get_catalog(target, radius=None, output='table'):
 		tab['gaia_bp_mag'].description = 'Gaia Bp magnitude'
 		tab['gaia_rp_mag'].description = 'Gaia Rp magnitude'
 		tab['gaia_variability'].description = 'Gaia variability classification'
+		tab['B_mag'].description = 'Johnson B magnitude'
+		tab['V_mag'].description = 'Johnson V magnitude'
 		tab['H_mag'].description = '2MASS H magnitude'
 		tab['J_mag'].description = '2MASS J magnitude'
 		tab['K_mag'].description = '2MASS K magnitude'

@@ -9,6 +9,10 @@ import logging
 import os.path
 import subprocess
 import shlex
+import requests
+import numpy as np
+from astropy.coordinates import SkyCoord
+from astropy import units as u
 from .config import load_config
 from .aadc_db import AADC_DB
 
@@ -18,7 +22,7 @@ class CasjobsException(Exception):
 
 #--------------------------------------------------------------------------------------------------
 def floatval(value):
-	return None if value == '' or value == '0' else float(value)
+	return None if value == '' or value == 'NA' or value == '0' else float(value)
 
 #--------------------------------------------------------------------------------------------------
 def intval(value):
@@ -144,7 +148,39 @@ def query_casjobs_refcat2(ra, dec, radius=24.0/60.0):
 	return results
 
 #--------------------------------------------------------------------------------------------------
-def download_catalog(target=None):
+def query_apass(ra, decl, radius=24.0/60.0):
+
+	# https://vizier.u-strasbg.fr/viz-bin/VizieR-3?-source=II/336
+
+	r = requests.post('https://www.aavso.org/cgi-bin/apass_dr10_download.pl',
+		data={'ra': ra, 'dec': decl, 'radius': radius, 'outtype': '1'})
+
+	results = []
+
+	lines = r.text.split("\n")
+	#header = lines[0]
+
+	for line in lines[1:]:
+		if line.strip() == '': continue
+		row = line.strip().split(',')
+
+		results.append({
+			'ra': floatval(row[0]),
+			'decl': floatval(row[2]),
+			'V_mag': floatval(row[4]),
+			'B_mag': floatval(row[7]),
+			'u_mag': floatval(row[10]),
+			'g_mag': floatval(row[13]),
+			'r_mag': floatval(row[16]),
+			'i_mag': floatval(row[19]),
+			'z_mag': floatval(row[22]),
+			'Y_mag': floatval(row[25])
+		})
+
+	return results
+
+#--------------------------------------------------------------------------------------------------
+def download_catalog(target=None, dist_cutoff=2*u.arcsec):
 
 	logger = logging.getLogger(__name__)
 
@@ -162,6 +198,46 @@ def download_catalog(target=None):
 
 			# Query the REFCAT2 catalog using CasJobs around the target position:
 			results = query_casjobs_refcat2(row['ra'], row['decl'])
+
+			# Query APASS around the target position:
+			results_apass = query_apass(row['ra'], row['decl'])
+
+			# Match the two catalogs using coordinates:
+			# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
+			ra = np.array([r['ra'] for r in results])
+			decl = np.array([r['decl'] for r in results])
+			refcat = SkyCoord(ra=ra, dec=decl, unit=u.deg, frame='icrs')
+
+			ra_apass = np.array([r['ra'] for r in results_apass])
+			decl_apass = np.array([r['decl'] for r in results_apass])
+			apass = SkyCoord(ra=ra_apass, dec=decl_apass, unit=u.deg)
+
+			# Match the two catalogs:
+			idx, d2d, _ = apass.match_to_catalog_sky(refcat)
+
+			# Go through the matches and make sure they are valid:
+			for k, i in enumerate(idx):
+				# If APASS doesn't contain any new information anyway, skip it:
+				if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None:
+					continue
+
+				# Reject any match further away than the cutoff:
+				if d2d[k] > dist_cutoff:
+					continue
+
+				# TODO: Use the overlapping magnitudes to make better match:
+				#photdist = 0
+				#for photfilt in ('g_mag', 'r_mag', 'i_mag', 'z_mag'):
+				#	if results_apass[k][photfilt] and results[i][photfilt]:
+				#		photdist += (results[i][photfilt] - results_apass[k][photfilt])**2
+				#print( np.sqrt(photdist) )
+
+				# Update the results "table" with the APASS filters:
+				results[i].update({'V_mag': results_apass[k]['V_mag'], 'B_mag': results_apass[k]['B_mag']})
+
+			for k in range(len(results)):
+				if 'V_mag' not in results[k]:
+					results[k].update({'B_mag': None, 'V_mag': None})
 
 			# Insert the catalog into the local database:
 			#db.cursor.execute("TRUNCATE flows.refcat2;")
@@ -181,7 +257,9 @@ def download_catalog(target=None):
 				z_mag,
 				"J_mag",
 				"H_mag",
-				"K_mag")
+				"K_mag",
+				"V_mag",
+				"B_mag")
 			VALUES (
 				%(starid)s,
 				%(ra)s,
@@ -198,7 +276,9 @@ def download_catalog(target=None):
 				%(z_mag)s,
 				%(J_mag)s,
 				%(H_mag)s,
-				%(K_mag)s)
+				%(K_mag)s,
+				%(V_mag)s,
+				%(B_mag)s)
 			ON CONFLICT DO NOTHING;""", results)
 			logger.info("%d catalog entries inserted.", db.cursor.rowcount)
 
