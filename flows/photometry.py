@@ -47,37 +47,57 @@ def photometry(fileid):
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
+	# Settings:
+	ref_mag_limit = 17 # Lower limit on reference target brightness
+	ref_target_dist_limit = 30 # Reference star must be further than this away to be included
+
 	logger = logging.getLogger(__name__)
 	tic = default_timer()
+
+	# Use local copy of archive if configured to do so:
+	config = load_config()
 
 	# Get datafile dict from API:
 	datafile = api.get_datafile(fileid)
 	logger.debug("Datafile: %s", datafile)
+	targetid = datafile['targetid']
+	photfilter = datafile['photfilter']
 
-	# Use local copy of archive if configured to do so:
-	config = load_config()
 	archive_local = config.get('photometry', 'archive_local', fallback=None)
-	output_folder_root = config.get('photometry', 'output', fallback='.')
 	if archive_local is not None:
 		datafile['archive_path'] = archive_local
 	if not os.path.isdir(datafile['archive_path']):
 		raise FileNotFoundError("ARCHIVE is not available")
 
-	# The paths to the science image and template image (if there is one):
+	# Get the catalog containing the target and reference stars:
+	# TODO: Include proper-motion to the time of observation
+	catalog = api.get_catalog(targetid, output='table')
+	target = catalog['target'][0]
+
+	# Extract information about target:
+	target_name = str(target['target_name'])
+	target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
+
+	# Folder to save output:
+	# TODO: Change this!
+	output_folder_root = config.get('photometry', 'output', fallback='.')
+	output_folder = os.path.join(output_folder_root, target_name, '%04d' % fileid)
+	os.makedirs(output_folder, exist_ok=True)
+
+	# Also write any logging output to the
+	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+	_filehandler = logging.FileHandler(os.path.join(output_folder, 'photometry.log'), mode='w')
+	_filehandler.setFormatter(formatter)
+	_filehandler.setLevel(logging.INFO)
+	logger.addHandler(_filehandler)
+
+	# The paths to the science image:
 	filepath = os.path.join(datafile['archive_path'], datafile['path'])
 
 	# TODO: Download datafile using API to local drive:
 	# TODO: Is this a security concern?
 	#if archive_local:
 	#	api.download_datafile(datafile, archive_local)
-
-	targetid = datafile['targetid']
-	photfilter = datafile['photfilter']
-
-	# Settings:
-	background_cutoff = 1000 # All pixels above this threshold are masked during background estimation
-	ref_mag_limit = 17 # Lower limit on reference target brightness
-	ref_target_dist_limit = 30 # Reference star must be further than this away to be included
 
 	# Translate photometric filter into table column:
 	if photfilter == 'gp':
@@ -88,28 +108,19 @@ def photometry(fileid):
 		ref_filter = 'i_mag'
 	elif photfilter == 'zp':
 		ref_filter = 'z_mag'
+	elif photfilter == 'B':
+		ref_filter = 'B_mag'
+	elif photfilter == 'V':
+		ref_filter = 'V_mag'
 	else:
 		logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
 		ref_filter = 'g_mag'
 
-	# Load the image from the FITS file:
-	image = load_image(filepath)
-
-	# Get the catalog containing the target and reference stars:
-	# TODO: Include proper-motion to the time of observation
-	catalog = api.get_catalog(targetid, output='table')
-	target = catalog['target'][0]
 	references = catalog['references']
 	references.sort(ref_filter)
 
-	# Extract information about target:
-	target_name = str(target['target_name'])
-	target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
-
-	# Folder to save output:
-	# TODO: Change this!
-	output_folder = os.path.join(output_folder_root, target_name, '%04d' % fileid)
-	os.makedirs(output_folder, exist_ok=True)
+	# Load the image from the FITS file:
+	image = load_image(filepath)
 
 	# Calculate pixel-coordinates of references:
 	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra'], ref['decl']] for ref in references]), 0)
@@ -452,6 +463,10 @@ def photometry(fileid):
 	tab['pixel_row_psf_fit'] = psfphot_tbl['y_fit']
 	tab['pixel_column_psf_fit_error'] = psfphot_tbl['x_0_unc']
 	tab['pixel_row_psf_fit_error'] = psfphot_tbl['y_0_unc']
+
+	# Theck that we got valid photometry:
+	if not np.isfinite(tab[0]['flux_psf']) or not np.isfinite(tab[0]['flux_psf_error']):
+		raise Exception("Target magnitude is undefined.")
 
 	#==============================================================================================
 	# CALIBRATE

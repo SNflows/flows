@@ -77,7 +77,7 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 
 	# Find the ImageMatch config file to use based on the site of the observations:
 	__dir__ = os.path.dirname(os.path.abspath(__file__))
-	if datafile['site'] == 1:
+	if datafile['site'] in (1,3,4,6):
 		config_file = os.path.join(__dir__, 'imagematch', 'imagematch_lcogt.cfg')
 	elif datafile['site'] == 2:
 		config_file = os.path.join(__dir__, 'imagematch', 'imagematch_hawki.cfg')
@@ -125,46 +125,50 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 		shutil.copy(science_image, tmpdir)
 
 		# Construct the command to run ImageMatch:
-		cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -p {kernel_radius:d} -s {match:f} -scale {pixel_scale:} -mscale {mscale:} -m "{reference_image:s}" "{science_image:s}"'.format(
-			python=sys.executable,
-			imgmatch=imgmatch,
-			config_file=config_file,
-			reference_image=os.path.basename(reference_image),
-			science_image=os.path.basename(science_image),
-			target_ra=target['ra'],
-			target_dec=target['decl'],
-			match=2*fwhm,
-			kernel_radius=kernel_radius,
-			pixel_scale=pixel_scale,
-			mscale=mscale
-		)
-		logger.info("Executing command: %s", cmd)
+		for match_threshold in (3.0, 5.0, 7.0):
+			cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -p {kernel_radius:d} -s {match:f} -scale {pixel_scale:} -mscale {mscale:} -m "{reference_image:s}" "{science_image:s}"'.format(
+				python=sys.executable,
+				imgmatch=imgmatch,
+				config_file=config_file,
+				reference_image=os.path.basename(reference_image),
+				science_image=os.path.basename(science_image),
+				target_ra=target['ra'],
+				target_dec=target['decl'],
+				match=match_threshold,
+				kernel_radius=kernel_radius,
+				pixel_scale=pixel_scale,
+				mscale=mscale
+			)
+			logger.info("Executing command: %s", cmd)
 
-		# Run the command in a subprocess:
-		cmd = shlex.split(cmd)
-		proc = subprocess.Popen(cmd,
-			cwd=tmpdir,
-			stdout=subprocess.PIPE,
-			stderr=subprocess.PIPE,
-			universal_newlines=True)
-		stdout_data, stderr_data = proc.communicate()
+			# Run the command in a subprocess:
+			cmd = shlex.split(cmd)
+			proc = subprocess.Popen(cmd,
+				cwd=tmpdir,
+				stdout=subprocess.PIPE,
+				stderr=subprocess.PIPE,
+				universal_newlines=True)
+			stdout_data, stderr_data = proc.communicate()
 
-		# Check the outputs from the subprocess:
-		logger.info("Return code: %d", proc.returncode)
-		logger.info("STDOUT:\n%s", stdout_data.strip())
-		if stderr_data.strip() != '':
-			logger.error("STDERR:\n%s", stderr_data.strip())
-		if proc.returncode < 0:
-			raise Exception("ImageMatch failed. Processed killed by OS with returncode %d." % proc.returncode)
-		elif 'Failed object match... giving up.' in stdout_data:
-			raise Exception("ImageMatch giving up matching objects")
-		elif proc.returncode > 0:
-			raise Exception("ImageMatch failed.")
+			# Check the outputs from the subprocess:
+			logger.info("Return code: %d", proc.returncode)
+			logger.info("STDOUT:\n%s", stdout_data.strip())
+			if stderr_data.strip() != '':
+				logger.error("STDERR:\n%s", stderr_data.strip())
+			if proc.returncode < 0:
+				raise Exception("ImageMatch failed. Processed killed by OS with returncode %d." % proc.returncode)
+			elif 'Failed object match... giving up.' in stdout_data:
+				#raise Exception("ImageMatch giving up matching objects")
+				continue
+			elif proc.returncode > 0:
+				raise Exception("ImageMatch failed.")
 
-		# Load the resulting difference image into memory:
-		diffimg_path = os.path.join(tmpdir, os.path.splitext(os.path.basename(science_image))[0] + 'diff.fits')
-		if not os.path.isfile(diffimg_path):
-			raise FileNotFoundError(diffimg_path)
+			# Load the resulting difference image into memory:
+			diffimg_path = os.path.join(tmpdir, os.path.splitext(os.path.basename(science_image))[0] + 'diff.fits')
+			if not os.path.isfile(diffimg_path):
+				raise FileNotFoundError(diffimg_path)
+
+			break
 
 		with fits.open(diffimg_path, mode='readonly') as hdu:
 			diffimg = np.asarray(hdu[0].data)

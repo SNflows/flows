@@ -235,6 +235,7 @@ def download_catalog(target=None, dist_cutoff=2*u.arcsec):
 				# Update the results "table" with the APASS filters:
 				results[i].update({'V_mag': results_apass[k]['V_mag'], 'B_mag': results_apass[k]['B_mag']})
 
+			# Fill in empty fields where nothing was matched:
 			for k in range(len(results)):
 				if 'V_mag' not in results[k]:
 					results[k].update({'B_mag': None, 'V_mag': None})
