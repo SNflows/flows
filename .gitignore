@@ -1,3 +1,6 @@
+flows/config.ini
+flows/casjobs/CasJobs.config
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
