@@ -40,7 +40,7 @@ from .run_imagematch import run_imagematch
 __version__ = get_version(pep440=False)
 
 #--------------------------------------------------------------------------------------------------
-def photometry(fileid):
+def photometry(fileid, output_folder=None):
 	"""
 	Run photometry.
 
@@ -79,8 +79,9 @@ def photometry(fileid):
 	target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
 
 	# Folder to save output:
-	output_folder_root = config.get('photometry', 'output', fallback='.')
-	output_folder = os.path.join(output_folder_root, target_name, '%04d' % fileid)
+	if output_folder is None:
+		output_folder_root = config.get('photometry', 'output', fallback='.')
+		output_folder = os.path.join(output_folder_root, target_name, '%04d' % fileid)
 	os.makedirs(output_folder, exist_ok=True)
 
 	# The paths to the science image:

@@ -6,8 +6,7 @@
 
 import argparse
 import logging
-import shutil
-from flows import api, photometry
+from flows import api, photometry, config
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
@@ -44,25 +43,33 @@ if __name__ == '__main__':
 		fileids = api.get_datafiles(targetid=args.targetid)
 		print(fileids)
 
+	output_folder_root = config.get('photometry', 'output', fallback='.')
+
 	for fid in fileids:
 		print("="*72)
 		print(fid)
 		print("="*72)
 
+		catalog = api.get_catalog(targetid, output='table')
+		target = catalog['target'][0]
+		target_name = str(target['target_name'])
+
+		# Folder to save output:
+		output_folder = os.path.join(output_folder_root, target_name, '%04d' % fid)
+		os.makedirs(output_folder, exist_ok=True)
+
 		# Also write any logging output to the
-		_filehandler = logging.FileHandler('photometry.log', mode='w')
+		_filehandler = logging.FileHandler(os.path.join(output_folder, 'photometry.log'), mode='w')
 		_filehandler.setFormatter(formatter)
 		_filehandler.setLevel(logging.INFO)
 		logger.addHandler(_filehandler)
 
 		try:
-			photfile = photometry(fileid=fid)
+			photfile = photometry(fileid=fid, output_folder=output_folder)
 		except:
 			logger.exception("Photometry failed")
 			photfile = None
 
 		logger.removeHandler(_filehandler)
-		if photfile is not None:
-			shutil.move('photometry.log', os.path.dirname(photfile))
 
 	# TODO: Ingest automatically?
