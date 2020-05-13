@@ -126,7 +126,7 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 
 		# Construct the command to run ImageMatch:
 		for match_threshold in (3.0, 5.0, 7.0, 10.0):
-			cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -p {kernel_radius:d} -s {match:f} -scale {pixel_scale:} -mscale {mscale:} -m "{reference_image:s}" "{science_image:s}"'.format(
+			cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -p {kernel_radius:d} -o {order:d} -s {match:f} -scale {pixel_scale:} -mscale {mscale:} -m "{reference_image:s}" "{science_image:s}"'.format(
 				python=sys.executable,
 				imgmatch=imgmatch,
 				config_file=config_file,
@@ -137,7 +137,8 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 				match=match_threshold,
 				kernel_radius=kernel_radius,
 				pixel_scale=pixel_scale,
-				mscale=mscale
+				mscale=mscale,
+				order=1
 			)
 			logger.info("Executing command: %s", cmd)
 
@@ -171,10 +172,9 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 			break
 
 		else:
-			raise Exception("ImageMatch could not create difference image")
+			raise Exception("ImageMatch could not create difference image.")
 
 		with fits.open(diffimg_path, mode='readonly') as hdu:
 			diffimg = np.asarray(hdu[0].data)
 
 	return diffimg
-
