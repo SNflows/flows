@@ -157,7 +157,7 @@ def ingest_photometry(photfile=None):
 				filesize = os.path.getsize(newpath)
 				filehash = get_filehash(newpath)
 
-				db.cursor.execute("SELECT * FROM flows.files WHERE fileid_img=%s;", [fileid_img])
+				db.cursor.execute("SELECT * FROM flows.files WHERE fileid=%s;", [fileid_img])
 				row = db.cursor.fetchone()
 				site = row['site']
 
@@ -361,5 +361,5 @@ def ingest_from_inbox():
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
 
-	#ingest_photometry()
-	ingest_from_inbox()
+	ingest_photometry()
+	#ingest_from_inbox()
