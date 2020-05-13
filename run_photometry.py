@@ -6,7 +6,7 @@
 
 import argparse
 import logging
-from flows import api, photometry, config
+from flows import api, photometry, load_config
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
@@ -43,6 +43,7 @@ if __name__ == '__main__':
 		fileids = api.get_datafiles(targetid=args.targetid)
 		print(fileids)
 
+	config = load_config()
 	output_folder_root = config.get('photometry', 'output', fallback='.')
 
 	for fid in fileids:
