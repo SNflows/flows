@@ -51,6 +51,8 @@ if __name__ == '__main__':
 		print(fid)
 		print("="*72)
 
+		datafile = api.get_datafile(fid)
+		targetid = datafile['targetid']
 		catalog = api.get_catalog(targetid, output='table')
 		target = catalog['target'][0]
 		target_name = str(target['target_name'])
