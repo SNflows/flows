@@ -218,7 +218,8 @@ def download_catalog(target=None, dist_cutoff=2*u.arcsec):
 			# Go through the matches and make sure they are valid:
 			for k, i in enumerate(idx):
 				# If APASS doesn't contain any new information anyway, skip it:
-				if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None:
+				if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None \
+					and results_apass[k]['u_mag'] is None:
 					continue
 
 				# Reject any match further away than the cutoff:
@@ -233,12 +234,20 @@ def download_catalog(target=None, dist_cutoff=2*u.arcsec):
 				#print( np.sqrt(photdist) )
 
 				# Update the results "table" with the APASS filters:
-				results[i].update({'V_mag': results_apass[k]['V_mag'], 'B_mag': results_apass[k]['B_mag']})
+				results[i].update({
+					'V_mag': results_apass[k]['V_mag'],
+					'B_mag': results_apass[k]['B_mag'],
+					'u_mag': results_apass[k]['u_mag']
+				})
 
 			# Fill in empty fields where nothing was matched:
 			for k in range(len(results)):
 				if 'V_mag' not in results[k]:
-					results[k].update({'B_mag': None, 'V_mag': None})
+					results[k].update({
+						'B_mag': None,
+						'V_mag': None,
+						'u_mag': None
+					})
 
 			# Insert the catalog into the local database:
 			#db.cursor.execute("TRUNCATE flows.refcat2;")
@@ -252,6 +261,7 @@ def download_catalog(target=None, dist_cutoff=2*u.arcsec):
 				gaia_bp_mag,
 				gaia_rp_mag,
 				gaia_variability,
+				u_mag,
 				g_mag,
 				r_mag,
 				i_mag,
@@ -271,6 +281,7 @@ def download_catalog(target=None, dist_cutoff=2*u.arcsec):
 				%(gaia_bp_mag)s,
 				%(gaia_rp_mag)s,
 				%(gaia_variability)s,
+				%(u_mag)s,
 				%(g_mag)s,
 				%(r_mag)s,
 				%(i_mag)s,
