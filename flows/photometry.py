@@ -79,17 +79,9 @@ def photometry(fileid):
 	target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
 
 	# Folder to save output:
-	# TODO: Change this!
 	output_folder_root = config.get('photometry', 'output', fallback='.')
 	output_folder = os.path.join(output_folder_root, target_name, '%04d' % fileid)
 	os.makedirs(output_folder, exist_ok=True)
-
-	# Also write any logging output to the
-	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-	_filehandler = logging.FileHandler(os.path.join(output_folder, 'photometry.log'), mode='w')
-	_filehandler.setFormatter(formatter)
-	_filehandler.setLevel(logging.INFO)
-	logger.addHandler(_filehandler)
 
 	# The paths to the science image:
 	filepath = os.path.join(datafile['archive_path'], datafile['path'])
@@ -464,7 +456,7 @@ def photometry(fileid):
 	tab['pixel_column_psf_fit_error'] = psfphot_tbl['x_0_unc']
 	tab['pixel_row_psf_fit_error'] = psfphot_tbl['y_0_unc']
 
-	# Theck that we got valid photometry:
+	# Check that we got valid photometry:
 	if not np.isfinite(tab[0]['flux_psf']) or not np.isfinite(tab[0]['flux_psf_error']):
 		raise Exception("Target magnitude is undefined.")
 
@@ -512,6 +504,10 @@ def photometry(fileid):
 	fig.savefig(os.path.join(output_folder, 'calibration.png'), bbox_inches='tight')
 	plt.close(fig)
 
+	# Check that we got valid photometry:
+	if not np.isfinite(tab[0]['mag']) or not np.isfinite(tab[0]['mag_error']):
+		raise Exception("Target magnitude is undefined.")
+
 	#==============================================================================================
 	# SAVE PHOTOMETRY
 	#==============================================================================================
@@ -545,6 +541,10 @@ def photometry(fileid):
 	tab.write(photometry_output, format='ascii.ecsv', delimiter=',', overwrite=True)
 
 	toc = default_timer()
+
+	logger.info("------------------------------------------------------")
+	logger.info("Success!")
+	logger.info("Main target: %f +/- %f", tab[0]['mag'], tab[0]['mag_error'])
 	logger.info("Photometry took: %f seconds", toc-tic)
 
 	return photometry_output

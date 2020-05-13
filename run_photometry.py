@@ -6,6 +6,7 @@
 
 import argparse
 import logging
+import shutil
 from flows import api, photometry
 
 #--------------------------------------------------------------------------------------------------
@@ -37,21 +38,31 @@ if __name__ == '__main__':
 
 	if args.fileid is not None:
 		# Run the specified fileid:
-		photfile = photometry(fileid=args.fileid)
+		fileids = [args.fileid]
 	else:
 		# Ask the API for a list of fileids which are yet to be processed:
 		fileids = api.get_datafiles(targetid=args.targetid)
 		print(fileids)
 
-		for fid in fileids:
-			#if fid not in (319, 317, 315, 314, 313, 322, 318, 316, 320, 312, 321,):
-			#	continue
-			print("="*72)
-			print(fid)
-			print("="*72)
-			try:
-				photfile = photometry(fileid=fid)
-			except:
-				logger.exception("Photometry failed")
+	for fid in fileids:
+		print("="*72)
+		print(fid)
+		print("="*72)
+
+		# Also write any logging output to the
+		_filehandler = logging.FileHandler('photometry.log', mode='w')
+		_filehandler.setFormatter(formatter)
+		_filehandler.setLevel(logging.INFO)
+		logger.addHandler(_filehandler)
+
+		try:
+			photfile = photometry(fileid=fid)
+		except:
+			logger.exception("Photometry failed")
+			photfile = None
+
+		logger.removeHandler(_filehandler)
+		if photfile is not None:
+			shutil.move('photometry.log', os.path.dirname(photfile))
 
 	# TODO: Ingest automatically?
