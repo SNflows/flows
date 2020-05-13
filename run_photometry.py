@@ -6,6 +6,7 @@
 
 import argparse
 import logging
+import os
 from flows import api, photometry, load_config
 
 #--------------------------------------------------------------------------------------------------
