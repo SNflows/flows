@@ -68,6 +68,9 @@ if __name__ == '__main__':
 
 		try:
 			photfile = photometry(fileid=fid, output_folder=output_folder)
+		except (SystemExit, KeyboardInterrupt):
+			logger.error("Aborted by user or system.")
+			photfile = None
 		except:
 			logger.exception("Photometry failed")
 			photfile = None
