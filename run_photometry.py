@@ -7,6 +7,7 @@
 import argparse
 import logging
 import os
+import gc
 from flows import api, photometry, load_config
 
 #--------------------------------------------------------------------------------------------------
@@ -53,10 +54,7 @@ if __name__ == '__main__':
 		print("="*72)
 
 		datafile = api.get_datafile(fid)
-		targetid = datafile['targetid']
-		catalog = api.get_catalog(targetid, output='table')
-		target = catalog['target'][0]
-		target_name = str(target['target_name'])
+		target_name = datafile['target_name']
 
 		# Folder to save output:
 		output_folder = os.path.join(output_folder_root, target_name, '%04d' % fid)
@@ -75,5 +73,7 @@ if __name__ == '__main__':
 			photfile = None
 
 		logger.removeHandler(_filehandler)
+
+		gc.collect()
 
 	# TODO: Ingest automatically?

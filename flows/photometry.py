@@ -44,6 +44,10 @@ def photometry(fileid, output_folder=None):
 	"""
 	Run photometry.
 
+	Parameters:
+		fileid (int): File ID to process.
+		output_folder (str, optional): Path to directory where output should be placed.
+
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
@@ -61,6 +65,7 @@ def photometry(fileid, output_folder=None):
 	datafile = api.get_datafile(fileid)
 	logger.debug("Datafile: %s", datafile)
 	targetid = datafile['targetid']
+	target_name = datafile['target_name']
 	photfilter = datafile['photfilter']
 
 	archive_local = config.get('photometry', 'archive_local', fallback=None)
@@ -73,9 +78,6 @@ def photometry(fileid, output_folder=None):
 	# TODO: Include proper-motion to the time of observation
 	catalog = api.get_catalog(targetid, output='table')
 	target = catalog['target'][0]
-
-	# Extract information about target:
-	target_name = str(target['target_name'])
 	target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
 
 	# Folder to save output:

@@ -6,9 +6,11 @@
 
 import requests
 from datetime import datetime
+from functools import lru_cache
 from ..config import load_config
 
 #--------------------------------------------------------------------------------------------------
+@lru_cache(maxsize=10)
 def get_datafile(fileid):
 
 	# Get API token from config file:
