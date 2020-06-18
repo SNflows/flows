@@ -150,18 +150,20 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 				stderr=subprocess.PIPE,
 				universal_newlines=True)
 			stdout_data, stderr_data = proc.communicate()
+			returncode = proc.returncode
+			proc.kill() # Cleanup - Is this really needed?
 
 			# Check the outputs from the subprocess:
-			logger.info("Return code: %d", proc.returncode)
+			logger.info("Return code: %d", returncode)
 			logger.info("STDOUT:\n%s", stdout_data.strip())
 			if stderr_data.strip() != '':
 				logger.error("STDERR:\n%s", stderr_data.strip())
-			if proc.returncode < 0:
-				raise Exception("ImageMatch failed. Processed killed by OS with returncode %d." % proc.returncode)
+			if returncode < 0:
+				raise Exception("ImageMatch failed. Processed killed by OS with returncode %d." % returncode)
 			elif 'Failed object match... giving up.' in stdout_data:
 				#raise Exception("ImageMatch giving up matching objects")
 				continue
-			elif proc.returncode > 0:
+			elif returncode > 0:
 				raise Exception("ImageMatch failed.")
 
 			# Load the resulting difference image into memory:
