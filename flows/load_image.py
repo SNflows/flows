@@ -32,7 +32,7 @@ def load_image(FILENAME):
 	image = type('image', (object,), dict()) # image container
 
 	# get image and wcs solution
-	with fits.open(FILENAME, mode='readonly') as hdul:
+	with fits.open(FILENAME, mode='readonly', memmap=True) as hdul:
 		hdr = hdul[0].header
 		origin = hdr.get('ORIGIN')
 
@@ -58,13 +58,39 @@ def load_image(FILENAME):
 
 		# Timestamp:
 		if origin == 'LCOGT':
+			sites = api.sites.get_all_sites()
+			site_keywords = {s['site_keyword']: s for s in sites}
+			image.site = site_keywords.get(hdr['SITE'], None)
+
 			observatory = coords.EarthLocation.from_geodetic(lat=hdr['LATITUDE'], lon=hdr['LONGITUD'], height=hdr['HEIGHT'])
 			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=observatory)
-		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') in ('ALFOSC FASU', 'ALFOSC_FASU'):
-			site = api.get_site(5) # Hard-coded the siteid for NOT
-			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=site['EarthLocation'])
+
+			image.photfilter = hdr['FILTER']
+
+		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE') == 'IMAGING':
+			image.site = api.get_site(5) # Hard-coded the siteid for NOT
+			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=image.site['EarthLocation'])
+
+			image.photfilter = {
+				'B Bes': 'B',
+				'V Bes': 'V',
+				'g SDSS': 'gp',
+				'r SDSS': 'rp',
+				'i SDSS': 'ip',
+				'u SDSS': 'up'
+			}.get(hdr['FILTER'].replace('_', ' '), hdr['FILTER'])
+
 		elif hdr.get('FPA.TELESCOPE') == 'PS1' and hdr.get('FPA.INSTRUMENT') == 'GPC1':
-			site = api.get_site(6) # Hard-coded the siteid for Pan-STARRS1
-			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=site['EarthLocation'])
+			image.site = api.get_site(6) # Hard-coded the siteid for Pan-STARRS1
+			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+
+			image.photfilter = {
+				'g.00000': 'gp',
+				'r.00000': 'rp',
+				'i.00000': 'ip'
+			}.get(hdr['FPA.FILTER'], hdr['FPA.FILTER'])
+
+		else:
+			raise Exception("Could not determine origin of image")
 
 	return image

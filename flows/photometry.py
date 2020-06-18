@@ -8,10 +8,11 @@ Flows photometry code.
 
 import os
 import numpy as np
-from bottleneck import nanstd
+from bottleneck import nanstd, nanmedian
 from timeit import default_timer
 import logging
 import warnings
+from copy import deepcopy
 
 from astropy.utils.exceptions import AstropyDeprecationWarning
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
@@ -52,7 +53,7 @@ def photometry(fileid, output_folder=None):
 	"""
 
 	# Settings:
-	ref_mag_limit = 17 # Lower limit on reference target brightness
+	ref_mag_limit = 22 # Lower limit on reference target brightness
 	ref_target_dist_limit = 30 # Reference star must be further than this away to be included
 
 	logger = logging.getLogger(__name__)
@@ -130,9 +131,9 @@ def photometry(fileid, output_folder=None):
 	x = references['pixel_column']
 	y = references['pixel_row']
 	references = references[(np.sqrt((x - target_pixel_pos[0])**2 + (y - target_pixel_pos[1])**2) > ref_target_dist_limit)
-		& (references[ref_filter] < ref_mag_limit)
 		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
 		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+	# 		& (references[ref_filter] < ref_mag_limit)
 
 	#==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
@@ -184,7 +185,7 @@ def photometry(fileid, output_folder=None):
 	radius = 10
 	fwhm_guess = 6.0
 	fwhm_min = 3.5
-	fwhm_max = 13.5
+	fwhm_max = 18.0
 
 	# Extract stars sub-images:
 	#stars = extract_stars(
@@ -211,7 +212,13 @@ def photometry(fileid, output_folder=None):
 		x0, y0, width, height = x - radius, y - radius, 2 * radius, 2 * radius
 		cutout = slice(y0 - 1, y0 + height), slice(x0 - 1, x0 + width)
 
-		curr_star = image.subclean[cutout] / np.max(image.subclean[cutout])
+		curr_star = deepcopy(image.subclean[cutout])
+		edge = np.zeros_like(curr_star, dtype='bool')
+		edge[(0,-1),:] = True
+		edge[:,(0,-1)] = True
+		curr_star -= nanmedian(curr_star[edge])
+		curr_star /= np.max(curr_star)
+
 		npix = len(curr_star)
 
 		ypos, xpos = np.mgrid[:npix, :npix]
@@ -219,15 +226,15 @@ def photometry(fileid, output_folder=None):
 
 		fwhms[i] = gfit.x_fwhm
 
-	mask = ~np.isfinite(fwhms) | (fwhms <= fwhm_min) | (fwhms >= fwhm_max)
-	masked_fwhms = np.ma.masked_array(fwhms, mask)
-
+	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
 	fwhm = np.mean(sigma_clip(masked_fwhms, maxiters=20, sigma=2.0))
 	logger.info("FWHM: %f", fwhm)
+	if np.isnan(fwhm):
+		raise Exception("Could not estimate FWHM")
 
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
-	cleanout_references = (len(references) > 50)
+	cleanout_references = (len(references) > 20)
 
 	if cleanout_references:
 		daofind_tbl = DAOStarFinder(100, fwhm=fwhm, roundlo=-0.5, roundhi=0.5).find_stars(image.subclean, mask=image.mask)
@@ -241,10 +248,10 @@ def photometry(fileid, output_folder=None):
 
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
-	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', alpha=0.3)
+	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
 	if cleanout_references:
-		ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', alpha=0.3)
-	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', c='r')
+		ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', marker='o', alpha=0.6)
+	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
 	fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
 	plt.close(fig)
 
@@ -350,9 +357,9 @@ def photometry(fileid, output_folder=None):
 
 	coordinates = np.array([[ref['pixel_column'], ref['pixel_row']] for ref in references])
 
-	# Add the main target position as the first entry:
-	if datafile.get('template') is None:
-		coordinates = np.concatenate(([target_pixel_pos], coordinates), axis=0)
+	# Add the main target position as the first entry for doing photometry directly in the
+	# science image:
+	coordinates = np.concatenate(([target_pixel_pos], coordinates), axis=0)
 
 	#==============================================================================================
 	# APERTURE PHOTOMETRY
@@ -396,17 +403,26 @@ def photometry(fileid, output_folder=None):
 	# TEMPLATE SUBTRACTION AND TARGET PHOTOMETRY
 	#==============================================================================================
 
-	if datafile.get('template') is not None:
-		# Find the pixel-scale of the science image:
-		pixel_area = proj_plane_pixel_area(image.wcs.celestial)
-		pixel_scale = np.sqrt(pixel_area)*3600 # arcsec/pixel
-		#print(image.wcs.celestial.cunit) % Doesn't work?
-		logger.info("Science image pixel scale: %f", pixel_scale)
+	# Find the pixel-scale of the science image:
+	pixel_area = proj_plane_pixel_area(image.wcs.celestial)
+	pixel_scale = np.sqrt(pixel_area)*3600 # arcsec/pixel
+	#print(image.wcs.celestial.cunit) % Doesn't work?
+	logger.info("Science image pixel scale: %f", pixel_scale)
 
+	diffimage = None
+	if datafile.get('diffimg') is not None:
+
+		diffimg_path = os.path.join(datafile['archive_path'], datafile['diffimg']['path'])
+		diffimage = load_image(diffimg_path)
+		diffimage = diffimage.image
+
+	elif datafile.get('template') is not None:
 		# Run the template subtraction, and get back
 		# the science image where the template has been subtracted:
 		diffimage = run_imagematch(datafile, target, star_coord=coordinates, fwhm=fwhm, pixel_scale=pixel_scale)
 
+	# We have a diff image, so let's do photometry of the target using this:
+	if diffimage is not None:
 		# Include mask from original image:
 		diffimage = np.ma.masked_array(diffimage, image.mask)
 
@@ -442,8 +458,12 @@ def photometry(fileid, output_folder=None):
 	# Build results table:
 	tab = references.copy()
 	tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
-	for key in ('pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'H_mag','J_mag','K_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'):
-		tab[0][key] = np.NaN
+	if diffimage is not None:
+		tab.insert_row(0, {'starid': -1, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
+	indx_main_target = (tab['starid'] <= 0)
+	for key in ('pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'B_mag', 'V_mag', 'H_mag','J_mag','K_mag', 'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'):
+		for i in np.where(indx_main_target)[0]: # No idea why this is needed, but giving a boolean array as slice doesn't work
+			tab[i][key] = np.NaN
 
 	# Subtract background estimated from annuli:
 	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
@@ -460,7 +480,7 @@ def photometry(fileid, output_folder=None):
 	tab['pixel_row_psf_fit_error'] = psfphot_tbl['y_0_unc']
 
 	# Check that we got valid photometry:
-	if not np.isfinite(tab[0]['flux_psf']) or not np.isfinite(tab[0]['flux_psf_error']):
+	if np.any(~np.isfinite(tab[indx_main_target]['flux_psf'])) or np.any(~np.isfinite(tab[indx_main_target]['flux_psf_error'])):
 		raise Exception("Target magnitude is undefined.")
 
 	#==============================================================================================
@@ -476,7 +496,7 @@ def photometry(fileid, output_folder=None):
 
 	# Mask out things that should not be used in calibration:
 	use_for_calibration = np.ones_like(mag_catalog, dtype='bool')
-	use_for_calibration[0] = False # Do not use target for calibration
+	use_for_calibration[indx_main_target] = False # Do not use target for calibration
 	use_for_calibration[~np.isfinite(mag_inst) | ~np.isfinite(mag_catalog)] = False
 
 	# Just creating some short-hands:
@@ -531,8 +551,11 @@ def photometry(fileid, output_folder=None):
 	tab.meta['version'] = __version__
 	tab.meta['fileid'] = fileid
 	tab.meta['template'] = None if datafile.get('template') is None else datafile['template']['fileid']
+	tab.meta['diffimg'] = None if datafile.get('diffimg') is None else datafile['diffimg']['fileid']
 	tab.meta['photfilter'] = photfilter
-	tab.meta['fwhm'] = fwhm
+	tab.meta['fwhm'] = fwhm * u.pixel
+	tab.meta['pixel_scale'] = pixel_scale * u.arcsec/u.pixel
+	tab.meta['seeing'] = (fwhm*pixel_scale) * u.arcsec
 	tab.meta['obstime-bmjd'] = float(image.obstime.mjd)
 	tab.meta['zp'] = zp
 	tab.meta['zp_error'] = zp_error

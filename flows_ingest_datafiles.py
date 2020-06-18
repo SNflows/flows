@@ -216,9 +216,6 @@ def ingest_photometry(photfile=None):
 #---------------------------------------------------------------------------------------------------
 def ingest_from_inbox():
 
-	targetid = 2
-	targetname = 'SN2019yvr'
-
 	rootdir_inbox = '/aadc/flows/inbox'
 	rootdir = '/aadc/flows/archive'
 
@@ -233,26 +230,41 @@ def ingest_from_inbox():
 		db.cursor.execute("SELECT archive,path FROM aadc.files_archives;")
 		archives_list = db.cursor.fetchall()
 
-		for inputtype in ('observations', 'templates'):
-			for fpath in glob.iglob(os.path.join(rootdir_inbox, '2019yvr', inputtype, '*.fits')):
+		for inputtype in ('science', 'templates', 'subtracted'):
+			for fpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype, '*.fits')):
 				# Get the name of the directory:
 				# Not pretty, but it works...
-				target_dirname = fpath[len(rootdir_inbox):]
+				target_dirname = fpath[len(rootdir_inbox)+1:]
 				target_dirname = target_dirname.split(os.path.sep)[0]
-				print(target_dirname)
 
 				# TODO: Convert directory name to target
-				#db.cursor.execute("SELECT targetid FROM flows.targets WHERE target_name=%s;", [])
-				#row = db.cursor.fetchone()
-				#targetid = row['targetid']
-				#targetname = row['target_name']
+				db.cursor.execute("SELECT targetid,target_name FROM flows.targets WHERE target_name=%s;", [target_dirname])
+				row = db.cursor.fetchone()
+				if row is None:
+					raise Exception('Could not find target: %s', target_dirname)
+				targetid = row['targetid']
+				targetname = row['target_name']
 
-				if inputtype == 'observations':
+				if inputtype == 'science':
 					newpath = os.path.join(rootdir, targetname, os.path.basename(fpath))
 					datatype = 1
-				else:
+				elif inputtype == 'templates':
 					newpath = os.path.join(rootdir, targetname, inputtype, os.path.basename(fpath))
 					datatype = 3
+				elif inputtype == 'subtracted':
+					newpath = os.path.join(rootdir, targetname, inputtype, os.path.basename(fpath))
+					datatype = 4
+
+					original_fname = os.path.basename(fpath).replace('diff.fits', '.fits')
+					db.cursor.execute("SELECT fileid FROM flows.files WHERE targetid=%s AND datatype=1 AND path LIKE %s;", [targetid, '%/' + original_fname])
+					subtracted_original_fileid = db.cursor.fetchone()
+					if subtracted_original_fileid is None:
+						print("ORIGINAL SCIENCE IMAGE COULD NOT BE FOUND: %s" % os.path.basename(fpath))
+						continue
+					else:
+						subtracted_original_fileid = subtracted_original_fileid[0]
+				else:
+					raise Exception("Not understood, Captain")
 
 				print("="*72)
 				print(fpath)
@@ -277,76 +289,42 @@ def ingest_from_inbox():
 					continue
 
 				try:
+					img = load_image(fpath)
+				except:
+					print("Could not load FITS image")
+					continue
+
+				if img.site['siteid'] is None:
+					print(hdr)
+					raise Exception("Unknown SITE")
+
+				try:
 					# Copy the file to its new home:
+					os.makedirs(os.path.dirname(newpath), exist_ok=True)
 					shutil.copy(fpath, newpath)
 
 					filesize = os.path.getsize(fpath)
 
-					with fits.open(newpath, mode='readonly', memmap=True) as hdu:
-						hdr = hdu[0].header
-
-						origin = hdr.get('ORIGIN')
-						siteid = None
-						if origin == 'LCOGT':
-							site = hdr['SITE']
-							siteid = site_keywords.get(site, None)
-
-							#if os.path.basename(fpath).endswith('-e00.fits'):
-							#	datatype = 0
-							#else:
-							#	datatype = 1
-
-							#target = hdr['OBJECT']
-							#db.cursor.execute("SELECT targetid FROM flows.targets WHERE target_name=%s;", [target])
-							#row = db.cursor.fetchone()
-							#if row is None:
-							#	raise Exception()
-							#targetid = row['targetid']
-
-							photfilter = hdr['FILTER']
-							obstime = hdr['MJD-OBS']
-							exptime = hdr['EXPTIME']
-						elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE') == 'IMAGING':
-							siteid = 5
-							photfilter = {
-								'B Bes': 'B',
-								'V Bes': 'V',
-								'g SDSS': 'gp',
-								'r SDSS': 'rp',
-								'i SDSS': 'ip',
-								'u SDSS': 'up'
-							}.get(hdr['FILTER'].replace('_', ' '), hdr['FILTER'])
-							obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc').mjd
-							exptime = hdr['EXPTIME']
-						elif hdr.get('FPA.TELESCOPE') == 'PS1' and hdr.get('FPA.INSTRUMENT') == 'GPC1':
-							siteid = 7
-							photfilter = {
-								'g.00000': 'gp',
-								'r.00000': 'rp',
-								'i.00000': 'ip'
-							}.get(hdr['FPA.FILTER'], hdr['FPA.FILTER'])
-							obstime = hdr['MJD-OBS']
-							exptime = hdr['EXPTIME']
-
-					if siteid is None:
-						print(hdr)
-						raise Exception("Unknown SITE")
-
 					if not fpath.endswith('-e00.fits'):
 						create_plot(newpath)
 
-					db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,1);", {
+					db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,1) RETURNING fileid;", {
 						'archive': archive,
 						'relpath': relpath,
 						'targetid': targetid,
 						'datatype': datatype,
-						'site': siteid,
+						'site': img.site['siteid'],
 						'filesize': filesize,
 						'filehash': filehash,
-						'obstime': obstime,
-						'photfilter': photfilter,
-						'exptime': exptime
+						'obstime': img.obstime.mjd,
+						'photfilter': img.photfilter,
+						'exptime': img.exptime
 					})
+					fileid = db.cursor.fetchone()[0]
+
+					if inputtype == 'subtracted':
+						db.cursor.execute("INSERT INTO flows.files_cross_assoc (fileid,associd) VALUES (%s,%s);", [fileid, subtracted_original_fileid])
+
 					db.conn.commit()
 				except:
 					db.conn.rollback()
@@ -361,5 +339,5 @@ def ingest_from_inbox():
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
 
-	ingest_photometry()
-	#ingest_from_inbox()
+	#ingest_photometry()
+	ingest_from_inbox()
