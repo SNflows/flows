@@ -105,9 +105,6 @@ def ingest_photometry(photfile=None):
 	passwd = getpass.getpass('Password for PostgreSQL: ')
 
 	with AADC_DB(username='rasmush', password=passwd) as db:
-		#db.cursor.execute("DELETE FROM flows.files WHERE datatype=2;")
-		#db.conn.commit()
-
 		# Get list of archives:
 		db.cursor.execute("SELECT archive,path FROM aadc.files_archives;")
 		archives_list = db.cursor.fetchall()
@@ -219,16 +216,29 @@ def ingest_from_inbox():
 	rootdir_inbox = '/aadc/flows/inbox'
 	rootdir = '/aadc/flows/archive'
 
+	# Check that root directories are available:
+	if not os.path.isdir(rootdir_inbox):
+		raise FileNotFoundError("INBOX does not exists")
+	if not os.path.isdir(rootdir):
+		raise FileNotFoundError("ARCHIVE does not exists")
+
 	sites = api.sites.get_all_sites()
 	site_keywords = {s['site_keyword']: s['siteid'] for s in sites}
 
 	passwd = getpass.getpass('Password for PostgreSQL: ')
 
 	with AADC_DB(username='rasmush', password=passwd) as db:
-
 		# Get list of archives:
 		db.cursor.execute("SELECT archive,path FROM aadc.files_archives;")
 		archives_list = db.cursor.fetchall()
+
+		# Delete left-over files in the tables, that have been removed from disk:
+		db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
+		for row in db.cursor.fetchall():
+			if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
+				print("DELETE THIS FILE: " + row['uploadpath'])
+				db.cursor.execute("DELETE FROM flows.uploadlog WHERE logid=%s;", [row['logid']])
+				db.conn.commit()
 
 		for inputtype in ('science', 'templates', 'subtracted'):
 			for fpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype, '*.fits')):
@@ -237,13 +247,20 @@ def ingest_from_inbox():
 				target_dirname = fpath[len(rootdir_inbox)+1:]
 				target_dirname = target_dirname.split(os.path.sep)[0]
 
-				# TODO: Convert directory name to target
+				# Convert directory name to target
 				db.cursor.execute("SELECT targetid,target_name FROM flows.targets WHERE target_name=%s;", [target_dirname])
 				row = db.cursor.fetchone()
 				if row is None:
 					raise Exception('Could not find target: %s', target_dirname)
 				targetid = row['targetid']
 				targetname = row['target_name']
+
+				db.cursor.execute("SELECT logid FROM flows.uploadlog WHERE uploadpath=%s;", [os.path.relpath(fpath, rootdir_inbox)])
+				row = db.cursor.fetchone()
+				if row is not None:
+					uploadlogid = row['logid']
+				else:
+					uploadlogid = None
 
 				if inputtype == 'science':
 					newpath = os.path.join(rootdir, targetname, os.path.basename(fpath))
@@ -259,6 +276,9 @@ def ingest_from_inbox():
 					db.cursor.execute("SELECT fileid FROM flows.files WHERE targetid=%s AND datatype=1 AND path LIKE %s;", [targetid, '%/' + original_fname])
 					subtracted_original_fileid = db.cursor.fetchone()
 					if subtracted_original_fileid is None:
+						if uploadlogid:
+							db.cursor.execute("UPDATE flows.uploadlog SET status='original science image not found' WHERE logid=%s;", [uploadlogid])
+							db.conn.commit()
 						print("ORIGINAL SCIENCE IMAGE COULD NOT BE FOUND: %s" % os.path.basename(fpath))
 						continue
 					else:
@@ -272,6 +292,9 @@ def ingest_from_inbox():
 
 				if os.path.exists(newpath):
 					print("Already exists")
+					if uploadlogid:
+						db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: file name' WHERE logid=%s;", [uploadlogid])
+						db.conn.commit()
 					continue
 
 				archive, relpath = flows_get_archive_from_path(newpath, archives_list)
@@ -286,6 +309,9 @@ def ingest_from_inbox():
 				db.cursor.execute("SELECT fileid FROM flows.files WHERE filehash=%s;", [filehash])
 				if db.cursor.fetchone() is not None:
 					print("ALREADY DONE: Filehash")
+					if uploadlogid:
+						db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: filehash' WHERE logid=%s;", [uploadlogid])
+						db.conn.commit()
 					continue
 
 				try:
@@ -325,6 +351,9 @@ def ingest_from_inbox():
 					if inputtype == 'subtracted':
 						db.cursor.execute("INSERT INTO flows.files_cross_assoc (fileid,associd) VALUES (%s,%s);", [fileid, subtracted_original_fileid])
 
+					if uploadlogid:
+						db.cursor.execute("UPDATE flows.uploadlog SET fileid=%s,status='ok' WHERE logid=%s;", [fileid, uploadlogid])
+
 					db.conn.commit()
 				except:
 					db.conn.rollback()
@@ -335,6 +364,9 @@ def ingest_from_inbox():
 					print("DELETE THE ORIGINAL FILE")
 					if os.path.isfile(newpath):
 						os.remove(fpath)
+					if uploadlogid:
+						db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL WHERE logid=%s;", [uploadlogid])
+						db.conn.commit()
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
