@@ -65,13 +65,12 @@ def configure_casjobs(overwrite=False):
 		os.remove(casjobs_config)
 
 #--------------------------------------------------------------------------------------------------
-def query_casjobs_refcat2(ra, dec, radius=24.0/60.0):
+def query_casjobs_refcat2(coo_centre, radius=24.0/60.0):
 	"""
 	Uses the CasJobs program to do a cone-search around the position.
 
 	Parameters:
-		ra (float):
-		dec (float):
+		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
 		radius (float, optional):
 
 	Returns:
@@ -83,8 +82,8 @@ def query_casjobs_refcat2(ra, dec, radius=24.0/60.0):
 	logger = logging.getLogger(__name__)
 
 	sql = "SELECT r.* FROM fGetNearbyObjEq({ra:f}, {dec:f}, {radius:f}) AS n INNER JOIN HLSP_ATLAS_REFCAT2.refcat2 AS r ON n.objid=r.objid ORDER BY n.distance;".format(
-		ra=ra,
-		dec=dec,
+		ra=coo_centre.ra.deg,
+		dec=coo_centre.dec.deg,
 		radius=radius
 	)
 	logger.debug(sql)
@@ -148,12 +147,24 @@ def query_casjobs_refcat2(ra, dec, radius=24.0/60.0):
 	return results
 
 #--------------------------------------------------------------------------------------------------
-def query_apass(ra, decl, radius=24.0/60.0):
+def query_apass(coo_centre, radius=24.0/60.0):
+	"""
+	Queries APASS catalog using cone-search around the position.
 
+	Parameters:
+		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
+		radius (float, optional):
+
+	Returns:
+		list: List of dicts with the APASS information.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+	
 	# https://vizier.u-strasbg.fr/viz-bin/VizieR-3?-source=II/336
 
 	r = requests.post('https://www.aavso.org/cgi-bin/apass_dr10_download.pl',
-		data={'ra': ra, 'dec': decl, 'radius': radius, 'outtype': '1'})
+		data={'ra': coo_centre.ra.deg, 'dec': coo_centre.dec.deg, 'radius': radius, 'outtype': '1'})
 
 	results = []
 
@@ -180,13 +191,12 @@ def query_apass(ra, decl, radius=24.0/60.0):
 	return results
 
 #--------------------------------------------------------------------------------------------------
-def query_all(ra, decl, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
+def query_all(coo_centre, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 	"""
 	Query all catalogs, and return merged catalog.
 
 	Parameters:
-		ra (float):
-		decl (float):
+		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
 		radius (float): Search radius. Default 24 arcmin.
 		dist_cutoff (float): Maximal distance between object is catalog matching. Default 2 arcsec.
 
@@ -197,10 +207,10 @@ def query_all(ra, decl, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 	"""
 
 	# Query the REFCAT2 catalog using CasJobs around the target position:
-	results = query_casjobs_refcat2(row['ra'], row['decl'], radius=radius)
+	results = query_casjobs_refcat2(coo_centre, radius=radius)
 
 	# Query APASS around the target position:
-	results_apass = query_apass(row['ra'], row['decl'], radius=radius)
+	results_apass = query_apass(coo_centre, radius=radius)
 
 	# Match the two catalogs using coordinates:
 	# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
@@ -210,7 +220,7 @@ def query_all(ra, decl, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 
 	ra_apass = np.array([r['ra'] for r in results_apass])
 	decl_apass = np.array([r['decl'] for r in results_apass])
-	apass = SkyCoord(ra=ra_apass, dec=decl_apass, unit=u.deg)
+	apass = SkyCoord(ra=ra_apass, dec=decl_apass, unit=u.deg, frame='icrs')
 
 	# Match the two catalogs:
 	idx, d2d, _ = apass.match_to_catalog_sky(refcat)
@@ -267,8 +277,9 @@ def download_catalog(target=None, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 		for row in db.cursor.fetchall():
 			# The unique identifier of the target:
 			targetid = int(row['targetid'])
+			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
 
-			results = query_all(row['ra'], row['decl'], radius=radius, dist_cutoff=dist_cutoff)
+			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
 
 			# Insert the catalog into the local database:
 			#db.cursor.execute("TRUNCATE flows.refcat2;")
@@ -318,3 +329,4 @@ def download_catalog(target=None, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 			# Mark the target that the catalog has been downloaded:
 			db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE WHERE targetid=%s;", (targetid,))
 			db.conn.commit()
+
