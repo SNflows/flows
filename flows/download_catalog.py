@@ -180,7 +180,79 @@ def query_apass(ra, decl, radius=24.0/60.0):
 	return results
 
 #--------------------------------------------------------------------------------------------------
-def download_catalog(target=None, dist_cutoff=2*u.arcsec):
+def query_all(ra, decl, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
+	"""
+	Query all catalogs, and return merged catalog.
+
+	Parameters:
+		ra (float):
+		decl (float):
+		radius (float): Search radius. Default 24 arcmin.
+		dist_cutoff (float): Maximal distance between object is catalog matching. Default 2 arcsec.
+
+	Returns:
+		list: List of dicts with catalog stars.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+
+	# Query the REFCAT2 catalog using CasJobs around the target position:
+	results = query_casjobs_refcat2(row['ra'], row['decl'], radius=radius)
+
+	# Query APASS around the target position:
+	results_apass = query_apass(row['ra'], row['decl'], radius=radius)
+
+	# Match the two catalogs using coordinates:
+	# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
+	ra = np.array([r['ra'] for r in results])
+	decl = np.array([r['decl'] for r in results])
+	refcat = SkyCoord(ra=ra, dec=decl, unit=u.deg, frame='icrs')
+
+	ra_apass = np.array([r['ra'] for r in results_apass])
+	decl_apass = np.array([r['decl'] for r in results_apass])
+	apass = SkyCoord(ra=ra_apass, dec=decl_apass, unit=u.deg)
+
+	# Match the two catalogs:
+	idx, d2d, _ = apass.match_to_catalog_sky(refcat)
+
+	# Go through the matches and make sure they are valid:
+	for k, i in enumerate(idx):
+		# If APASS doesn't contain any new information anyway, skip it:
+		if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None \
+			and results_apass[k]['u_mag'] is None:
+			continue
+
+		# Reject any match further away than the cutoff:
+		if d2d[k] > dist_cutoff:
+			continue
+
+		# TODO: Use the overlapping magnitudes to make better match:
+		#photdist = 0
+		#for photfilt in ('g_mag', 'r_mag', 'i_mag', 'z_mag'):
+		#	if results_apass[k][photfilt] and results[i][photfilt]:
+		#		photdist += (results[i][photfilt] - results_apass[k][photfilt])**2
+		#print( np.sqrt(photdist) )
+
+		# Update the results "table" with the APASS filters:
+		results[i].update({
+			'V_mag': results_apass[k]['V_mag'],
+			'B_mag': results_apass[k]['B_mag'],
+			'u_mag': results_apass[k]['u_mag']
+		})
+
+	# Fill in empty fields where nothing was matched:
+	for k in range(len(results)):
+		if 'V_mag' not in results[k]:
+			results[k].update({
+				'B_mag': None,
+				'V_mag': None,
+				'u_mag': None
+			})
+
+	return results
+
+#--------------------------------------------------------------------------------------------------
+def download_catalog(target=None, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 
 	logger = logging.getLogger(__name__)
 
@@ -196,58 +268,7 @@ def download_catalog(target=None, dist_cutoff=2*u.arcsec):
 			# The unique identifier of the target:
 			targetid = int(row['targetid'])
 
-			# Query the REFCAT2 catalog using CasJobs around the target position:
-			results = query_casjobs_refcat2(row['ra'], row['decl'])
-
-			# Query APASS around the target position:
-			results_apass = query_apass(row['ra'], row['decl'])
-
-			# Match the two catalogs using coordinates:
-			# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
-			ra = np.array([r['ra'] for r in results])
-			decl = np.array([r['decl'] for r in results])
-			refcat = SkyCoord(ra=ra, dec=decl, unit=u.deg, frame='icrs')
-
-			ra_apass = np.array([r['ra'] for r in results_apass])
-			decl_apass = np.array([r['decl'] for r in results_apass])
-			apass = SkyCoord(ra=ra_apass, dec=decl_apass, unit=u.deg)
-
-			# Match the two catalogs:
-			idx, d2d, _ = apass.match_to_catalog_sky(refcat)
-
-			# Go through the matches and make sure they are valid:
-			for k, i in enumerate(idx):
-				# If APASS doesn't contain any new information anyway, skip it:
-				if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None \
-					and results_apass[k]['u_mag'] is None:
-					continue
-
-				# Reject any match further away than the cutoff:
-				if d2d[k] > dist_cutoff:
-					continue
-
-				# TODO: Use the overlapping magnitudes to make better match:
-				#photdist = 0
-				#for photfilt in ('g_mag', 'r_mag', 'i_mag', 'z_mag'):
-				#	if results_apass[k][photfilt] and results[i][photfilt]:
-				#		photdist += (results[i][photfilt] - results_apass[k][photfilt])**2
-				#print( np.sqrt(photdist) )
-
-				# Update the results "table" with the APASS filters:
-				results[i].update({
-					'V_mag': results_apass[k]['V_mag'],
-					'B_mag': results_apass[k]['B_mag'],
-					'u_mag': results_apass[k]['u_mag']
-				})
-
-			# Fill in empty fields where nothing was matched:
-			for k in range(len(results)):
-				if 'V_mag' not in results[k]:
-					results[k].update({
-						'B_mag': None,
-						'V_mag': None,
-						'u_mag': None
-					})
+			results = query_all(row['ra'], row['decl'], radius=radius, dist_cutoff=dist_cutoff)
 
 			# Insert the catalog into the local database:
 			#db.cursor.execute("TRUNCATE flows.refcat2;")
