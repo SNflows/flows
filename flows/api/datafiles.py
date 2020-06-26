@@ -18,7 +18,6 @@ def get_datafile(fileid):
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
 		raise Exception("No API token has been defined")
-
 	r = requests.get('https://flows.phys.au.dk/api/datafiles.php',
 		params={'fileid': fileid},
 		headers={'Authorization': 'Bearer ' + token})
