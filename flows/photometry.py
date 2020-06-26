@@ -240,7 +240,7 @@ def photometry(fileid, output_folder=None):
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
 	cleanout_references = (len(references) > 6)
-	logger.info("Number of references before cleaning: %d", len(references))
+	logger.debug("Number of references before cleaning: %d", len(references))
 	if cleanout_references:
 		#daofind_tbl = DAOStarFinder(100, fwhm=fwhm, roundlo=-0.5, roundhi=0.5).find_stars(image.subclean, mask=image.mask)
 		#Now We use a more struct DAOStarFinder check.
@@ -251,14 +251,12 @@ def photometry(fileid, output_folder=None):
 			dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
 			if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
 				indx_good[k] = True
-		
-		
-		print(references)
+	
 		
 		#Arbitary but we don't want to cut too many references. In that case, go back to less strict version. 
 		#TODO: Change the checking here to a function
 		min_references=6
-		logger.info("Number of references 1: %d", len(references[indx_good]))
+		logger.debug("Number of references after strict cleaning: %d", len(references[indx_good]))
 		if len(references[indx_good])<= min_references:
 			daofind_tbl = DAOStarFinder(100, fwhm=fwhm, roundlo=-0.5, roundhi=0.5).find_stars(image.subclean, mask=image.mask)
 			indx_good = np.zeros(len(references), dtype='bool')
@@ -267,12 +265,12 @@ def photometry(fileid, output_folder=None):
 				if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
 					indx_good[k] = True
 			
-			logger.info("Number of references 2: %d", len(references[indx_good]))
+			logger.debug("Number of references after less strict cleaning: %d", len(references[indx_good]))
 		references = references[indx_good]
 	
 	
 	## Can be used for making cuts based on sharpness or roundness parameters from daofind
-	calculate_daostar_properties=True
+	calculate_daostar_properties=False
 	if calculate_daostar_properties:
 		idx_sources_good=np.zeros(len(daofind_tbl), dtype='bool')
 		for k, daoref in enumerate(daofind_tbl):
@@ -280,7 +278,7 @@ def photometry(fileid, output_folder=None):
 			if np.any(dist <= fwhm/4):
 				idx_sources_good[k] = True
 		daoclean = daofind_tbl[idx_sources_good]
-		print(daoclean)
+	
 		
 	#Remove sources within r arcsecond of the target pos from the reference list
 	#@TODO: Change target with host galaxy and r with a multiple of half-light radius.
