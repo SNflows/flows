@@ -225,9 +225,7 @@ def ingest_from_inbox():
 	sites = api.sites.get_all_sites()
 	site_keywords = {s['site_keyword']: s['siteid'] for s in sites}
 
-	passwd = getpass.getpass('Password for PostgreSQL: ')
-
-	with AADC_DB(username='rasmush', password=passwd) as db:
+	with AADC_DB() as db:
 		# Get list of archives:
 		db.cursor.execute("SELECT archive,path FROM aadc.files_archives;")
 		archives_list = db.cursor.fetchall()
@@ -241,7 +239,23 @@ def ingest_from_inbox():
 				db.conn.commit()
 
 		for inputtype in ('science', 'templates', 'subtracted'):
-			for fpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype, '*.fits')):
+			for fpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype, '*')):
+				# Find the uploadlog corresponding to this file:
+				db.cursor.execute("SELECT logid FROM flows.uploadlog WHERE uploadpath=%s;", [os.path.relpath(fpath, rootdir_inbox)])
+				row = db.cursor.fetchone()
+				if row is not None:
+					uploadlogid = row['logid']
+				else:
+					uploadlogid = None
+
+				# Only accept FITS file, or already compressed FITS files:
+				if not fpath.endswith('.fits') and not fpath.endswith('.fits.gz'):
+					if uploadlogid:
+						db.cursor.execute("UPDATE flows.uploadlog SET status='Invalid file type' WHERE logid=%s;", [uploadlogid])
+						db.conn.commit()
+					print("Invalid file type: %s" % os.path.relpath(fpath, rootdir_inbox))
+					continue
+
 				# Get the name of the directory:
 				# Not pretty, but it works...
 				target_dirname = fpath[len(rootdir_inbox)+1:]
@@ -255,12 +269,23 @@ def ingest_from_inbox():
 				targetid = row['targetid']
 				targetname = row['target_name']
 
-				db.cursor.execute("SELECT logid FROM flows.uploadlog WHERE uploadpath=%s;", [os.path.relpath(fpath, rootdir_inbox)])
-				row = db.cursor.fetchone()
-				if row is not None:
-					uploadlogid = row['logid']
-				else:
-					uploadlogid = None
+				if 1==2 and not fpath.endswith('.gz'):
+					# Gzip the FITS file:
+					with open(fpath, 'rb') as f_in:
+						with gzip.open(fpath + '.gz', 'wb') as f_out:
+							f_out.writelines(f_in)
+
+					# We should now have a Gzip file instead:
+					if os.path.isfile(fpath) and os.path.isfile(fpath + '.gz'):
+						# Update the log of this file:
+						if uploadlogid:
+							db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=%s WHERE logid=%s;", [os.path.relpath(fpath+'.gz', rootdir_inbox), uploadlogid])
+							db.conn.commit()
+
+						os.remove(fpath)
+						fpath += '.gz'
+					else:
+						raise Exception("Gzip file was not created correctly")
 
 				if inputtype == 'science':
 					newpath = os.path.join(rootdir, targetname, os.path.basename(fpath))
@@ -304,8 +329,10 @@ def ingest_from_inbox():
 					print("ALREADY DONE")
 					continue
 
+				# Calculate filehash of the file being stored:
 				filehash = get_filehash(fpath)
 
+				# Check that the file does not already exist:
 				db.cursor.execute("SELECT fileid FROM flows.files WHERE filehash=%s;", [filehash])
 				if db.cursor.fetchone() is not None:
 					print("ALREADY DONE: Filehash")
@@ -367,6 +394,17 @@ def ingest_from_inbox():
 					if uploadlogid:
 						db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL WHERE logid=%s;", [uploadlogid])
 						db.conn.commit()
+
+	#----------------------------------------------------------------------------------------------
+	# Cleanup of inbox directory:
+	for inputtype in ('science', 'templates', 'subtracted'):
+		for dpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype)):
+			if not os.listdir(dpath):
+				os.rmdir(dpath)
+
+	for dpath in glob.iglob(os.path.join(rootdir_inbox, '*')):
+		if os.path.isdir(dpath) and not os.listdir(dpath):
+			os.rmdir(dpath)
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
