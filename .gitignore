@@ -1,10 +1,6 @@
 flows/config.ini
 flows/casjobs/CasJobs.config
 
-#Jupyter lab & notebooks
-*.ipynb
-.idea/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -134,3 +130,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# JetBrains IDEs
+.idea/
