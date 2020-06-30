@@ -54,7 +54,7 @@ def photometry(fileid, output_folder=None):
 
 	# Settings:
 	ref_mag_limit = 22 # Lower limit on reference target brightness
-	ref_target_dist_limit = 30 # Reference star must be further than this away to be included
+	ref_target_dist_limit = 10 * u.arcsec # Reference star must be further than this away to be included
 
 	logger = logging.getLogger(__name__)
 	tic = default_timer()
@@ -131,7 +131,8 @@ def photometry(fileid, output_folder=None):
 	hsize = 10
 	x = references['pixel_column']
 	y = references['pixel_row']
-	references = references[(np.sqrt((x - target_pixel_pos[0])**2 + (y - target_pixel_pos[1])**2) > ref_target_dist_limit)
+	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'], unit='deg', frame='icrs')
+	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
 		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
 		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
 	# 		& (references[ref_filter] < ref_mag_limit)
@@ -233,10 +234,7 @@ def photometry(fileid, output_folder=None):
 	logger.info("FWHM: %f", fwhm)
 	if np.isnan(fwhm):
 		raise Exception("Could not estimate FWHM")
-	else:
-		image.fwhm=fwhm #write fwhm to image object
 
-	
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
 	cleanout_references = (len(references) > 6)
@@ -251,9 +249,9 @@ def photometry(fileid, output_folder=None):
 			dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
 			if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
 				indx_good[k] = True
-	
-		
-		#Arbitary but we don't want to cut too many references. In that case, go back to less strict version. 
+
+
+		#Arbitary but we don't want to cut too many references. In that case, go back to less strict version.
 		#TODO: Change the checking here to a function
 		min_references=6
 		logger.debug("Number of references after strict cleaning: %d", len(references[indx_good]))
@@ -264,11 +262,11 @@ def photometry(fileid, output_folder=None):
 				dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
 				if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
 					indx_good[k] = True
-			
+
 			logger.debug("Number of references after less strict cleaning: %d", len(references[indx_good]))
 		references = references[indx_good]
-	
-	
+
+
 	## Can be used for making cuts based on sharpness or roundness parameters from daofind
 	calculate_daostar_properties=False
 	if calculate_daostar_properties:
@@ -278,12 +276,7 @@ def photometry(fileid, output_folder=None):
 			if np.any(dist <= fwhm/4):
 				idx_sources_good[k] = True
 		daoclean = daofind_tbl[idx_sources_good]
-	
-		
-	#Remove sources within r arcsecond of the target pos from the reference list
-	#@TODO: Change target with host galaxy and r with a multiple of half-light radius.
-	references=rm_sources_within(references,target_coord,r=10*u.arcsec)
-		
+
 
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
@@ -613,64 +606,3 @@ def photometry(fileid, output_folder=None):
 	logger.info("Photometry took: %f seconds", toc-tic)
 
 	return photometry_output
-
-    
-def rm_sources_within(references,target_coord,r=10.0*u.arcsec):
-	'''remove sources within r units of target.
-	Return references sans the close one.'''
-	#Create SkyCoord Array
-	refs=coords.SkyCoord(references['ra'],references['decl'],frame='icrs')
-	seps=target_coord.separation(refs) #Separation in astropy angles
-	return references[seps>r]
-
-####
-#   Reference code for removing based on DAOStarFinder parameters.
-###
-
-#def rm_galaxies_jank(image,magnitude_limit=-1.5,strictness=1):
-#	'''remove galaxies and space junk but using a very janky
-#	method. Use as basis for writing a proper removal script. '''
-#	
-#	import pandas as pd
-#	from astropy.stats import sigma_clipped_stats
-#	#Fail nicely, we don't care if this step doesn't work. 
-#	#Only problem is we won't be able to keyboard interrupt here, which is not ideal. 
-#	#@TODO: Fix naked try except. Probably want to except when DAOStarFinder is fed null arguments
-#	#Also  when image or rows are flat and ic is empty, pandas df cannot be built etc.
-#	
-#	try:
-#		sources = DAOStarFinder(fwhm=FWHM, threshold=7.*image.std,exclude_border=True,
-#								sharphi=0.8,sigma_radius=1.1,peakmax=image.nonlin).find_stars(image.subclean, mask=image.mask)
-#		
-#		
-#		#index of finite daofind sources
-#		ic = [i for i, row in enumerate(sources) if np.isfinite(row['mag']) and row['mag'] <= magnitude_limit] 
-#		if strictiness==1:
-#			return ic
-#		#I don't even know why this is in pandas, I just copied from my old code
-#		#Update to just use astropy table and remove the unnecessary for loops.
-#		elif strictness==2
-#		df=pd.DataFrame(index=ic,columns=['s','r1','r2'])
-#		sp,rp1,rp2=[],[],[]
-#		for i in ic:
-#			sp.append(sources[i]['sharpness'])
-#			rp1.append(sources[i]['roundness1'])
-#			rp2.append(sources[i]['roundness2'])
-#		df['s']=sp
-#		df['r1']=rp1
-#		df['r2']=rp2
-#	
-#		df['delta_s']=df.s-df.s.mean()
-#		df['delta_r1']=df.r1-df.r1.mean()
-#		df['delta_r2']=df.r2-df.r2.mean()
-#
-#		df['del_r2']=(df.delta_r1**2+df.delta_r2**2)**(1/2)
-#
-#		masked_s=sigma_clip(df['s'],sigma=2.5)
-#	
-#		return df[((df.delta_s<-0.1) & (df.del_r2>df.del_r2.median())) | (masked_s.mask==True)].index.values
-#	except:
-#		return 'None'
-
-	
-	
