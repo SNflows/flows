@@ -55,7 +55,7 @@ def load_image(FILENAME):
 
 		# Specific headers:
 		image.exptime = float(hdr['EXPTIME']) # * u.second
-		image.nonlin = 1e5 #default value
+		image.peakmax = None # Maximum value above which data is not to be trusted
 
 		# Timestamp:
 		if origin == 'LCOGT':
@@ -67,10 +67,11 @@ def load_image(FILENAME):
 			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=observatory)
 
 			image.photfilter = hdr['FILTER']
-			#Get non-linear limit
-			image.nonlin = hdr.get('MAXLIN')#Presumed non-linearity limit from header
-			image.nonlin = 60000 #From experience, this one is better.
-			#@TODO: Use actual or some fraction of the non-linearity limit
+
+			# Get non-linear limit
+			# TODO: Use actual or some fraction of the non-linearity limit
+			#image.peakmax = hdr.get('MAXLIN') # Presumed non-linearity limit from header
+			image.peakmax = 60000 #From experience, this one is better.
 
 		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE') == 'IMAGING':
 			image.site = api.get_site(5) # Hard-coded the siteid for NOT
@@ -84,10 +85,11 @@ def load_image(FILENAME):
 				'i SDSS': 'ip',
 				'u SDSS': 'up'
 			}.get(hdr['FILTER'].replace('_', ' '), hdr['FILTER'])
-			#get real non-linear limit
-			image.nonlin = 80000 #For ALFOSC D, 1x1, 200; the standard for SNe.
-			#Obtained from http://www.not.iac.es/instruments/detectors/CCD14/LED-linearity/20181026-200-1x1.pdf
-			#@TODO: grab these from a table for all detector setups of ALFOSC
+
+			# Get non-linear limit
+			# Obtained from http://www.not.iac.es/instruments/detectors/CCD14/LED-linearity/20181026-200-1x1.pdf
+			# TODO: grab these from a table for all detector setups of ALFOSC
+			image.peakmax = 80000 # For ALFOSC D, 1x1, 200; the standard for SNe.
 
 		elif hdr.get('FPA.TELESCOPE') == 'PS1' and hdr.get('FPA.INSTRUMENT') == 'GPC1':
 			image.site = api.get_site(6) # Hard-coded the siteid for Pan-STARRS1

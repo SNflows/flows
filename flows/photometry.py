@@ -250,9 +250,9 @@ def photometry(fileid, output_folder=None):
 			'exclude_border': True,
 			'sharphi': 0.8,
 			'sigma_radius': 1.1,
-			'peakmax': image.nonlin
+			'peakmax': image.peakmax
 		}, {
-			'threshold': 100, # TODO: This should be changed!!!
+			'threshold': 3 * image.std,
 			'fwhm': fwhm,
 			'roundlo': -0.5,
 			'roundhi': 0.5
