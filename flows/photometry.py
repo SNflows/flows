@@ -265,18 +265,6 @@ def photometry(fileid, output_folder=None):
 			logger.debug("Number of references after less strict cleaning: %d", len(references[indx_good]))
 		references = references[indx_good]
 
-
-	## Can be used for making cuts based on sharpness or roundness parameters from daofind
-	calculate_daostar_properties=False
-	if calculate_daostar_properties:
-		idx_sources_good=np.zeros(len(daofind_tbl), dtype='bool')
-		for k, daoref in enumerate(daofind_tbl):
-			dist = np.sqrt( (daoref['xcentroid'] - references['pixel_column'])**2 + (daoref['ycentroid'] - references['pixel_row'])**2 )
-			if np.any(dist <= fwhm/4):
-				idx_sources_good[k] = True
-		daoclean = daofind_tbl[idx_sources_good]
-
-
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
 	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
