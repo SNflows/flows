@@ -125,7 +125,6 @@ def photometry(fileid, output_folder=None):
 
 	# Calculate the targets position in the image:
 	target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
-	image.target_pixel_pos = target_pixel_pos #Feed this to target so we can use it to clean around it.
 
 	# Clean out the references:
 	hsize = 10
