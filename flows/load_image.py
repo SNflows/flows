@@ -7,6 +7,7 @@ Flows photometry code.
 """
 
 import numpy as np
+import astropy.units as u
 import astropy.coordinates as coords
 from astropy.io import fits
 from astropy.time import Time
@@ -53,7 +54,7 @@ def load_image(FILENAME):
 			warnings.simplefilter('ignore', category=FITSFixedWarning)
 			image.wcs = WCS(hdr)
 
-		# Specific headers:
+		# Specific headers everyone can agree on:
 		image.exptime = float(hdr['EXPTIME']) # * u.second
 		image.peakmax = None # Maximum value above which data is not to be trusted
 
@@ -100,6 +101,21 @@ def load_image(FILENAME):
 				'r.00000': 'rp',
 				'i.00000': 'ip'
 			}.get(hdr['FPA.FILTER'], hdr['FPA.FILTER'])
+
+		elif hdr.get('TELESCOP') == 'Liverpool Telescope':
+			# Liverpool telescope
+			image.site = api.get_site(8) # Hard-coded the siteid for Liverpool Telescope
+			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
+			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
+			image.photfilter = {
+				'Bessel-B': 'B',
+				'Bessel-V': 'V',
+				'SDSS-U': 'up',
+				'SDSS-G': 'gp',
+				'SDSS-R': 'rp',
+				'SDSS-I': 'ip',
+				'SDSS-Z': 'zp'
+			}.get(hdr['FILTER1'], hdr['FILTER1'])
 
 		else:
 			raise Exception("Could not determine origin of image")
