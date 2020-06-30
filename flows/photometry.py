@@ -236,35 +236,48 @@ def photometry(fileid, output_folder=None):
 
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
+	min_references = 6
 	cleanout_references = (len(references) > 6)
 	logger.debug("Number of references before cleaning: %d", len(references))
 	if cleanout_references:
-		#daofind_tbl = DAOStarFinder(100, fwhm=fwhm, roundlo=-0.5, roundhi=0.5).find_stars(image.subclean, mask=image.mask)
-		#Now We use a more struct DAOStarFinder check.
-		daofind_tbl = DAOStarFinder(fwhm=fwhm, threshold=7.*image.std,exclude_border=True,
-                        sharphi=0.8,sigma_radius=1.1,peakmax=image.nonlin).find_stars(image.subclean, mask=image.mask)
-		indx_good = np.zeros(len(references), dtype='bool')
-		for k, ref in enumerate(references):
-			dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
-			if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
-				indx_good[k] = True
+		# Arguments for DAOStarFind, starting with the strictest and ending with the
+		# least strict settings to try:
+		# We will stop with the first set that yield more than the minimum number
+		# of reference stars.
+		daofind_args = [{
+			'threshold': 7 * image.std,
+			'fwhm': fwhm,
+			'exclude_border': True,
+			'sharphi': 0.8,
+			'sigma_radius': 1.1,
+			'peakmax': image.nonlin
+		}, {
+			'threshold': 100, # TODO: This should be changed!!!
+			'fwhm': fwhm,
+			'roundlo': -0.5,
+			'roundhi': 0.5
+		}]
 
+		# Loop through argument sets for DAOStarFind:
+		for kwargs in daofind_args:
+			# Run DAOStarFind with the given arguments:
+			daofind_tbl = DAOStarFinder(**kwargs).find_stars(image.subclean, mask=image.mask)
 
-		#Arbitary but we don't want to cut too many references. In that case, go back to less strict version.
-		#TODO: Change the checking here to a function
-		min_references=6
-		logger.debug("Number of references after strict cleaning: %d", len(references[indx_good]))
-		if len(references[indx_good])<= min_references:
-			daofind_tbl = DAOStarFinder(100, fwhm=fwhm, roundlo=-0.5, roundhi=0.5).find_stars(image.subclean, mask=image.mask)
+			# Match the found stars with the catalog references:
 			indx_good = np.zeros(len(references), dtype='bool')
 			for k, ref in enumerate(references):
 				dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
 				if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
 					indx_good[k] = True
 
-			logger.debug("Number of references after less strict cleaning: %d", len(references[indx_good]))
-		references = references[indx_good]
+			logger.debug("Number of references after cleaning: %d", np.sum(indx_good))
+			if np.sum(indx_good) >= min_references:
+				references = references[indx_good]
+				break
 
+	logger.debug("Number of references after cleaning: %d", len(references))
+
+	# Create plot of target and reference star positions:
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
 	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
