@@ -32,7 +32,21 @@ def get_datafile(fileid):
 	return jsn
 
 #--------------------------------------------------------------------------------------------------
-def get_datafiles(targetid=None):
+def get_datafiles(targetid=None, filt=None):
+	"""
+	Get list of data file IDs to be processed.
+
+	Parameters:
+		targetid (int): Target ID to process.
+		filt (str, optional): Filter the returned list:
+			- ``None``: Return only data files that have not yet been processed.
+			- ``'all'``: Return all data files.
+
+	Returns:
+		list: List of data files the can be processed.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
 
 	# Get API token from config file:
 	config = load_config()
@@ -40,8 +54,12 @@ def get_datafiles(targetid=None):
 	if token is None:
 		raise Exception("No API token has been defined")
 
+	params = {'targetid': targetid}
+	if filt == 'all':
+		params['filter'] = 'all'
+
 	r = requests.get('https://flows.phys.au.dk/api/datafiles.php',
-		params={'targetid': targetid},
+		params=params,
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
 	jsn = r.json()

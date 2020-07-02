@@ -19,6 +19,7 @@ if __name__ == '__main__':
 	parser.add_argument('-o', '--overwrite', help='Overwrite existing results.', action='store_true')
 	parser.add_argument('--fileid', type=int, default=None)
 	parser.add_argument('--targetid', type=int, default=2)
+	parser.add_argument('--filter', type=str, default=None, choices=('all'))
 	args = parser.parse_args()
 
 	# Set logging level:
@@ -42,7 +43,7 @@ if __name__ == '__main__':
 		fileids = [args.fileid]
 	else:
 		# Ask the API for a list of fileids which are yet to be processed:
-		fileids = api.get_datafiles(targetid=args.targetid)
+		fileids = api.get_datafiles(targetid=args.targetid, filt=args.filter)
 		print(fileids)
 
 	config = load_config()
