@@ -82,7 +82,7 @@ def create_plot(filepath):
 #--------------------------------------------------------------------------------------------------
 def ingest_photometry(photfile=None):
 
-	rootdir = '/aadc/flows/photometry'
+	rootdir = '/flows/photometry'
 
 	# Use local copy of archive if configured to do so:
 	config = load_config()
@@ -213,8 +213,8 @@ def ingest_photometry(photfile=None):
 #---------------------------------------------------------------------------------------------------
 def ingest_from_inbox():
 
-	rootdir_inbox = '/aadc/flows/inbox'
-	rootdir = '/aadc/flows/archive'
+	rootdir_inbox = '/flows/inbox'
+	rootdir = '/flows/archive'
 
 	# Check that root directories are available:
 	if not os.path.isdir(rootdir_inbox):
