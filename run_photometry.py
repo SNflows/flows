@@ -19,7 +19,7 @@ if __name__ == '__main__':
 	parser.add_argument('-o', '--overwrite', help='Overwrite existing results.', action='store_true')
 	parser.add_argument('--fileid', type=int, default=None)
 	parser.add_argument('--targetid', type=int, default=2)
-	parser.add_argument('--filter', type=str, default=None, choices=('all'))
+	parser.add_argument('--filter', type=str, default=None, choices=['all'])
 	args = parser.parse_args()
 
 	# Set logging level:
