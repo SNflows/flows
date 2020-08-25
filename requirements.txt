@@ -10,4 +10,5 @@ psycopg2-binary
 jplephem
 vtk
 scikit-image
+tqdm
 git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
