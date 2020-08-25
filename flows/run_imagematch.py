@@ -167,7 +167,8 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 				raise Exception("ImageMatch failed.")
 
 			# Load the resulting difference image into memory:
-			diffimg_path = os.path.join(tmpdir, os.path.splitext(os.path.basename(science_image))[0] + 'diff.fits')
+			diffimg_name = re.sub(r'\.fits(\.gz|\.bz2)?$', r'diff.fits\1', os.path.basename(science_image))
+			diffimg_path = os.path.join(tmpdir, diffimg_name)
 			if not os.path.isfile(diffimg_path):
 				raise FileNotFoundError(diffimg_path)
 

@@ -73,7 +73,7 @@ def photometry(fileid, output_folder=None):
 	if archive_local is not None:
 		datafile['archive_path'] = archive_local
 	if not os.path.isdir(datafile['archive_path']):
-		raise FileNotFoundError("ARCHIVE is not available")
+		raise FileNotFoundError("ARCHIVE is not available: " + datafile['archive_path'])
 
 	# Get the catalog containing the target and reference stars:
 	# TODO: Include proper-motion to the time of observation
