@@ -33,7 +33,7 @@ def process_fileid(fid, output_folder_root=None):
 	except (SystemExit, KeyboardInterrupt):
 		logger.error("Aborted by user or system.")
 		photfile = None
-	except:
+	except: # noqa: E722, pragma: no cover
 		logger.exception("Photometry failed")
 		photfile = None
 

@@ -61,8 +61,9 @@ def configure_casjobs(overwrite=False):
 			fid.write("verbose=false\n")
 			fid.write("debug=false\n")
 			fid.write("jobs_location=http://mastweb.stsci.edu/gcasjobs/services/jobs.asmx\n")
-	except:
-		os.remove(casjobs_config)
+	except: # noqa: E722, pragma: no cover
+		if os.path.isfile(casjobs_config):
+			os.remove(casjobs_config)
 
 #--------------------------------------------------------------------------------------------------
 def query_casjobs_refcat2(coo_centre, radius=24.0/60.0):
@@ -160,7 +161,7 @@ def query_apass(coo_centre, radius=24.0/60.0):
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
-	
+
 	# https://vizier.u-strasbg.fr/viz-bin/VizieR-3?-source=II/336
 
 	r = requests.post('https://www.aavso.org/cgi-bin/apass_dr10_download.pl',
@@ -329,4 +330,3 @@ def download_catalog(target=None, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 			# Mark the target that the catalog has been downloaded:
 			db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE WHERE targetid=%s;", (targetid,))
 			db.conn.commit()
-

@@ -24,22 +24,27 @@ from . import api
 
 #--------------------------------------------------------------------------------------------------
 class OnlyGetScriptPath(install):
-    def run(self):
-        # does not call install.run() by design
-        self.distribution.install_scripts = self.install_scripts
+	def run(self):
+		# does not call install.run() by design
+		self.distribution.install_scripts = self.install_scripts
 
 def get_setuptools_script_dir():
-    dist = Distribution({'cmdclass': {'install': OnlyGetScriptPath}})
-    dist.dry_run = True  # not sure if necessary, but to be safe
-    dist.parse_config_files()
-    command = dist.get_command_obj('install')
-    command.ensure_finalized()
-    command.run()
-    return dist.install_scripts
+	dist = Distribution({'cmdclass': {'install': OnlyGetScriptPath}})
+	dist.dry_run = True  # not sure if necessary, but to be safe
+	dist.parse_config_files()
+	command = dist.get_command_obj('install')
+	command.ensure_finalized()
+	command.run()
+	return dist.install_scripts
 
 #--------------------------------------------------------------------------------------------------
 def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scale=None):
 	"""
+	Run ImageMatch on a datafile.
+
+	Parameters:
+		datafile (dict): Data file to run ImageMatch on.
+		target (:class:`astropy.table.Table`, optional): Target informaton.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""

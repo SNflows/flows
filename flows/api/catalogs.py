@@ -69,9 +69,9 @@ def get_catalog(target, radius=None, output='table'):
 
 	for table_name in ('references', 'avoid'):
 		tab = Table(
-		   names=('starid', 'ra', 'decl', 'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'gaia_variability', 'B_mag', 'V_mag', 'H_mag', 'J_mag', 'K_mag', 'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag', 'distance'),
-		   dtype=('int64', 'float64', 'float64', 'float32', 'float32', 'float32', 'float32', 'float32', 'int32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float64'),
-		   rows=jsn[table_name])
+			names=('starid', 'ra', 'decl', 'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'gaia_variability', 'B_mag', 'V_mag', 'H_mag', 'J_mag', 'K_mag', 'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag', 'distance'),
+			dtype=('int64', 'float64', 'float64', 'float32', 'float32', 'float32', 'float32', 'float32', 'int32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float64'),
+			rows=jsn[table_name])
 
 		tab['starid'].description = 'Unique identifier in REFCAT2 catalog'
 		tab['ra'].description = 'Right ascension'
