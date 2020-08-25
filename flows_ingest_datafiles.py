@@ -8,17 +8,14 @@ import os.path
 import glob
 from astropy.io import fits
 from astropy.table import Table
-from astropy.time import Time
 import hashlib
 import shutil
 import getpass
+import gzip
 from flows.aadc_db import AADC_DB
 from flows.plots import plt, plot_image
 from flows.load_image import load_image
 from flows.config import load_config
-from flows import api
-import flows
-import sys
 
 #--------------------------------------------------------------------------------------------------
 def flows_get_archive_from_path(fname, archives_list):
@@ -222,9 +219,6 @@ def ingest_from_inbox():
 	if not os.path.isdir(rootdir):
 		raise FileNotFoundError("ARCHIVE does not exists")
 
-	sites = api.sites.get_all_sites()
-	site_keywords = {s['site_keyword']: s['siteid'] for s in sites}
-
 	with AADC_DB() as db:
 		# Get list of archives:
 		db.cursor.execute("SELECT archive,path FROM aadc.files_archives;")
@@ -269,7 +263,7 @@ def ingest_from_inbox():
 				targetid = row['targetid']
 				targetname = row['target_name']
 
-				if 1==2 and not fpath.endswith('.gz'):
+				if not fpath.endswith('.gz'):
 					# Gzip the FITS file:
 					with open(fpath, 'rb') as f_in:
 						with gzip.open(fpath + '.gz', 'wb') as f_out:
@@ -348,7 +342,6 @@ def ingest_from_inbox():
 					continue
 
 				if img.site['siteid'] is None:
-					print(hdr)
 					raise Exception("Unknown SITE")
 
 				try:
