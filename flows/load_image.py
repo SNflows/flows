@@ -99,7 +99,8 @@ def load_image(FILENAME):
 			image.photfilter = {
 				'g.00000': 'gp',
 				'r.00000': 'rp',
-				'i.00000': 'ip'
+				'i.00000': 'ip',
+				'z.00000': 'zp'
 			}.get(hdr['FPA.FILTER'], hdr['FPA.FILTER'])
 
 		elif hdr.get('TELESCOP') == 'Liverpool Telescope':
