@@ -12,6 +12,7 @@ import hashlib
 import shutil
 import getpass
 import gzip
+import re
 from flows.aadc_db import AADC_DB
 from flows.plots import plt, plot_image
 from flows.load_image import load_image
@@ -61,7 +62,7 @@ def get_filehash(fname):
 #--------------------------------------------------------------------------------------------------
 def create_plot(filepath):
 
-	output_fpath = os.path.splitext(os.path.abspath(filepath))[0] + '.png'
+	output_fpath = os.path.abspath(re.sub(r'\.fits(\.gz)?$', '', filepath) + '.png')
 
 	img = load_image(filepath)
 
