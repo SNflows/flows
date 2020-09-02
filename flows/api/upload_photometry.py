@@ -16,7 +16,7 @@ from .. import api
 from ..config import load_config
 
 #--------------------------------------------------------------------------------------------------
-def upload_photometry(fileid, delete_completed=True):
+def upload_photometry(fileid, delete_completed=False):
 	"""
 	Upload photometry results to Flows server.
 
