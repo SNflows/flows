@@ -41,13 +41,16 @@ from .run_imagematch import run_imagematch
 __version__ = get_version(pep440=False)
 
 #--------------------------------------------------------------------------------------------------
-def photometry(fileid, output_folder=None):
+def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	"""
 	Run photometry.
 
 	Parameters:
 		fileid (int): File ID to process.
 		output_folder (str, optional): Path to directory where output should be placed.
+		attempt_imagematch (bool, optional): If no subtracted image is available, but a
+			template image is, should we attempt to run ImageMatch using standard settings.
+			Default=True.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
@@ -448,7 +451,7 @@ def photometry(fileid, output_folder=None):
 		diffimage = load_image(diffimg_path)
 		diffimage = diffimage.image
 
-	elif datafile.get('template') is not None:
+	elif attempt_imagematch and datafile.get('template') is not None:
 		# Run the template subtraction, and get back
 		# the science image where the template has been subtracted:
 		diffimage = run_imagematch(datafile, target, star_coord=coordinates, fwhm=fwhm, pixel_scale=pixel_scale)

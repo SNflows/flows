@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 
@@ -51,6 +52,7 @@ if __name__ == '__main__':
 	parser.add_argument('--targetid', type=int, default=None)
 	parser.add_argument('--filter', type=str, default=None, choices=['all'])
 	parser.add_argument('--threads', type=int, default=1, help="Number of parallel threads to use.")
+	parser.add_argument('--no-imagematch', help="Disable ImageMatch.", action='store_true')
 	args = parser.parse_args()
 
 	# Ensure that all input has been given:
@@ -90,7 +92,8 @@ if __name__ == '__main__':
 
 	# Create function wrapper:
 	process_fileid_wrapper = functools.partial(process_fileid,
-		output_folder_root=output_folder_root)
+		output_folder_root=output_folder_root,
+		attempt_imagematch=not args.no_imagematch)
 
 	if threads > 1:
 		# Disable printing info messages from the parent function.
