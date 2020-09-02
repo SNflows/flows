@@ -10,12 +10,13 @@ import logging
 import os
 import zipfile
 import requests
+import shutil
 from tqdm import tqdm
 from .. import api
 from ..config import load_config
 
 #--------------------------------------------------------------------------------------------------
-def upload_photometry(fileid):
+def upload_photometry(fileid, delete_completed=True):
 	"""
 	Upload photometry results to Flows server.
 
@@ -24,6 +25,8 @@ def upload_photometry(fileid):
 
 	Parameters:
 		fileid (int): File ID of photometry to upload to server.
+		delete_completed (bool, optional): Delete the photometry from the local
+			working directory if the upload was successful. Default=False.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
@@ -40,7 +43,7 @@ def upload_photometry(fileid):
 	if token is None:
 		raise Exception("No API token has been defined")
 	photdir_root = config.get('photometry', 'output', fallback='.')
-	photdir = os.path.join(photdir_root, datafile['target_name'], '{0:04d}'.format(fileid))
+	photdir = os.path.join(photdir_root, datafile['target_name'], '{0:05d}'.format(fileid))
 
 	if not os.path.isdir(photdir):
 		raise FileNotFoundError(photdir)
@@ -73,8 +76,14 @@ def upload_photometry(fileid):
 		# Check the returned data from the API:
 		if r.text.strip() != 'OK':
 			logger.error(r.text)
+			raise Exception("An error occurred while uploading photometry: " + r.text)
 		r.raise_for_status()
 
 	finally:
 		if os.path.isfile(fpath_zip):
 			os.remove(fpath_zip)
+
+	# If we have made it this far, the upload must have been a success:
+	if delete_completed:
+		logger.info("Deleting photometry from workdir: '%s'", photdir)
+		shutil.rmtree(photdir)

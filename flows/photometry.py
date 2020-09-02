@@ -87,7 +87,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Folder to save output:
 	if output_folder is None:
 		output_folder_root = config.get('photometry', 'output', fallback='.')
-		output_folder = os.path.join(output_folder_root, target_name, '%04d' % fileid)
+		output_folder = os.path.join(output_folder_root, target_name, '%05d' % fileid)
+	logger.info("Placing output in '%s'", output_folder)
 	os.makedirs(output_folder, exist_ok=True)
 
 	# The paths to the science image:

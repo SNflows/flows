@@ -8,6 +8,7 @@
 import argparse
 import logging
 import os
+import shutil
 import functools
 import multiprocessing
 from flows import api, photometry, load_config
@@ -18,7 +19,7 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True):
 	target_name = datafile['target_name']
 
 	# Folder to save output:
-	output_folder = os.path.join(output_folder_root, target_name, '%04d' % fid)
+	output_folder = os.path.join(output_folder_root, target_name, '%05d' % fid)
 	os.makedirs(output_folder, exist_ok=True)
 
 	# Also write any logging output to the
@@ -35,6 +36,8 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True):
 			attempt_imagematch=attempt_imagematch)
 	except (SystemExit, KeyboardInterrupt):
 		logger.error("Aborted by user or system.")
+		if os.path.exists(output_folder):
+			shutil.rmtree(output_folder)
 		photfile = None
 	except: # noqa: E722, pragma: no cover
 		logger.exception("Photometry failed")
