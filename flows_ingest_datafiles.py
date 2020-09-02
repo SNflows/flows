@@ -76,7 +76,7 @@ def get_filehash(fname):
 
 #--------------------------------------------------------------------------------------------------
 def optipng(fpath):
-	os.system('optipng -preserve "%s"' % fpath)
+	os.system('optipng -preserve -quiet "%s"' % fpath)
 
 #--------------------------------------------------------------------------------------------------
 class CounterFilter(logging.Filter):
@@ -292,7 +292,7 @@ def ingest_from_inbox():
 def ingest_photometry_from_inbox():
 
 	rootdir_inbox = '/flows/inbox'
-	rootdir_archive = '/flows/photometry'
+	rootdir_archive = '/flows/archive_photometry'
 
 	logger = logging.getLogger(__name__)
 
@@ -306,14 +306,6 @@ def ingest_photometry_from_inbox():
 		# Get list of archives:
 		db.cursor.execute("SELECT archive,path FROM aadc.files_archives;")
 		archives_list = db.cursor.fetchall()
-
-		# Delete left-over files in the tables, that have been removed from disk:
-		db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
-		for row in db.cursor.fetchall():
-			if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
-				print("DELETE THIS FILE: " + row['uploadpath'])
-				db.cursor.execute("DELETE FROM flows.uploadlog WHERE logid=%s;", [row['logid']])
-				db.conn.commit()
 
 		for fpath in glob.iglob(os.path.join(rootdir_inbox, '*', 'photometry', '*')):
 			logger.info("="*72)
@@ -349,7 +341,7 @@ def ingest_photometry_from_inbox():
 			targetid = row['targetid']
 			targetname = row['target_name']
 
-
+			newpath = None
 			try:
 				with tempfile.TemporaryDirectory() as tmpdir:
 					#
@@ -359,16 +351,16 @@ def ingest_photometry_from_inbox():
 					with ZipFile(fpath, mode='r') as myzip:
 						for member in myzip.infolist():
 							# Remove any directory structure from the zip file:
-							if member.is_dir():
+							if member.filename.endswith('/'): # member.is_dir()
 								continue
 							member.filename = os.path.basename(member.filename)
 
 							# Due to security considerations, we only allow specific files
 							# to be extracted:
 							if member.filename == 'photometry.ecsv':
-								myzip.extract(member, path=os.path.dirname(tmpdir))
+								myzip.extract(member, path=tmpdir)
 							elif member.filename.endswith('.png') or member.filename.endswith('.log'):
-								myzip.extract(member, path=os.path.dirname(tmpdir))
+								myzip.extract(member, path=tmpdir)
 
 					# Check that the photometry ECSV file at least exists:
 					if not os.path.isfile(tmpphotfile):
@@ -428,6 +420,14 @@ def ingest_photometry_from_inbox():
 					shutil.copytree(tmpdir, os.path.dirname(newpath))
 					os.rename(os.path.join(os.path.dirname(newpath), 'photometry.ecsv'), newpath)
 
+					# Set file and directory permissions:
+					# TODO: Can this not be handled in a more elegant way?
+					os.chmod(os.path.join(rootdir_archive, targetname), 0o2750)
+					os.chmod(os.path.join(rootdir_archive, targetname, '{0:05d}'.format(fileid_img)), 0o2750)
+					os.chmod(os.path.join(rootdir_archive, targetname, '{0:05d}'.format(fileid_img), 'v{0:02d}'.format(new_version)), 0o2550)
+					for f in os.listdir(os.path.dirname(newpath)):
+						os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0440)
+
 				# Get information about file:
 				filesize = os.path.getsize(newpath)
 				filehash = get_filehash(newpath)
@@ -455,8 +455,6 @@ def ingest_photometry_from_inbox():
 
 				indx_raw = (tab['starid'] == 0)
 				indx_sub = (tab['starid'] == -1)
-				print(tab[indx_raw])
-				print(tab[indx_sub])
 
 				phot_summary = {
 					'fileid_img': fileid_img,
@@ -466,19 +464,60 @@ def ingest_photometry_from_inbox():
 					'targetid': targetid,
 					'obstime': tab.meta['obstime-bmjd'],
 					'photfilter': tab.meta['photfilter'],
-					'mag_raw': tab[indx_raw]['mag'],
-					'mag_raw_error': tab[indx_raw]['mag_error'],
-					'mag_sub': tab[indx_sub]['mag'],
-					'mag_sub_error': tab[indx_sub]['mag_error'],
+					'mag_raw': float(tab[indx_raw]['mag']),
+					'mag_raw_error': float(tab[indx_raw]['mag_error']),
+					'mag_sub': None if not any(indx_sub) else float(tab[indx_sub]['mag']),
+					'mag_sub_error': None if not any(indx_sub) else float(tab[indx_sub]['mag_error']),
 					'pipeline_version': tab.meta['version'],
 					'latest_version': new_version
 				}
 
 				db.cursor.execute("SELECT * FROM flows.photometry_summary WHERE fileid_img=%s;", [fileid_img])
 				if db.cursor.fetchone() is None:
-					db.cursor.execute("INSERT INTO flows.photometry_summary (fileid_phot,fileid_img,fileid_template,fileid_diffimg,targetid,obstime,photfilter,mag,mag_error,pipeline_version,latest_version) VALUES (%(fileid_phot)s,%(fileid_img)s,%(fileid_template)s,%(fileid_diffimg)s,%(targetid)s,%(obstime)s,%(photfilter)s,%(mag)s,%(mag_error)s,%(pipeline_version)s,%(latest_version)s);", phot_summary)
+					db.cursor.execute("""INSERT INTO flows.photometry_summary (
+						fileid_phot,
+						fileid_img,
+						fileid_template,
+						fileid_diffimg,
+						targetid,
+						obstime,
+						photfilter,
+						mag_raw,
+						mag_raw_error,
+						mag_sub,
+						mag_sub_error,
+						pipeline_version,
+						latest_version
+					) VALUES (
+						%(fileid_phot)s,
+						%(fileid_img)s,
+						%(fileid_template)s,
+						%(fileid_diffimg)s,
+						%(targetid)s,
+						%(obstime)s,
+						%(photfilter)s,
+						%(mag_raw)s,
+						%(mag_raw_error)s,
+						%(mag_sub)s,
+						%(mag_sub_error)s,
+						%(pipeline_version)s,
+						%(latest_version)s
+					);""", phot_summary)
 				else:
-					db.cursor.execute("UPDATE flows.photometry_summary SET fileid_phot=%(fileid_phot)s,targetid=%(targetid)s,fileid_template=%(fileid_template)s,fileid_diffimg=%(fileid_diffimg)s,obstime=%(obstime)s,photfilter=%(photfilter)s,mag=%(mag)s,mag_error=%(mag_error)s,pipeline_version=%(pipeline_version)s,latest_version=%(latest_version)s WHERE fileid_img=%(fileid_img)s;", phot_summary)
+					db.cursor.execute("""UPDATE flows.photometry_summary SET
+						fileid_phot=%(fileid_phot)s,
+						targetid=%(targetid)s,
+						fileid_template=%(fileid_template)s,
+						fileid_diffimg=%(fileid_diffimg)s,
+						obstime=%(obstime)s,
+						photfilter=%(photfilter)s,
+						mag_raw=%(mag_raw)s,
+						mag_raw_error=%(mag_raw_error)s,
+						mag_sub=%(mag_sub)s,
+						mag_sub_error=%(mag_sub_error)s,
+						pipeline_version=%(pipeline_version)s,
+						latest_version=%(latest_version)s
+						WHERE fileid_img=%(fileid_img)s;""", phot_summary)
 
 				if uploadlogid:
 					db.cursor.execute("UPDATE flows.uploadlog SET fileid=%s,status='ok' WHERE logid=%s;", [fileid, uploadlogid])
@@ -487,7 +526,7 @@ def ingest_photometry_from_inbox():
 
 			except:
 				db.conn.rollback()
-				if os.path.isdir(os.path.dirname(newpath)):
+				if newpath is not None and os.path.isdir(os.path.dirname(newpath)):
 					shutil.rmtree(os.path.dirname(newpath))
 				raise
 			else:
@@ -515,13 +554,13 @@ def cleanup_inbox():
 			os.rmdir(dpath)
 
 	# Delete left-over files in the tables, that have been removed from disk:
-	with AADC_DB() as db:
-		db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
-		for row in db.cursor.fetchall():
-			if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
-				print("DELETE THIS FILE: " + row['uploadpath'])
-				db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL,status='File deleted' WHERE logid=%s;", [row['logid']])
-				db.conn.commit()
+	#with AADC_DB() as db:
+	#	db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
+	#	for row in db.cursor.fetchall():
+	#		if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
+	#			print("DELETE THIS FILE: " + row['uploadpath'])
+	#			db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL,status='File deleted' WHERE logid=%s;", [row['logid']])
+	#			db.conn.commit()
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
@@ -544,7 +583,7 @@ if __name__ == '__main__':
 
 	# Run the ingests and cleanup:
 	ingest_from_inbox()
-	#ingest_photometry_from_inbox()
+	ingest_photometry_from_inbox()
 	cleanup_inbox()
 
 	# Check the number of errors or warnings issued, and convert these to a return-code:
