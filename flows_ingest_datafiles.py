@@ -15,6 +15,7 @@ import gzip
 from zipfile import ZipFile
 import tempfile
 import re
+from collections import defaultdict
 from flows.aadc_db import AADC_DB
 from flows.plots import plt, plot_image
 from flows.load_image import load_image
@@ -76,6 +77,20 @@ def get_filehash(fname):
 #--------------------------------------------------------------------------------------------------
 def optipng(fpath):
 	os.system('optipng -preserve "%s"' % fpath)
+
+#--------------------------------------------------------------------------------------------------
+class CounterFilter(logging.Filter):
+	"""
+	A logging filter which counts the number of log records in each level.
+	"""
+
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.counter = defaultdict(int)
+
+	def filter(self, record):
+		self.counter[record.levelname] += 1
+		return True
 
 #--------------------------------------------------------------------------------------------------
 def create_plot(filepath):
@@ -522,6 +537,20 @@ if __name__ == '__main__':
 		logger.addHandler(console)
 	logger.setLevel(logging_level)
 
+	# Add a CounterFilter to the logger, which will count the number of log-records
+	# being passed through the logger. Can be used to count the number of errors/warnings:
+	counter = CounterFilter()
+	logger.addFilter(counter)
+
+	# Run the ingests and cleanup:
 	ingest_from_inbox()
 	#ingest_photometry_from_inbox()
 	cleanup_inbox()
+
+	# Check the number of errors or warnings issued, and convert these to a return-code:
+	logcounts = counter.counter
+	if logcounts.get('ERROR', 0) > 0 or logcounts.get('CRITICAL', 0) > 0:
+		sys.exit(4)
+	elif logcounts.get('WARNING', 0) > 0:
+		sys.exit(3)
+	sys.exit(0)
