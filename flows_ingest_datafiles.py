@@ -5,6 +5,7 @@
 """
 
 import logging
+import sys
 import os.path
 import glob
 from astropy.table import Table
@@ -143,7 +144,8 @@ def ingest_from_inbox():
 				db.cursor.execute("SELECT targetid,target_name FROM flows.targets WHERE target_name=%s;", [target_dirname])
 				row = db.cursor.fetchone()
 				if row is None:
-					raise Exception('Could not find target: %s', target_dirname)
+					logger.error('Could not find target: %s', target_dirname)
+					continue
 				targetid = row['targetid']
 				targetname = row['target_name']
 
@@ -182,7 +184,7 @@ def ingest_from_inbox():
 						if uploadlogid:
 							db.cursor.execute("UPDATE flows.uploadlog SET status='original science image not found' WHERE logid=%s;", [uploadlogid])
 							db.conn.commit()
-						print("ORIGINAL SCIENCE IMAGE COULD NOT BE FOUND: %s" % os.path.basename(fpath))
+						logger.error("ORIGINAL SCIENCE IMAGE COULD NOT BE FOUND: %s" % os.path.basename(fpath))
 						continue
 					else:
 						subtracted_original_fileid = subtracted_original_fileid[0]
@@ -192,7 +194,7 @@ def ingest_from_inbox():
 				logger.info(newpath)
 
 				if os.path.exists(newpath):
-					print("Already exists")
+					logger.error("Already exists")
 					if uploadlogid:
 						db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: file name' WHERE logid=%s;", [uploadlogid])
 						db.conn.commit()
@@ -224,7 +226,8 @@ def ingest_from_inbox():
 					continue
 
 				if img.site['siteid'] is None:
-					raise Exception("Unknown SITE")
+					logger.error("Unknown SITE")
+					continue
 
 				try:
 					# Copy the file to its new home:
@@ -432,6 +435,8 @@ def ingest_photometry_from_inbox():
 				db.cursor.execute("INSERT INTO flows.files_cross_assoc (fileid,associd) VALUES (%s,%s);", [fileid, fileid_img])
 				if tab.meta['template'] is not None:
 					db.cursor.execute("INSERT INTO flows.files_cross_assoc (fileid,associd) VALUES (%s,%s);", [fileid, tab.meta['template']])
+				if tab.meta['diffimg'] is not None:
+					db.cursor.execute("INSERT INTO flows.files_cross_assoc (fileid,associd) VALUES (%s,%s);", [fileid, tab.meta['diffimg']])
 
 				indx_raw = (tab['starid'] == 0)
 				indx_sub = (tab['starid'] == -1)
@@ -442,6 +447,7 @@ def ingest_photometry_from_inbox():
 					'fileid_img': fileid_img,
 					'fileid_phot': fileid,
 					'fileid_template': tab.meta['template'],
+					'fileid_diffimg': tab.meta['diffimg'],
 					'targetid': targetid,
 					'obstime': tab.meta['obstime-bmjd'],
 					'photfilter': tab.meta['photfilter'],
@@ -455,9 +461,9 @@ def ingest_photometry_from_inbox():
 
 				db.cursor.execute("SELECT * FROM flows.photometry_summary WHERE fileid_img=%s;", [fileid_img])
 				if db.cursor.fetchone() is None:
-					db.cursor.execute("INSERT INTO flows.photometry_summary (fileid_phot,fileid_img,fileid_template,targetid,obstime,photfilter,mag,mag_error,pipeline_version,latest_version) VALUES (%(fileid_phot)s,%(fileid_img)s,%(fileid_template)s,%(targetid)s,%(obstime)s,%(photfilter)s,%(mag)s,%(mag_error)s,%(pipeline_version)s,%(latest_version)s);", phot_summary)
+					db.cursor.execute("INSERT INTO flows.photometry_summary (fileid_phot,fileid_img,fileid_template,fileid_diffimg,targetid,obstime,photfilter,mag,mag_error,pipeline_version,latest_version) VALUES (%(fileid_phot)s,%(fileid_img)s,%(fileid_template)s,%(fileid_diffimg)s,%(targetid)s,%(obstime)s,%(photfilter)s,%(mag)s,%(mag_error)s,%(pipeline_version)s,%(latest_version)s);", phot_summary)
 				else:
-					db.cursor.execute("UPDATE flows.photometry_summary SET fileid_phot=%(fileid_phot)s,targetid=%(targetid)s,fileid_template=%(fileid_template)s,obstime=%(obstime)s,photfilter=%(photfilter)s,mag=%(mag)s,mag_error=%(mag_error)s,pipeline_version=%(pipeline_version)s,latest_version=%(latest_version)s WHERE fileid_img=%(fileid_img)s;", phot_summary)
+					db.cursor.execute("UPDATE flows.photometry_summary SET fileid_phot=%(fileid_phot)s,targetid=%(targetid)s,fileid_template=%(fileid_template)s,fileid_diffimg=%(fileid_diffimg)s,obstime=%(obstime)s,photfilter=%(photfilter)s,mag=%(mag)s,mag_error=%(mag_error)s,pipeline_version=%(pipeline_version)s,latest_version=%(latest_version)s WHERE fileid_img=%(fileid_img)s;", phot_summary)
 
 				if uploadlogid:
 					db.cursor.execute("UPDATE flows.uploadlog SET fileid=%s,status='ok' WHERE logid=%s;", [fileid, uploadlogid])
@@ -509,7 +515,7 @@ if __name__ == '__main__':
 
 	# Setup logging:
 	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-	console = logging.StreamHandler()
+	console = logging.StreamHandler(sys.stdout)
 	console.setFormatter(formatter)
 	logger = logging.getLogger(__name__)
 	if not logger.hasHandlers():
