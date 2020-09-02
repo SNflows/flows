@@ -13,7 +13,7 @@ import multiprocessing
 from flows import api, photometry, load_config
 
 #--------------------------------------------------------------------------------------------------
-def process_fileid(fid, output_folder_root=None):
+def process_fileid(fid, output_folder_root=None, attempt_imagematch=True):
 	datafile = api.get_datafile(fid)
 	target_name = datafile['target_name']
 
@@ -30,7 +30,9 @@ def process_fileid(fid, output_folder_root=None):
 	logger.addHandler(_filehandler)
 
 	try:
-		photfile = photometry(fileid=fid, output_folder=output_folder)
+		photfile = photometry(fileid=fid,
+			output_folder=output_folder,
+			attempt_imagematch=attempt_imagematch)
 	except (SystemExit, KeyboardInterrupt):
 		logger.error("Aborted by user or system.")
 		photfile = None
