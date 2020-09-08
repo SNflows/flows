@@ -113,4 +113,4 @@ if __name__ == '__main__':
 
     mplcursors.cursor(ax).connect(
         "add", lambda sel: sel.annotation.set_text(Phots[str(sel.artist.get_label())]['fileid'][sel.target.index]))
-    plt.show(block = True)
+    plt.show(block=True)
