@@ -7,7 +7,6 @@ Plotting utilities.
 """
 
 import logging
-import os
 import numpy as np
 from bottleneck import allnan
 import matplotlib
@@ -25,6 +24,48 @@ plt.switch_backend('Agg')
 matplotlib.rcParams['font.family'] = 'serif'
 matplotlib.rcParams['text.usetex'] = False
 matplotlib.rcParams['mathtext.fontset'] = 'dejavuserif'
+
+#--------------------------------------------------------------------------------------------------
+def plots_interactive(backend=('Qt5Agg', 'MacOSX', 'Qt4Agg', 'Qt5Cairo', 'TkAgg')):
+	"""
+	Change plotting to using an interactive backend.
+
+	Parameters:
+		backend (str or list): Backend to change to. If not provided, will try different
+			interactive backends and use the first one that works.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+
+	logger = logging.getLogger(__name__)
+	logger.debug("Valid interactive backends: %s", matplotlib.rcsetup.interactive_bk)
+
+	if isinstance(backend, str):
+		backend = [backend]
+
+	for bckend in backend:
+		if bckend not in matplotlib.rcsetup.interactive_bk:
+			logger.warning("Interactive backend '%s' is not found", bckend)
+			continue
+
+		# Try to change the backend, and catch errors
+		# it it didn't work:
+		try:
+			plt.switch_backend(bckend)
+		except (ModuleNotFoundError, ImportError):
+			pass
+		else:
+			break
+
+#--------------------------------------------------------------------------------------------------
+def plots_noninteractive():
+	"""
+	Change plotting to using a non-interactive backend, which can e.g. be used on a cluster.
+	Will set backend to 'Agg'.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+	plt.switch_backend('Agg')
 
 #--------------------------------------------------------------------------------------------------
 def plot_image(image, ax=None, scale='log', cmap=None, origin='lower', xlabel=None,
