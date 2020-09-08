@@ -7,7 +7,6 @@ Plotting utilities.
 """
 
 import logging
-import os
 import numpy as np
 from bottleneck import allnan
 import matplotlib

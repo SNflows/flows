@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Flows photometry code.
@@ -15,7 +15,6 @@ import warnings
 from copy import deepcopy
 
 from astropy.utils.exceptions import AstropyDeprecationWarning
-warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 import astropy.units as u
 import astropy.coordinates as coords
 from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
@@ -40,6 +39,8 @@ from .run_imagematch import run_imagematch
 
 __version__ = get_version(pep440=False)
 
+warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
+
 #--------------------------------------------------------------------------------------------------
 def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	"""
@@ -56,7 +57,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	"""
 
 	# Settings:
-	ref_mag_limit = 22 # Lower limit on reference target brightness
+	#ref_mag_limit = 22 # Lower limit on reference target brightness
 	ref_target_dist_limit = 10 * u.arcsec # Reference star must be further than this away to be included
 
 	logger = logging.getLogger(__name__)
@@ -160,11 +161,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Estimate image background:
 	# Not using image.clean here, since we are redefining the mask anyway
 	bkg = Background2D(image.clean, (128, 128), filter_size=(5, 5),
-		#mask=image.mask | (image.clean > background_cutoff),
 		sigma_clip=SigmaClip(sigma=3.0),
 		bkg_estimator=SExtractorBackground(),
-		exclude_percentile=50.0
-		)
+		exclude_percentile=50.0)
 	image.background = bkg.background
 	image.std = bkg.background_rms_median
 
