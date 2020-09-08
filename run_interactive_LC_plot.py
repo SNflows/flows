@@ -60,7 +60,7 @@ if __name__ == '__main__':
     phot_files = glob.glob('*/*.ecsv')
 
     #Load all data into astropytable
-    Phot = Table(names = ['jd','mag','mag_err','filter','tel','sub','fileid'],dtype=[None,None,None,'S64','S64',bool,'S64'])
+    Phot = Table(names=['jd','mag','mag_err','filter','tel','sub','fileid'],dtype=[None,None,None,'S64','S64',bool,'S64'])
 
     for file in phot_files:
         fileid = file.split('/')[0]
@@ -74,7 +74,7 @@ if __name__ == '__main__':
         try:
             if -1 in AT['starid']:
                 mag,mag_err = AT.loc[-1]['mag'],AT.loc[-1]['mag_error']
-                sub=True
+                sub = True
             elif 0 in AT['starid']:
                 print('No subtraction found for:',file,'in filter',filt)
                 mag,mag_err = AT.loc[0]['mag'],AT.loc[0]['mag_error']
@@ -92,9 +92,9 @@ if __name__ == '__main__':
     Phots = dict(zip(filters,[Phot[Phot['filter'] == f] for f in filters]))
 
     #Plot
-    sns.set(style = 'ticks')
-    fig,ax = plt.subplots(figsize = (6.4,4),dpi = 130)
-    fig.subplots_adjust(top = 0.95,left = 0.1,bottom = 0.1,right = 0.97)
+    sns.set(style='ticks')
+    fig,ax = plt.subplots(figsize=(6.4,4),dpi=130)
+    fig.subplots_adjust(top=0.95,left=0.1,bottom=0.1,right=0.97)
 
     shifts = dict(zip(filters,0.0 * np.arange(len(filters))))
     cps = sns.color_palette()
@@ -103,12 +103,12 @@ if __name__ == '__main__':
     offset = args.offset
     for filt in filters:
         ax.errorbar(Phots[filt]['jd'] - offset,Phots[filt]['mag'] + shifts[filt],Phots[filt]['mag_err'],
-                    marker = 's',linestyle = 'None',label = filt,color = colors[filt])
+                    marker='s',linestyle='None',label=filt,color=colors[filt])
 
     ax.invert_yaxis()
     ax.legend()
-    ax.set_xlabel('JD-' + str(offset),fontsize = 16)
-    ax.set_ylabel('App. Mag',fontsize = 16)
+    ax.set_xlabel('JD-' + str(offset),fontsize=16)
+    ax.set_ylabel('App. Mag',fontsize=16)
     ax.set_title(snname)
 
     mplcursors.cursor(ax).connect(
