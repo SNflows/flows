@@ -37,9 +37,9 @@ def get_datafiles(targetid=None, filt=None):
 	Get list of data file IDs to be processed.
 
 	Parameters:
-		targetid (int): Target ID to process.
+		targetid (int, optional): Target ID to process.
 		filt (str, optional): Filter the returned list:
-			- ``None``: Return only data files that have not yet been processed.
+			- ``missing``: Return only data files that have not yet been processed.
 			- ``'all'``: Return all data files.
 
 	Returns:
@@ -48,15 +48,22 @@ def get_datafiles(targetid=None, filt=None):
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
+	# Validate input:
+	if filt is None:
+		filt = 'missing'
+	if filt not in ('missing', 'all'):
+		raise ValueError("Invalid filter specified: '%s'" % filt)
+
 	# Get API token from config file:
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
 		raise Exception("No API token has been defined")
 
-	params = {'targetid': targetid}
-	if filt == 'all':
-		params['filter'] = 'all'
+	params = {}
+	if targetid is not None:
+		params['targetid'] = targetid
+	params['filter'] = filt
 
 	r = requests.get('https://flows.phys.au.dk/api/datafiles.php',
 		params=params,

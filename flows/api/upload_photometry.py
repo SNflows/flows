@@ -11,6 +11,8 @@ import os
 import zipfile
 import requests
 import shutil
+import glob
+import time
 from tqdm import tqdm
 from .. import api
 from ..config import load_config
@@ -50,13 +52,21 @@ def upload_photometry(fileid, delete_completed=False):
 
 	fname_zip = '{0:05d}.zip'.format(fileid)
 	fpath_zip = os.path.join(photdir, fname_zip)
-	files = os.listdir(photdir)
-	if fname_zip in files:
-		files.remove(fname_zip)
+	files_existing = os.listdir(photdir)
 
 	# Make sure required files are actually there:
-	if 'photometry.ecsv' not in files:
+	if 'photometry.ecsv' not in files_existing:
 		raise FileNotFoundError(os.path.join(photdir, 'photometry.ecsv'))
+	if 'photometry.log' not in files_existing:
+		raise FileNotFoundError(os.path.join(photdir, 'photometry.log'))
+
+	# Create list of files to be uploaded:
+	files = [
+		os.path.join(photdir, 'photometry.ecsv'),
+		os.path.join(photdir, 'photometry.log')
+	]
+	files += glob.glob(os.path.join(photdir, '*.png'))
+	print(files)
 
 	try:
 		# Create ZIP file with all the files:
@@ -85,5 +95,8 @@ def upload_photometry(fileid, delete_completed=False):
 
 	# If we have made it this far, the upload must have been a success:
 	if delete_completed:
-		logger.info("Deleting photometry from workdir: '%s'", photdir)
-		shutil.rmtree(photdir)
+		if set([os.path.basename(f) for f in files]) == set(os.listdir(photdir)):
+			logger.info("Deleting photometry from workdir: '%s'", photdir)
+			shutil.rmtree(photdir, ignore_errors=True)
+		else:
+			logger.warning("Not deleting photometry from workdir: '%s'", photdir)
