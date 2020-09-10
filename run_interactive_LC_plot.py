@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Plot photometry for target, loaded from local photometry working directory.
 
 .. codeauthor:: Emir K <emir.k@phys.au.dk>
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
@@ -19,8 +20,7 @@ import seaborn as sns
 #--------------------------------------------------------------------------------------------------
 def main():
 	# All available filters:
-	# TODO: Get this from the Flows API
-	all_filters = ['B', 'V', 'rp', 'gp', 'rp', 'ip', 'zp', 'H', 'J', 'K']
+	all_filters = list(api.get_filters().keys())
 
 	# Parser:
 	parser = argparse.ArgumentParser(description='Plot photometry for target')
