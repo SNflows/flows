@@ -72,25 +72,58 @@ def load_image(FILENAME):
 			# Get non-linear limit
 			# TODO: Use actual or some fraction of the non-linearity limit
 			#image.peakmax = hdr.get('MAXLIN') # Presumed non-linearity limit from header
-			image.peakmax = 60000 #From experience, this one is better.
+			image.peakmax = 60000 # From experience, this one is better.
 
 		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE') == 'IMAGING':
 			image.site = api.get_site(5) # Hard-coded the siteid for NOT
 			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=image.site['EarthLocation'])
 
-			image.photfilter = {
-				'B Bes': 'B',
-				'V Bes': 'V',
-				'g SDSS': 'gp',
-				'r SDSS': 'rp',
-				'i SDSS': 'ip',
-				'u SDSS': 'up'
-			}.get(hdr['FILTER'].replace('_', ' '), hdr['FILTER'])
+			# Sometimes data from NOT does not have the FILTER keyword,
+			# in which case we have to try to figure out which filter
+			# was used based on some of the other headers:
+			if 'FILTER' in hdr:
+				image.photfilter = {
+					'B Bes': 'B',
+					'V Bes': 'V',
+					'g SDSS': 'gp',
+					'r SDSS': 'rp',
+					'i SDSS': 'ip',
+					'u SDSS': 'up'
+				}.get(hdr['FILTER'].replace('_', ' '), hdr['FILTER'])
+			else:
+				filters_used = []
+				for check_headers in ('ALFLTNM', 'FAFLTNM', 'FBFLTNM'):
+					if hdr.get(check_headers) and hdr.get(check_headers).strip().lower() != 'open':
+						filters_used.append(hdr.get(check_headers).strip())
+				if len(filters_used) == 1:
+					image.photfilter = {
+						'V_Bes 530_80': 'V',
+					}.get(filters_used[0], filters_used[0])
+				else:
+					raise Exception("Could not determine filter used.")
 
 			# Get non-linear limit
 			# Obtained from http://www.not.iac.es/instruments/detectors/CCD14/LED-linearity/20181026-200-1x1.pdf
 			# TODO: grab these from a table for all detector setups of ALFOSC
 			image.peakmax = 80000 # For ALFOSC D, 1x1, 200; the standard for SNe.
+
+		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') == 'NOTCAM' and hdr.get('OBS_MODE') == 'IMAGING':
+			image.site = api.get_site(5) # Hard-coded the siteid for NOT
+			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=image.site['EarthLocation'])
+
+			# Does NOTCAM data sometimes contain a FILTER header?
+			# if not we have to try to figure out which filter
+			# was used based on some of the other headers:
+			if 'FILTER' in hdr:
+				raise Exception("NOTCAM: Filter keyword defined")
+			filters_used = []
+			for check_headers in ('NCFLTNM1', 'NCFLTNM2'):
+				if hdr.get(check_headers) and hdr.get(check_headers).strip().lower() != 'open':
+					filters_used.append(hdr.get(check_headers).strip())
+			if len(filters_used) == 1:
+				image.photfilter = {}.get(filters_used[0], filters_used[0])
+			else:
+				raise Exception("Could not determine filter used.")
 
 		elif hdr.get('FPA.TELESCOPE') == 'PS1' and hdr.get('FPA.INSTRUMENT') == 'GPC1':
 			image.site = api.get_site(6) # Hard-coded the siteid for Pan-STARRS1
