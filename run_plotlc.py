@@ -131,7 +131,7 @@ def main():
 		lc = phot[phot['filter'] == str(sel.artist.get_label())]
 		point = lc[sel.target.index]
 		point = dict(zip(point.colnames, point)) # Convert table row to dict
-		return sel.annotation.set_text("Fileid: {fileid:d}\nJD: {jd:.3f}\nMag: {mag:.2f}$\pm${mag_err:.2f}".format(**point))
+		return sel.annotation.set_text("Fileid: {fileid:d}\nJD: {jd:.3f}\nMag: {mag:.2f}$\\pm${mag_err:.2f}".format(**point))
 
 	mplcursors.cursor(ax).connect("add", annotate)
 	plt.show(block=True)
