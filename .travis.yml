@@ -7,14 +7,14 @@ dist: xenial
 # between the different builds:
 jobs:
   include:
-    - name: "Python 3.5 on Linux"
-      python: "3.5"
-
     - name: "Python 3.6 on Linux"
       python: "3.6"
 
     - name: "Python 3.7 on Linux"
       python: "3.7"
+
+    - name: "Python 3.8 on Linux"
+      python: "3.8"
 
     - name: "Flake8"
       python: "3.6"
