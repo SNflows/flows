@@ -7,13 +7,13 @@ Flows photometry code.
 """
 
 import numpy as np
+import warnings
 import astropy.units as u
 import astropy.coordinates as coords
 from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS, FITSFixedWarning
 from . import api
-import warnings
 
 #--------------------------------------------------------------------------------------------------
 def load_image(FILENAME):

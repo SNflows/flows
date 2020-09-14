@@ -23,6 +23,7 @@ from astropy.nddata import NDData
 from astropy.modeling import models, fitting
 from astropy.wcs.utils import proj_plane_pixel_area
 
+warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.psf import EPSFBuilder, EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
 from photutils import Background2D, SExtractorBackground

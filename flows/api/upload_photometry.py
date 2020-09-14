@@ -66,7 +66,6 @@ def upload_photometry(fileid, delete_completed=False):
 		os.path.join(photdir, 'photometry.log')
 	]
 	files += glob.glob(os.path.join(photdir, '*.png'))
-	print(files)
 
 	try:
 		# Create ZIP file with all the files:

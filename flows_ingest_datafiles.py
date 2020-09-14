@@ -249,6 +249,11 @@ def ingest_from_inbox():
 					os.makedirs(os.path.dirname(newpath), exist_ok=True)
 					shutil.copy(fpath, newpath)
 
+					# Set file and directory permissions:
+					# TODO: Can this not be handled in a more elegant way?
+					os.chmod(os.path.dirname(newpath), 0o2750)
+					os.chmod(newpath, 0o0440)
+
 					filesize = os.path.getsize(fpath)
 
 					if not fpath.endswith('-e00.fits'):
@@ -374,7 +379,7 @@ def ingest_photometry_from_inbox():
 					assert targetid_table == targetid
 
 					# Find out which version number to assign to file:
-					db.cursor.execute("SELECT latest_version FROM flows.photometry_summary WHERE fileid_img=%s;", [fileid_img,])
+					db.cursor.execute("SELECT MAX(files.version) AS latest_version FROM flows.files_cross_assoc fca INNER JOIN flows.files ON fca.fileid=files.fileid WHERE fca.associd=%s AND files.datatype=2;", [fileid_img,])
 					latest_version = db.cursor.fetchone()
 					if latest_version is None:
 						new_version = 1
@@ -432,7 +437,7 @@ def ingest_photometry_from_inbox():
 				filesize = os.path.getsize(newpath)
 				filehash = get_filehash(newpath)
 
-				db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,version) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(version)s) RETURNING fileid;", {
+				db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,version,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(version)s,1) RETURNING fileid;", {
 					'archive': archive,
 					'relpath': relpath,
 					'targetid': targetid,
