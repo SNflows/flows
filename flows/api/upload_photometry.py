@@ -12,10 +12,10 @@ import zipfile
 import requests
 import shutil
 import glob
-import time
 from tqdm import tqdm
 from .. import api
 from ..config import load_config
+from ..utilities import get_filehash
 
 #--------------------------------------------------------------------------------------------------
 def upload_photometry(fileid, delete_completed=False):
@@ -50,8 +50,6 @@ def upload_photometry(fileid, delete_completed=False):
 	if not os.path.isdir(photdir):
 		raise FileNotFoundError(photdir)
 
-	fname_zip = '{0:05d}.zip'.format(fileid)
-	fpath_zip = os.path.join(photdir, fname_zip)
 	files_existing = os.listdir(photdir)
 
 	# Make sure required files are actually there:
@@ -67,12 +65,20 @@ def upload_photometry(fileid, delete_completed=False):
 	]
 	files += glob.glob(os.path.join(photdir, '*.png'))
 
+	# Path to the ZIP file:
+	# TODO: Use tempfile instead?
+	fname_zip = '{0:05d}.zip'.format(fileid)
+	fpath_zip = os.path.join(photdir, fname_zip)
+
 	try:
 		# Create ZIP file with all the files:
 		with zipfile.ZipFile(fpath_zip, 'w', allowZip64=True) as z:
 			for f in tqdm(files, desc='Zipping {0:d}'.format(fileid), **tqdm_settings):
 				logger.debug('Zipping %s', f)
 				z.write(os.path.join(photdir, f), f)
+
+		# Change the name of the uploaded file to contain the file hash:
+		fname_zip = '{0:05d}-{1:s}.zip'.format(fileid, get_filehash(fpath_zip))
 
 		# Send file to the API:
 		logger.info("Uploading to server...")

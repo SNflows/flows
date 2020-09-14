@@ -19,6 +19,7 @@ from collections import defaultdict
 from flows.aadc_db import AADC_DB
 from flows.plots import plt, plot_image
 from flows.load_image import load_image
+from flows.utilities import get_filehash
 
 #--------------------------------------------------------------------------------------------------
 def flows_get_archive_from_path(fname, archives_list=None):
@@ -57,22 +58,6 @@ def flows_get_archive_from_path(fname, archives_list=None):
 		raise Exception("File not in registred archive")
 
 	return archive, relpath
-
-#--------------------------------------------------------------------------------------------------
-def get_filehash(fname):
-	"""Calculate SHA1-hash of file."""
-	buf = 65536
-	s = hashlib.sha1()
-	with open(fname, 'rb') as fid:
-		while True:
-			data = fid.read(buf)
-			if not data:
-				break
-			s.update(data)
-
-	sha1sum = s.hexdigest().lower()
-	if (len(sha1sum) != 40): raise Exception("Invalid file hash")
-	return sha1sum
 
 #--------------------------------------------------------------------------------------------------
 def optipng(fpath):
