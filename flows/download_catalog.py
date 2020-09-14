@@ -263,6 +263,46 @@ def query_all(coo_centre, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 	return results
 
 #--------------------------------------------------------------------------------------------------
+def query_ztf_id(coo_centre, radius=24.0/60.0):
+	"""
+	Query ALeRCE ZTF api to lookup ZTF identifier.
+
+	Parameters:
+		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
+		radius (float): Search radius. Default 24 arcmin.
+
+	Returns:
+		str: ZTF identifier.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+
+	# Make json query for Alerce query API
+	query = {
+		"records_per_pages": 20,
+		"query_parameters": {
+			"coordinates": {
+				"ra": coo_centre.ra.deg,
+				"dec": coo_centre.dec.deg,
+				"sr": radius
+			}
+		}
+	}
+
+	# Run http POST json query to alerce following their API
+	res = requests.post('https://ztf.alerce.online/query', json=query)
+	res.raise_for_status()
+
+	# If successful, get objectid of first object
+	jsn = res.json()
+	if jsn['total'] == 0:
+		return None
+
+	names = list(jsn['result'].keys())
+	oid = names[0]
+	return oid
+
+#--------------------------------------------------------------------------------------------------
 def download_catalog(target=None, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 
 	logger = logging.getLogger(__name__)
@@ -281,6 +321,9 @@ def download_catalog(target=None, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
 
 			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
+
+			# Query for a ZTF identifier for this target:
+			ztf_id = query_ztf_id(coo_centre, radius=radius)
 
 			# Insert the catalog into the local database:
 			#db.cursor.execute("TRUNCATE flows.refcat2;")
@@ -328,5 +371,5 @@ def download_catalog(target=None, radius=24.0/60.0, dist_cutoff=2*u.arcsec):
 			logger.info("%d catalog entries inserted.", db.cursor.rowcount)
 
 			# Mark the target that the catalog has been downloaded:
-			db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE WHERE targetid=%s;", (targetid,))
+			db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE,ztf_id=%s WHERE targetid=%s;", (ztf_id, targetid,))
 			db.conn.commit()
