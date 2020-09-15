@@ -9,6 +9,7 @@ https://alerceapi.readthedocs.io/
 """
 
 from astropy.table import Table
+import datetime
 import requests
 from . import api
 
@@ -99,5 +100,6 @@ def download_ztf_photometry(targetid):
 	tab.meta['target_name'] = target_name
 	tab.meta['targetid'] = targetid
 	tab.meta['ztf_id'] = oid
+	tab.meta['last_updated'] = datetime.datetime.utcnow().isoformat()
 
 	return tab
