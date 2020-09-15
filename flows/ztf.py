@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Query ZTF target information using alerce.
-https://alerceapi.readthedocs.io/en/latest/ztf_db.html
+Query ZTF target information using ALeRCE API.
+https://alerceapi.readthedocs.io/
 
 .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
-import logging
-import numpy as np
 from astropy.table import Table
 import requests
 from . import api
@@ -71,8 +69,7 @@ def download_ztf_photometry(targetid):
 	"""
 
 	# Get target info from Flows API:
-	cat = api.get_catalog(targetid, output='json')
-	tgt = cat['target']
+	tgt = api.get_target(targetid)
 	oid = tgt['ztf_id']
 	target_name = tgt['target_name']
 	if oid is None:
