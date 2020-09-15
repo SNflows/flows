@@ -44,6 +44,7 @@ def main():
 		output_dir = config.get('ztf', 'output_photometry', fallback='.')
 	else:
 		output_dir = args.output
+	logger.info("Saving output to '%s'", output_dir)
 
 	# Check that output directory exists:
 	if not os.path.isdir(output_dir):
