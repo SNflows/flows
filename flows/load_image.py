@@ -98,7 +98,10 @@ def load_image(FILENAME):
 				if len(filters_used) == 1:
 					image.photfilter = {
 						'V_Bes 530_80': 'V',
-					}.get(filters_used[0], filters_used[0])
+						"g'_SDSS 480_145": 'gp',
+						"r'_SDSS 618_148": 'rp',
+						"i'_SDSS 771_171": 'ip'
+					}.get(filters_used[0].replace('  ', ' '), filters_used[0])
 				else:
 					raise Exception("Could not determine filter used.")
 
@@ -143,7 +146,9 @@ def load_image(FILENAME):
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 			image.photfilter = {
 				'Bessel-B': 'B',
+				'Bessell-B': 'B',
 				'Bessel-V': 'V',
+				'Bessell-V': 'V',
 				'SDSS-U': 'up',
 				'SDSS-G': 'gp',
 				'SDSS-R': 'rp',
