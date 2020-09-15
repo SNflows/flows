@@ -49,7 +49,8 @@ def get_catalog(target, radius=None, output='table'):
 
 	# Convert timestamps to actual Time objects:
 	jsn['target']['inserted'] = Time(jsn['target']['inserted'], scale='utc')
-	jsn['target']['discovery_date'] = Time(jsn['target']['discovery_date'], scale='utc')
+	if jsn['target']['discovery_date'] is not None:
+		jsn['target']['discovery_date'] = Time(jsn['target']['discovery_date'], scale='utc')
 
 	if output in ('json', 'dict'):
 		return jsn
