@@ -7,6 +7,7 @@ Plotting utilities.
 """
 
 import logging
+import copy
 import numpy as np
 from bottleneck import allnan
 import matplotlib
@@ -187,9 +188,9 @@ def plot_image(image, ax=None, scale='log', cmap=None, origin='lower', xlabel=No
 	# Set up the colormap to use. If a bad color is defined,
 	# add it to the colormap:
 	if cmap is None:
-		cmap = plt.get_cmap('Blues')
+		cmap = copy.copy(plt.get_cmap('Blues'))
 	elif isinstance(cmap, str):
-		cmap = plt.get_cmap(cmap)
+		cmap = copy.copy(plt.get_cmap(cmap))
 
 	if color_bad:
 		cmap.set_bad(color_bad, 1.0)
@@ -224,7 +225,7 @@ def plot_image(image, ax=None, scale='log', cmap=None, origin='lower', xlabel=No
 			cax = divider.append_axes('right', size=cbar_size, pad=cbar_pad)
 			orientation = 'vertical'
 
-		cb = fig.colorbar(im, norm=norm, cax=cax, orientation=orientation)
+		cb = fig.colorbar(im, cax=cax, orientation=orientation)
 
 		if cbar == 'top':
 			cax.xaxis.set_ticks_position('top')
