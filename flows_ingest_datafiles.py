@@ -366,7 +366,7 @@ def ingest_photometry_from_inbox():
 					# Find out which version number to assign to file:
 					db.cursor.execute("SELECT MAX(files.version) AS latest_version FROM flows.files_cross_assoc fca INNER JOIN flows.files ON fca.fileid=files.fileid WHERE fca.associd=%s AND files.datatype=2;", [fileid_img,])
 					latest_version = db.cursor.fetchone()
-					if latest_version is None:
+					if latest_version[0] is None:
 						new_version = 1
 					else:
 						new_version = latest_version[0] + 1

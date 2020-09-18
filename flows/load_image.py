@@ -110,7 +110,7 @@ def load_image(FILENAME):
 			# TODO: grab these from a table for all detector setups of ALFOSC
 			image.peakmax = 80000 # For ALFOSC D, 1x1, 200; the standard for SNe.
 
-		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') == 'NOTCAM' and hdr.get('OBS_MODE') == 'IMAGING':
+		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') == 'NOTCAM' and hdr.get('OBS_MODE', '').lower() == 'imaging':
 			image.site = api.get_site(5) # Hard-coded the siteid for NOT
 			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=image.site['EarthLocation'])
 
