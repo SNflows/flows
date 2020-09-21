@@ -114,6 +114,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		ref_filter = 'B_mag'
 	elif photfilter == 'V':
 		ref_filter = 'V_mag'
+	elif photfilter == 'H':
+		ref_filter = 'H_mag'
 	else:
 		logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
 		ref_filter = 'g_mag'
