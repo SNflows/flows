@@ -18,10 +18,11 @@ Installation instructions
   
 * Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (chmod 0600 config.ini)!
   This file can contain all the settings for running the pipeline. A minimal file for working with the pipeline is 
-  
-.. code-block:: text
-    [api]
-    token = <my api token>
+
+  .. code-block:: text
+
+      [api]
+      token = <my api token>
 
 
 How to run tests
@@ -29,3 +30,7 @@ How to run tests
 You can test your installation by going to the root directory where you cloned the repository and run the command::
 
 >>> pytest
+
+Full configuration file
+=======================
+Coming soon
