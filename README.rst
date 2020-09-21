@@ -2,6 +2,13 @@
 Flows Pipeline
 ==============
 
+.. image:: https://travis-ci.org/rhandberg/flows.svg?branch=devel
+    :target: https://travis-ci.org/rhandberg/flows
+.. image:: https://img.shields.io/codecov/c/github/rhandberg/flows
+    :target: https://codecov.io/github/rhandberg/flows
+.. image:: https://hitsofcode.com/github/rhandberg/flows?branch=devel
+    :alt: Hits-of-Code
+    :target: https://hitsofcode.com/view/github/rhandberg/flows?branch=devel
 .. image:: https://img.shields.io/github/license/rhandberg/flows.svg
     :alt: license
     :target: https://github.com/rhandberg/flows/blob/devel/LICENSE
@@ -23,6 +30,8 @@ Installation instructions
 
       [api]
       token = <my api token>
+      
+  Where your API token can be found on the Flows webpage.
 
 
 How to run tests
