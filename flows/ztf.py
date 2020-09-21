@@ -8,19 +8,21 @@ https://alerceapi.readthedocs.io/
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
+import astropy.units as u
+from astropy.coordinates import Angle
 from astropy.table import Table
 import datetime
 import requests
 from . import api
 
 #--------------------------------------------------------------------------------------------------
-def query_ztf_id(coo_centre, radius=24.0/60.0):
+def query_ztf_id(coo_centre, radius=24*u.arcmin):
 	"""
 	Query ALeRCE ZTF api to lookup ZTF identifier.
 
 	Parameters:
 		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
-		radius (float): Search radius. Default 24 arcmin.
+		radius (Angle, optional): Search radius. Default 24 arcmin.
 
 	Returns:
 		str: ZTF identifier.
@@ -29,6 +31,9 @@ def query_ztf_id(coo_centre, radius=24.0/60.0):
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
+	if isinstance(radius, (float, int)):
+		radius *= u.deg
+
 	# Make json query for Alerce query API
 	query = {
 		"records_per_pages": 20,
@@ -36,7 +41,7 @@ def query_ztf_id(coo_centre, radius=24.0/60.0):
 			"coordinates": {
 				"ra": coo_centre.ra.deg,
 				"dec": coo_centre.dec.deg,
-				"sr": radius
+				"sr": Angle(radius).deg
 			}
 		}
 	}
