@@ -51,7 +51,7 @@ def get_datafiles(targetid=None, filt=None):
 	# Validate input:
 	if filt is None:
 		filt = 'missing'
-	if filt not in ('missing', 'all'):
+	if filt not in ('missing', 'all', 'error'):
 		raise ValueError("Invalid filter specified: '%s'" % filt)
 
 	# Get API token from config file:
