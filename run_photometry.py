@@ -77,7 +77,7 @@ if __name__ == '__main__':
 	group = parser.add_argument_group('Selecting which files to process')
 	group.add_argument('--fileid', help="Process this file ID. Overrides all other filters.", type=int, default=None)
 	group.add_argument('--targetid', help="Only process files from this target.", type=int, default=None)
-	group.add_argument('--filter', type=str, default=None, choices=['missing','all'])
+	group.add_argument('--filter', type=str, default=None, choices=['missing','all','error'])
 
 	group = parser.add_argument_group('Processing details')
 	group.add_argument('--threads', type=int, default=1, help="Number of parallel threads to use.")
