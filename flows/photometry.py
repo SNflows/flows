@@ -102,21 +102,20 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	#	api.download_datafile(datafile, archive_local)
 
 	# Translate photometric filter into table column:
-	if photfilter == 'gp':
-		ref_filter = 'g_mag'
-	elif photfilter == 'rp':
-		ref_filter = 'r_mag'
-	elif photfilter == 'ip':
-		ref_filter = 'i_mag'
-	elif photfilter == 'zp':
-		ref_filter = 'z_mag'
-	elif photfilter == 'B':
-		ref_filter = 'B_mag'
-	elif photfilter == 'V':
-		ref_filter = 'V_mag'
-	elif photfilter == 'H':
-		ref_filter = 'H_mag'
-	else:
+	ref_filter = {
+		'up': 'u_mag',
+		'gp': 'g_mag',
+		'rp': 'r_mag',
+		'ip': 'i_mag',
+		'zp': 'z_mag',
+		'B': 'B_mag',
+		'V': 'V_mag',
+		'J': 'J_mag',
+		'H': 'H_mag',
+		'K': 'K_mag',
+	}.get(photfilter, None)
+
+	if ref_filter is None:
 		logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
 		ref_filter = 'g_mag'
 
@@ -217,19 +216,23 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	for i, (x, y) in enumerate(zip(references['pixel_column'], references['pixel_row'])):
 		x = int(np.round(x))
 		y = int(np.round(y))
-		x0, y0, width, height = x - radius, y - radius, 2 * radius, 2 * radius
-		cutout = slice(y0 - 1, y0 + height), slice(x0 - 1, x0 + width)
+		xmin = max(x - radius, 0)
+		xmax = min(x + radius + 1, image.shape[1])
+		ymin = max(y - radius, 0)
+		ymax = min(y + radius + 1, image.shape[0])
 
-		curr_star = deepcopy(image.subclean[cutout])
+		curr_star = deepcopy(image.subclean[ymin:ymax, xmin:xmax])
+
+		plot_image(curr_star)
+		plt.show()
+
 		edge = np.zeros_like(curr_star, dtype='bool')
 		edge[(0,-1),:] = True
 		edge[:,(0,-1)] = True
 		curr_star -= nanmedian(curr_star[edge])
 		curr_star /= np.max(curr_star)
 
-		npix = len(curr_star)
-
-		ypos, xpos = np.mgrid[:npix, :npix]
+		ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
 		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
 
 		fwhms[i] = gfit.x_fwhm
@@ -356,6 +359,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	plot_image(epsf.data, ax=ax1, cmap='viridis')
 
 	fwhms = []
+	bad_epsf_detected = False
 	for a, ax in ((0, ax3), (1, ax2)):
 		# Collapse the PDF along this axis:
 		profile = epsf.data.sum(axis=a)
@@ -367,27 +371,37 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		# for some reason
 		profile_intp = UnivariateSpline(np.arange(0, len(profile)), profile - poffset, k=3, s=0, ext=3)
 		lr = profile_intp.roots()
-		axis_fwhm = lr[1] - lr[0]
 
-		fwhms.append(axis_fwhm)
-
+		# Plot the profile and spline:
 		x_fine = np.linspace(-0.5, len(profile)-0.5, 500)
-
 		ax.plot(profile, 'k.-')
 		ax.plot(x_fine, profile_intp(x_fine) + poffset, 'g-')
 		ax.axvline(itop)
-		ax.axvspan(lr[0], lr[1], facecolor='g', alpha=0.2)
 		ax.set_xlim(-0.5, len(profile)-0.5)
+
+		# Do some sanity checks on the ePSF:
+		# It should pass 50% exactly twice and have the maximum inside that region.
+		# I.e. it should be a single gaussian-like peak
+		if len(lr) != 2 or itop < lr[0] or itop > lr[1]:
+			logger.error("Bad PSF along axis %d", a)
+			bad_epsf_detected = True
+		else:
+			axis_fwhm = lr[1] - lr[0]
+			fwhms.append(axis_fwhm)
+			ax.axvspan(lr[0], lr[1], facecolor='g', alpha=0.2)
+
+	# Save the ePSF figure:
+	ax4.axis('off')
+	fig.savefig(os.path.join(output_folder, 'epsf.png'), bbox_inches='tight')
+	plt.close(fig)
+
+	# There was a problem with the ePSF:
+	if bad_epsf_detected:
+		raise Exception("Bad ePSF detected.")
 
 	# Let's make the final FWHM the largest one we found:
 	fwhm = np.max(fwhms)
 	logger.info("Final FWHM based on ePSF: %f", fwhm)
-
-	#ax2.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
-	#ax3.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
-	ax4.axis('off')
-	fig.savefig(os.path.join(output_folder, 'epsf.png'), bbox_inches='tight')
-	plt.close(fig)
 
 	#==============================================================================================
 	# COORDINATES TO DO PHOTOMETRY AT
