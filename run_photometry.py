@@ -14,7 +14,7 @@ import multiprocessing
 from flows import api, photometry, load_config
 
 #--------------------------------------------------------------------------------------------------
-def process_fileid(fid, output_folder_root=None, attempt_imagematch=True):
+def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False):
 
 	logger = logging.getLogger('flows')
 	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
@@ -60,7 +60,8 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True):
 		logger.removeHandler(_filehandler)
 
 	if photfile is not None:
-		api.upload_photometry(fid, delete_completed=True)
+		if autoupload:
+			api.upload_photometry(fid, delete_completed=True)
 		api.set_photometry_status(fid, 'done')
 
 	return photfile
@@ -81,6 +82,7 @@ if __name__ == '__main__':
 	group = parser.add_argument_group('Processing details')
 	group.add_argument('--threads', type=int, default=1, help="Number of parallel threads to use.")
 	group.add_argument('--no-imagematch', help="Disable ImageMatch.", action='store_true')
+	group.add_argument('--autoupload', help="Automatically upload completed photometry to Flows website. Only do this, if you know what you are doing!", action='store_true')
 	args = parser.parse_args()
 
 	# Ensure that all input has been given:
@@ -121,7 +123,8 @@ if __name__ == '__main__':
 	# Create function wrapper:
 	process_fileid_wrapper = functools.partial(process_fileid,
 		output_folder_root=output_folder_root,
-		attempt_imagematch=not args.no_imagematch)
+		attempt_imagematch=not args.no_imagematch,
+		autoupload=args.autoupload)
 
 	if threads > 1:
 		# Disable printing info messages from the parent function.
