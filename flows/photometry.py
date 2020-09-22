@@ -223,9 +223,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 		curr_star = deepcopy(image.subclean[ymin:ymax, xmin:xmax])
 
-		plot_image(curr_star)
-		plt.show()
-
 		edge = np.zeros_like(curr_star, dtype='bool')
 		edge[(0,-1),:] = True
 		edge[:,(0,-1)] = True
