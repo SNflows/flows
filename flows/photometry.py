@@ -17,7 +17,7 @@ from copy import deepcopy
 from astropy.utils.exceptions import AstropyDeprecationWarning
 import astropy.units as u
 import astropy.coordinates as coords
-from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
+from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma, bootstrap
 from astropy.table import Table, vstack
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
@@ -37,6 +37,7 @@ from .plots import plt, plot_image
 from .version import get_version
 from .load_image import load_image
 from .run_imagematch import run_imagematch
+from .zeropoint.py import bootstrap_outlier
 
 __version__ = get_version(pep440=False)
 
@@ -541,6 +542,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	mag_inst_err = (2.5/np.log(10)) * (tab['flux_psf_error'] / tab['flux_psf'])
 
 	# Corresponding magnitudes in catalog:
+	#TODO: add color terms here
 	mag_catalog = tab[ref_filter]
 
 	# Mask out things that should not be used in calibration:
@@ -623,3 +625,5 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	logger.info("Photometry took: %f seconds", toc-tic)
 
 	return photometry_output
+
+def bootstrap
