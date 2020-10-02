@@ -37,7 +37,7 @@ from .plots import plt, plot_image
 from .version import get_version
 from .load_image import load_image
 from .run_imagematch import run_imagematch
-from .zeropoint.py import bootstrap_outlier
+from .zeropoint import bootstrap_outlier
 
 __version__ = get_version(pep440=False)
 
@@ -625,5 +625,3 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	logger.info("Photometry took: %f seconds", toc-tic)
 
 	return photometry_output
-
-def bootstrap

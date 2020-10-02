@@ -38,7 +38,7 @@ def bootstrap_outlier(x,y,yerr='None', n=100, model='None',fitter='None',
 	#Then obtain summary statistic for each parameter in parnames
 	pars = {}
 	for parname in parnames:
-    	pars[parname]=np.ones(len(bootinds), dtype=np.float64)
+		pars[parname]=np.ones(len(bootinds), dtype=np.float64)
 	for i,bs in enumerate(bootinds):
 		w = np.ones(len(x[bs]), dtype=np.float64) if yerr=='None' else (1.0/yerr[bs])**2
 		best_fit, sigma_clipped = fitter_instance(model, x[bs], y[bs], weights=w)
