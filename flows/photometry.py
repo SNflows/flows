@@ -566,7 +566,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	zp = -1*best_fit.intercept.value # Negative, because that is the way zeropoints are usually defined
 
 	weights[sigma_clipped] = 0 # Trick to make following expression simpler
-	N = len(weights.nonzero())
+	N = len(weights.nonzero()[0])
 	zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
 
 	# Add calibrated magnitudes to the photometry table:
