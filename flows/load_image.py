@@ -33,7 +33,7 @@ def load_image(FILENAME):
 	image = type('image', (object,), dict()) # image container
 
 	# get image and wcs solution
-	with fits.open(FILENAME, mode='readonly', memmap=True) as hdul:
+	with fits.open(FILENAME, mode='readonly') as hdul:
 		hdr = hdul[0].header
 		origin = hdr.get('ORIGIN')
 
