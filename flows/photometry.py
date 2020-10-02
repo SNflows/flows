@@ -8,7 +8,7 @@ Flows photometry code.
 
 import os
 import numpy as np
-from bottleneck import nanstd, nanmedian
+from bottleneck import nansum, nanmedian
 from timeit import default_timer
 import logging
 import warnings
@@ -552,16 +552,20 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	x = mag_catalog[use_for_calibration]
 	y = mag_inst[use_for_calibration]
 	yerr = mag_inst_err[use_for_calibration]
+	weights = 1.0/yerr**2
 
 	# Fit linear function with fixed slope, using sigma-clipping:
 	model = models.Linear1D(slope=1, fixed={'slope': True})
 	fitter = fitting.FittingWithOutlierRemoval(fitting.LinearLSQFitter(), sigma_clip, sigma=3.0)
-	best_fit, sigma_clipped = fitter(model, x, y, weights=1.0/yerr**2)
+	best_fit, sigma_clipped = fitter(model, x, y, weights=weights)
 
 	# Extract zero-point and estimate its error:
 	# I don't know why there is not an error-estimate attached directly to the Parameter?
 	zp = -1*best_fit.intercept.value # Negative, because that is the way zeropoints are usually defined
-	zp_error = nanstd(y[~sigma_clipped] - best_fit(x[~sigma_clipped]))
+
+	weights[sigma_clipped] = 0 # Trick to make following expression simpler
+	N = np.sum(weights.nonzero())
+	zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
 
 	# Add calibrated magnitudes to the photometry table:
 	tab['mag'] = mag_inst + zp
