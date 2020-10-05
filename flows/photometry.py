@@ -8,7 +8,7 @@ Flows photometry code.
 
 import os
 import numpy as np
-from bottleneck import nansum, nanmedian
+from bottleneck import nansum, nanmedian, allnan
 from timeit import default_timer
 import logging
 import warnings
@@ -121,6 +121,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	references = catalog['references']
 	references.sort(ref_filter)
+
+	# Check that there actually are reference stars in that filter:
+	if allnan(references[ref_filter]):
+		raise ValueError("No reference stars found in current photfilter.")
 
 	# Load the image from the FITS file:
 	image = load_image(filepath)
@@ -565,7 +569,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	weights[sigma_clipped] = 0 # Trick to make following expression simpler
 	N = len(weights.nonzero()[0])
-	zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
+	if N > 1:
+		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
+	else:
+		zp_error = np.NaN
 
 	# Add calibrated magnitudes to the photometry table:
 	tab['mag'] = mag_inst + zp
