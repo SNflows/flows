@@ -338,25 +338,19 @@ def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	with AADC_DB() as db:
 
 		# Get the information about the target from the database:
-		params = [target, target]
 		if target is not None and isinstance(target, int):
-			constraints = r'targetid=%s'
+			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE targetid=%s;", [target])
 		elif target is not None:
-			constraints = r'target_name=%s'
+			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE target_name=%s;", [target])
 		else:
-			constraints = 'catalog_downloaded=FALSE'
-			params = []
-
-		query = """SELECT target_name,ra,decl FROM flows.targets WHERE {0:s}
-		UNION
-		SELECT target_name,ra,decl FROM flows.candidates WHERE {0:s};""".format(constraints)
-		db.cursor.execute(query, params)
+			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE catalog_downloaded=FALSE;")
 
 		for row in db.cursor.fetchall():
 			# The unique identifier of the target:
+			targetid = int(row['targetid'])
 			target_name = row['target_name']
 
-			# Coordinate of the target, which is the entre of the search cone:
+			# Coordinate of the target, which is the centre of the search cone:
 			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
 
 			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
@@ -410,9 +404,8 @@ def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 				ON CONFLICT DO NOTHING;""", results)
 				logger.info("%d catalog entries inserted for %s.", db.cursor.rowcount, target_name)
 
-				# Mark the target or candidate that the catalog has been downloaded:
-				db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE,ztf_id=%s WHERE target_name=%s;", (ztf_id, target_name))
-				db.cursor.execute("UPDATE flows.candidates SET catalog_downloaded=TRUE,ztf_id=%s WHERE target_name=%s;", (ztf_id, target_name))
+				# Mark the target that the catalog has been downloaded:
+				db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE,ztf_id=%s WHERE targetid=%s;", (ztf_id, targetid))
 				db.conn.commit()
 			except:
 				db.conn.rollback()
