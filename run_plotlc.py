@@ -146,7 +146,7 @@ def main():
 	mplcursors.cursor(ax).connect("add", annotate)
 	plt.show(block=True)
 
-	if args.savephot is not 'None':
+	if args.savephot != 'None':
 		phot.write(args.savephot,format='ascii.ecsv')
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
