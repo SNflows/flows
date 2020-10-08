@@ -565,7 +565,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fitter = fitting.FittingWithOutlierRemoval(fitting.LinearLSQFitter(), sigma_clip, sigma=3.0)
 	best_fit, sigma_clipped = fitter(model, x, y, weights=weights)
 
-	# Extract zero-point and estimate its error:
+	# Extract zero-point and estimate its error using a single weighted fit:
 	# I don't know why there is not an error-estimate attached directly to the Parameter?
 	zp = -1*best_fit.intercept.value # Negative, because that is the way zeropoints are usually defined
 
@@ -575,6 +575,14 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
 	else:
 		zp_error = np.NaN
+
+	#Extract zero point and error using bootstrap method
+	#bootstrap_outlier(x, y, yerr, n=1000, model=model, outlier=sigma_clip, outlier_kwargs={'sigma':3},
+	#				summary='median')
+
+	#x,y,yerr='None', n=100, model='None',fitter='None',
+	#	outlier='None', outlier_kwargs={'sigma':3}, summary='median',
+	#	parnames=['intercept'], return_vals=True
 
 	# Add calibrated magnitudes to the photometry table:
 	tab['mag'] = mag_inst + zp
