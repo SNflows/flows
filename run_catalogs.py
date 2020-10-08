@@ -32,10 +32,16 @@ if __name__ == '__main__':
 		logger.addHandler(console)
 	logger.setLevel(logging_level)
 
-	for targetid in api.get_catalog_missing():
-		logger.info("Downloading catalog for targetid=%d...", targetid)
-		download_catalog(targetid)
+	for target in api.get_catalog_missing():
+		logger.info("Downloading catalog for target=%s...", target)
+		download_catalog(target)
 
 	if args.target is not None:
 		cat = api.get_catalog(args.target)
-		print(cat)
+
+		print("Target:")
+		cat['target'].pprint_all()
+		print("\nReferences:")
+		cat['references'].pprint_all()
+		print("\nAvoid:")
+		cat['avoid'].pprint_all()

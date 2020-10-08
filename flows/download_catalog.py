@@ -338,14 +338,19 @@ def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	with AADC_DB() as db:
 
 		# Get the information about the target from the database:
-		if target is None:
-			db.cursor.execute("SELECT targetid,ra,decl FROM flows.targets WHERE catalog_downloaded=FALSE;")
+		if target is not None and isinstance(target, int):
+			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE targetid=%s;", [target])
+		elif target is not None:
+			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE target_name=%s;", [target])
 		else:
-			db.cursor.execute("SELECT targetid,ra,decl FROM flows.targets WHERE targetid=%s;", (target,))
+			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE catalog_downloaded=FALSE;")
 
 		for row in db.cursor.fetchall():
 			# The unique identifier of the target:
 			targetid = int(row['targetid'])
+			target_name = row['target_name']
+
+			# Coordinate of the target, which is the centre of the search cone:
 			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
 
 			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
@@ -354,50 +359,54 @@ def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 			ztf_id = query_ztf_id(coo_centre, radius=radius)
 
 			# Insert the catalog into the local database:
-			#db.cursor.execute("TRUNCATE flows.refcat2;")
-			db.cursor.executemany("""INSERT INTO flows.refcat2 (
-				starid,
-				ra,
-				decl,
-				pm_ra,
-				pm_dec,
-				gaia_mag,
-				gaia_bp_mag,
-				gaia_rp_mag,
-				gaia_variability,
-				u_mag,
-				g_mag,
-				r_mag,
-				i_mag,
-				z_mag,
-				"J_mag",
-				"H_mag",
-				"K_mag",
-				"V_mag",
-				"B_mag")
-			VALUES (
-				%(starid)s,
-				%(ra)s,
-				%(decl)s,
-				%(pm_ra)s,
-				%(pm_dec)s,
-				%(gaia_mag)s,
-				%(gaia_bp_mag)s,
-				%(gaia_rp_mag)s,
-				%(gaia_variability)s,
-				%(u_mag)s,
-				%(g_mag)s,
-				%(r_mag)s,
-				%(i_mag)s,
-				%(z_mag)s,
-				%(J_mag)s,
-				%(H_mag)s,
-				%(K_mag)s,
-				%(V_mag)s,
-				%(B_mag)s)
-			ON CONFLICT DO NOTHING;""", results)
-			logger.info("%d catalog entries inserted.", db.cursor.rowcount)
+			try:
+				#db.cursor.execute("TRUNCATE flows.refcat2;")
+				db.cursor.executemany("""INSERT INTO flows.refcat2 (
+					starid,
+					ra,
+					decl,
+					pm_ra,
+					pm_dec,
+					gaia_mag,
+					gaia_bp_mag,
+					gaia_rp_mag,
+					gaia_variability,
+					u_mag,
+					g_mag,
+					r_mag,
+					i_mag,
+					z_mag,
+					"J_mag",
+					"H_mag",
+					"K_mag",
+					"V_mag",
+					"B_mag")
+				VALUES (
+					%(starid)s,
+					%(ra)s,
+					%(decl)s,
+					%(pm_ra)s,
+					%(pm_dec)s,
+					%(gaia_mag)s,
+					%(gaia_bp_mag)s,
+					%(gaia_rp_mag)s,
+					%(gaia_variability)s,
+					%(u_mag)s,
+					%(g_mag)s,
+					%(r_mag)s,
+					%(i_mag)s,
+					%(z_mag)s,
+					%(J_mag)s,
+					%(H_mag)s,
+					%(K_mag)s,
+					%(V_mag)s,
+					%(B_mag)s)
+				ON CONFLICT DO NOTHING;""", results)
+				logger.info("%d catalog entries inserted for %s.", db.cursor.rowcount, target_name)
 
-			# Mark the target that the catalog has been downloaded:
-			db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE,ztf_id=%s WHERE targetid=%s;", (ztf_id, targetid,))
-			db.conn.commit()
+				# Mark the target that the catalog has been downloaded:
+				db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE,ztf_id=%s WHERE targetid=%s;", (ztf_id, targetid))
+				db.conn.commit()
+			except:
+				db.conn.rollback()
+				raise
