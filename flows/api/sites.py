@@ -46,4 +46,8 @@ def get_all_sites():
 	r.raise_for_status()
 	jsn = r.json()
 
+	# Special derived objects:
+	for site in jsn:
+		site['EarthLocation'] = EarthLocation(lat=site['latitude']*u.deg, lon=site['longitude']*u.deg, height=site['elevation']*u.m)
+
 	return jsn
