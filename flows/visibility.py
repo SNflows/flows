@@ -1,9 +1,12 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Target visibility plotting.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
+import logging
 import os.path
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,23 +19,29 @@ from astropy.visualization import quantity_support
 from . import api
 
 #--------------------------------------------------------------------------------------------------
-def visibility(target, siteid=None, date=None, output=None):
+def visibility(target, siteid=None, date=None, output=None, overwrite=True):
 	"""
 	Create visibility plot.
 
 	Parameters:
 		target (str or int):
 		siteid (int): Identifier of site.
-		date (str, optional): Date for which to create visibility plot.
+		date (datetime or str, optional): Date for which to create visibility plot.
 			Default it to use the current date.
 		output (str, optional): Path to file or directory where to place the plot.
 			If not given, the plot will be created in memory, and can be shown on screen.
+		overwrite (bool, optional): Should existing file specified in ``output`` be overwritten?
+			Default is to overwrite an existing file.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
+	logger = logging.getLogger(__name__)
+
 	if date is None:
-		date = datetime.utcnow().strftime('%Y-%m-%d')
+		date = datetime.utcnow()
+	elif isinstance(date, str):
+		date = datetime.strptime(date, '%Y-%m-%d')
 
 	tgt = api.get_target(target)
 
@@ -46,13 +55,29 @@ def visibility(target, siteid=None, date=None, output=None):
 
 	plotpaths = []
 	for site in sites:
+		# If we are saving plot to file, determine the path to save to
+		# and check that it doesn't already exist:
+		if output:
+			if os.path.isdir(output):
+				plotpath = os.path.join(output, "visibility_%s_%s_site%02d.png" % (
+					tgt['target_name'],
+					date.strftime('%Y%m%d'),
+					site['siteid']))
+			else:
+				plotpath = output
+			logger.debug("Will save visibility plot to '%s'", plotpath)
+
+			# If we are not overwriting and
+			if not overwrite and os.path.exists(plotpath):
+				logger.info("File already exists: %s", plotpath)
+				continue
 
 		# Observatory:
 		observatory = site['EarthLocation']
 		utcoffset = (site['longitude']*u.deg/(360*u.deg)) * 24*u.hour
 
 		# Create timestamps to calculate for:
-		midnight = Time(date + ' 00:00:00', scale='utc') - utcoffset
+		midnight = Time(date.strftime('%Y-%m-%d') + ' 00:00:00', scale='utc') - utcoffset
 		delta_midnight = np.linspace(-12, 12, 1000)*u.hour
 		times = midnight + delta_midnight
 
@@ -88,7 +113,7 @@ def visibility(target, siteid=None, date=None, output=None):
 		ax.minorticks_on()
 		ax.set_xlim(min_time.datetime, max_time.datetime)
 		ax.set_ylim(0*u.deg, 90*u.deg)
-		ax.set_title("%s - %s - %s" % (str(tgt['target_name']), date, site['sitename']), fontsize=14)
+		ax.set_title("%s - %s - %s" % (str(tgt['target_name']), date.strftime('%Y-%m-%d'), site['sitename']), fontsize=14)
 		plt.xlabel('Time [UTC]', fontsize=14)
 		plt.ylabel('Altitude [deg]', fontsize=16)
 		fig.autofmt_xdate()
@@ -97,11 +122,6 @@ def visibility(target, siteid=None, date=None, output=None):
 		ax.xaxis.set_major_formatter(formatter)
 
 		if output:
-			datestr = datetime.strptime(date, '%Y-%m-%d').strftime('%Y%m%d')
-			if os.path.isdir(output):
-				plotpath = os.path.join(output, "visibility_%s_%s_site%02d.png" % (tgt['target_name'], datestr, site['siteid']))
-			else:
-				plotpath = output
 			fig.savefig(plotpath, bbox_inches='tight', transparent=True)
 			plt.close(fig)
 			plotpaths.append(plotpath)
