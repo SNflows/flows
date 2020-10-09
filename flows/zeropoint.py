@@ -9,9 +9,17 @@ Plotting utilities.
 import numpy as np
 from astropy.stats import bootstrap
 from astropy.modeling import models, fitting
+from scipy.special import erfcinv
 
-def bootstrap_outlier(x,y,yerr='None', n=100, model='None',fitter='None',
-	outlier='None', outlier_kwargs={'sigma':3}, summary='median',
+
+#Calculate sigma for sigma clipping using Chauvenet
+def sigma_from_Chauvenet(Nsamples):
+    '''Calculate sigma according to the Cheuvenet criterion'''
+    return erfcinv(1./(2*Nsamples)) * (2.)**(1/2)
+
+
+def bootstrap_outlier(x,y,yerr='None', n=500, model='None',fitter='None',
+	outlier='None', outlier_kwargs={'sigma':3}, summary='median', error='bootstrap',
 	parnames=['intercept'], return_vals=True):
 	'''x = catalog mag, y = instrumental mag, yerr = instrumental error
 	   summary = function for summary statistic, np.nanmedian by default.
@@ -23,6 +31,7 @@ def bootstrap_outlier(x,y,yerr='None', n=100, model='None',fitter='None',
 	Performs bootstrap with replacement and returns model.
 	'''
 	summary = np.nanmedian if summary=='median' else summary
+	error = np.nanstd if error=='bootstrap' else error
 
 	#Create index for bootstrapping
 	ind = np.arange(len(x))
@@ -50,4 +59,5 @@ def bootstrap_outlier(x,y,yerr='None', n=100, model='None',fitter='None',
 
 	for parname in parnames:
 		pars[parname] = summary(pars[parname])
+		pars[parname+'_error'] = error(pars[parname])
 		return pars
