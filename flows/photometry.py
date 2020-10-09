@@ -575,6 +575,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
 	else:
 		zp_error = np.NaN
+	logger.info('Leastsquare ZP = {:0.3f}, ZP_error = {:0.3f}'.format(zp,zp_error))
 
 	#Determine sigma clipping sigma according to Chauvenet method
 	#But don't allow less than sigma = sigmamin, setting to 1.5 for now.
@@ -584,12 +585,16 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	sigChauv = sigChauv if sigChauv >= sigmamin else sigmamin
 
 	#Extract zero point and error using bootstrap method
-	pars = bootstrap_outlier(x, y, yerr, n=1000, model=model, fitter=fitting.LinearLSQFitter,
+	Nboot=1000
+	logger.info('Running bootstrap with sigma = {:0.2f} and n = {:0.0f}'.format(sigChauv,Nboot))
+	pars = bootstrap_outlier(x, y, yerr, n=Nboot, model=model, fitter=fitting.LinearLSQFitter,
 							outlier=sigma_clip, outlier_kwargs={'sigma':sigChauv}, summary='median',
-							error='bootstrap')
-	zp_bs = pars['intercept']
-	zp_error_bs = pars['intercept_err']
+							error='bootstrap', return_vals=False)
 
+	zp_bs = pars['intercept'] * -1.0
+	zp_error_bs = pars['intercept_error']
+
+	logger.info('Bootstrapped ZP = {:0.3f}, ZP_error = {:0.3f}'.format(zp_bs,zp_error_bs))
 	#Check that difference is not large
 	zp_diff = 0.4
 	if np.abs(zp_bs-zp) >= zp_diff:

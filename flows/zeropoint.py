@@ -18,7 +18,7 @@ def sigma_from_Chauvenet(Nsamples):
     return erfcinv(1./(2*Nsamples)) * (2.)**(1/2)
 
 
-def bootstrap_outlier(x,y,yerr='None', n=500, model='None',fitter='None',
+def bootstrap_outlier(x,y,yerr, n=500, model='None',fitter='None',
 	outlier='None', outlier_kwargs={'sigma':3}, summary='median', error='bootstrap',
 	parnames=['intercept'], return_vals=True):
 	'''x = catalog mag, y = instrumental mag, yerr = instrumental error
@@ -46,10 +46,12 @@ def bootstrap_outlier(x,y,yerr='None', n=500, model='None',fitter='None',
 	#Fit each bootstrap with model and fitter using outlier rejection at each step.
 	#Then obtain summary statistic for each parameter in parnames
 	pars = {}
+	out = {}
 	for parname in parnames:
 		pars[parname]=np.ones(len(bootinds), dtype=np.float64)
 	for i,bs in enumerate(bootinds):
-		w = np.ones(len(x[bs]), dtype=np.float64) if yerr=='None' else (1.0/yerr[bs])**2
+		#w = np.ones(len(x[bs]), dtype=np.float64) if yerr=='None' else (1.0/yerr[bs])**2
+		w = (1.0/yerr[bs])**2
 		best_fit, sigma_clipped = fitter_instance(model, x[bs], y[bs], weights=w)
 		#obtain parameters of interest
 		for parname in parnames:
@@ -58,6 +60,6 @@ def bootstrap_outlier(x,y,yerr='None', n=500, model='None',fitter='None',
 		return [summary(pars[par]) for par in pars]
 
 	for parname in parnames:
-		pars[parname] = summary(pars[parname])
-		pars[parname+'_error'] = error(pars[parname])
-		return pars
+		out[parname] = summary(pars[parname])
+		out[parname+'_error'] = error(pars[parname])
+	return out
