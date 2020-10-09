@@ -30,15 +30,15 @@ def bootstrap_outlier(x,y,yerr, n=500, model='None',fitter='None',
 	return_vals = False will return dictionary
 	Performs bootstrap with replacement and returns model.
 	'''
-	summary = np.nanmedian if summary=='median' else summary
-	error = np.nanstd if error=='bootstrap' else error
+	summary = np.nanmedian if summary == 'median' else summary
+	error = np.nanstd if error == 'bootstrap' else error
 
 	#Create index for bootstrapping
 	ind = np.arange(len(x))
 
 	#Bootstrap indexes with replacement using astropy
 	bootstraps = bootstrap(ind,bootnum=n)
-	bootstraps.sort() #sort increasing.
+	bootstraps.sort() # sort increasing.
 	bootinds = bootstraps.astype(int)
 
 	#Prepare fitter
@@ -48,7 +48,7 @@ def bootstrap_outlier(x,y,yerr, n=500, model='None',fitter='None',
 	pars = {}
 	out = {}
 	for parname in parnames:
-		pars[parname]=np.ones(len(bootinds), dtype=np.float64)
+		pars[parname] = np.ones(len(bootinds), dtype=np.float64)
 	for i,bs in enumerate(bootinds):
 		#w = np.ones(len(x[bs]), dtype=np.float64) if yerr=='None' else (1.0/yerr[bs])**2
 		w = (1.0/yerr[bs])**2

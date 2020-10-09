@@ -120,7 +120,7 @@ def main():
 
 	if args.subonly:
 		for filt in filters:
-			lc = phot[(phot['filter'] == filt) & (phot['sub']==True)]
+			lc = phot[(phot['filter'] == filt) & (phot['sub'])]
 			ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
 				marker='s', linestyle='None', label=filt, color=colors[filt])
 
