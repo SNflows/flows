@@ -14,20 +14,20 @@ from scipy.special import erfcinv
 
 #Calculate sigma for sigma clipping using Chauvenet
 def sigma_from_Chauvenet(Nsamples):
-    '''Calculate sigma according to the Cheuvenet criterion'''
-    return erfcinv(1./(2*Nsamples)) * (2.)**(1/2)
+	'''Calculate sigma according to the Cheuvenet criterion'''
+	return erfcinv(1./(2*Nsamples)) * (2.)**(1/2)
 
 
 def bootstrap_outlier(x,y,yerr, n=500, model='None',fitter='None',
 	outlier='None', outlier_kwargs={'sigma':3}, summary='median', error='bootstrap',
 	parnames=['intercept'], return_vals=True):
 	'''x = catalog mag, y = instrumental mag, yerr = instrumental error
-	   summary = function for summary statistic, np.nanmedian by default.
-	   model = Linear1D
-	   fitter = LinearLSQFitter
-	   outlier = 'sigma_clip'
-	   outlier_kwargs, default sigma = 3
-	   return_vals = False will return dictionary
+	summary = function for summary statistic, np.nanmedian by default.
+	model = Linear1D
+	fitter = LinearLSQFitter
+	outlier = 'sigma_clip'
+	outlier_kwargs, default sigma = 3
+	return_vals = False will return dictionary
 	Performs bootstrap with replacement and returns model.
 	'''
 	summary = np.nanmedian if summary=='median' else summary

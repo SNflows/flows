@@ -17,7 +17,7 @@ from copy import deepcopy
 from astropy.utils.exceptions import AstropyDeprecationWarning
 import astropy.units as u
 import astropy.coordinates as coords
-from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma, bootstrap
+from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
 from astropy.table import Table, vstack
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
