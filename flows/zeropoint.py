@@ -8,7 +8,7 @@ Plotting utilities.
 
 import numpy as np
 from astropy.stats import bootstrap
-from astropy.modeling import models, fitting
+from astropy.modeling import fitting
 from scipy.special import erfcinv
 
 
