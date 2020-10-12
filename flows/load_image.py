@@ -156,6 +156,12 @@ def load_image(FILENAME):
 				'SDSS-Z': 'zp'
 			}.get(hdr['FILTER1'], hdr['FILTER1'])
 
+		elif hdr.get('TELESCOP') == 'CA 3.5m' and hdr.get('INSTRUME') == 'Omega2000':
+			# Calar Alto 3.5m (Omege2000)
+			image.site = api.get_site(9) # Hard-coded the siteid for Calar Alto 3.5m
+			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = hdr['FILTER']
+
 		else:
 			raise Exception("Could not determine origin of image")
 
