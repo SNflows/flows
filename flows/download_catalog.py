@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 
@@ -95,18 +95,9 @@ def query_casjobs_refcat2(coo_centre, radius=24*u.arcmin):
 
 	try:
 		results = _query_casjobs_refcat2(coo_centre, radius=radius)
-
 	except CasjobsMemoryError:
 		logger.debug("CasJobs failed with memory error. Trying to use smaller radii.")
-		results = _query_casjobs_refcat2(coo_centre, radius=0.5*radius)
-		for n in range(6):
-			# FIXME: The 0.8 here is kind of a guess. There should be an analytic solution
-			new = SkyCoord(
-				ra=coo_centre.ra.deg + 0.8 * Angle(radius).deg * np.cos(n*60*np.pi/180),
-				dec=coo_centre.dec.deg + 0.8 * Angle(radius).deg * np.sin(n*60*np.pi/180),
-				unit='deg', frame='icrs')
-
-			results += _query_casjobs_refcat2(new, radius=0.5*radius)
+		results = _query_casjobs_refcat2_divide_and_conquer(coo_centre, radius=radius)
 
 	# Remove duplicate entries:
 	_, indx = np.unique([res['starid'] for res in results], return_index=True)
@@ -120,6 +111,37 @@ def query_casjobs_refcat2(coo_centre, radius=24*u.arcmin):
 	results = [res for k,res in enumerate(results) if sep[k] <= radius]
 
 	logger.debug("Found %d unique results", len(results))
+	return results
+
+#--------------------------------------------------------------------------------------------------
+def _query_casjobs_refcat2_divide_and_conquer(coo_centre, radius):
+	logger = logging.getLogger(__name__)
+
+	# Just put in a stop criterion to avoid infinite recursion:
+	if radius < 0.04:
+		raise Exception("Too many subdivides")
+
+	# Search central cone:
+	try:
+		results = _query_casjobs_refcat2(coo_centre, radius=0.5*radius)
+	except CasjobsMemoryError:
+		logger.debug("CasJobs failed with memory error. Trying to use smaller radii.")
+		results = _query_casjobs_refcat2_divide_and_conquer(coo_centre, radius=0.5*radius)
+
+	# Search six cones around central cone:
+	for n in range(6):
+		# FIXME: The 0.8 here is kind of a guess. There should be an analytic solution
+		new = SkyCoord(
+			ra=coo_centre.ra.deg + 0.8 * Angle(radius).deg * np.cos(n*60*np.pi/180),
+			dec=coo_centre.dec.deg + 0.8 * Angle(radius).deg * np.sin(n*60*np.pi/180),
+			unit='deg', frame='icrs')
+
+		try:
+			results += _query_casjobs_refcat2(new, radius=0.5*radius)
+		except CasjobsMemoryError:
+			logger.debug("CasJobs failed with memory error. Trying to use smaller radii.")
+			results += _query_casjobs_refcat2_divide_and_conquer(new, radius=0.5*radius)
+
 	return results
 
 #--------------------------------------------------------------------------------------------------
