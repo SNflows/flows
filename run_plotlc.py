@@ -31,6 +31,9 @@ def main():
 	parser.add_argument('--filters', '-f', type=str, nargs='*', default=None, choices=all_filters,
 		help='List of space delimited filters. If not provided will use all')
 	parser.add_argument('--offset', '-jd', type=float, default=2458800.0)
+	parser.add_argument('--subonly', type=bool, default=False, help='True or False')
+	parser.add_argument('--savephot', type=str, default='None',
+		help='None or filepath to save the photometry to as ecsv file.')
 	args = parser.parse_args()
 
 	# To use when only plotting some filters
@@ -115,10 +118,17 @@ def main():
 	cps = sns.color_palette()
 	colors = dict(zip(filters,(cps[2],cps[3],cps[0],cps[-1],cps[1])))
 
-	for filt in filters:
-		lc = phot[phot['filter'] == filt]
-		ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
-			marker='s', linestyle='None', label=filt, color=colors[filt])
+	if args.subonly:
+		for filt in filters:
+			lc = phot[(phot['filter'] == filt) & (phot['sub'])]
+			ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
+				marker='s', linestyle='None', label=filt, color=colors[filt])
+
+	else:
+		for filt in filters:
+			lc = phot[phot['filter'] == filt]
+			ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
+				marker='s', linestyle='None', label=filt, color=colors[filt])
 
 	ax.invert_yaxis()
 	ax.legend()
@@ -136,6 +146,8 @@ def main():
 	mplcursors.cursor(ax).connect("add", annotate)
 	plt.show(block=True)
 
+	if args.savephot != 'None':
+		phot.write(args.savephot,format='ascii.ecsv')
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
 	main()
