@@ -11,13 +11,12 @@ TNS bot apikey must exist in config
 
 import argparse
 import logging
-from flows import api
+from flows import api, load_config
 import requests
 import json
-import os
 from collections import OrderedDict
 from bs4 import BeautifulSoup
-import pandas as pd
+import numpy as np
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 from astropy.time import Time
@@ -30,7 +29,7 @@ parser = argparse.ArgumentParser(description='Query TNS and upload to candidate 
 parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
 parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
 parser.add_argument('-z', '--zmax', type=float, help='Z max', default=0.105)
-parser.add_argument('--zmin' ,type=float, help='Z min', default=0.000000001)
+parser.add_argument('--zmin', type=float, help='Z min', default=0.000000001)
 parser.add_argument('-b', '--days_begin', type=int, help='Discovery day at least X days before today', default=30)
 parser.add_argument('-e', '--days_end', type=int, help='Discovery day at most X days before today', default=3)
 parser.add_argument('-o', '--objtype', type=str, help='TNS objtype int given as comma separed string with no spaces', default='3,104')
@@ -60,65 +59,65 @@ logger.setLevel(logging_level)
 # API key for Bot
 config = load_config()
 api_key = config.get('TNS', 'api_key')
-############################# PARAMETERS #############################
-## Search parameters
-days_before_today = args.days_begin # end = now - dbt
-days_to_include = args.days_end # begin = now - dti
-z_min = args.zmin # Min z
-z_max = args.zmax # Max z
-months = args.limit_months # pre-limit TNS search to candidates reported in the last X months
+# PARAMETERS
+days_before_today = args.days_begin  # end = now - dbt
+days_to_include = args.days_end  # begin = now - dti
+z_min = args.zmin
+z_max = args.zmax
+months = args.limit_months  # pre-limit TNS search to candidates reported in the last X months
 if np.floor(days_before_today/30) > months:
     logger.warning('Months limit restricts days_begin, consider increasing limit_months.')
-objtype = args.objtype # Relevant TNS SN Ia subtypes.
+objtype = args.objtype  # Relevant TNS SN Ia subtypes.
 
-########################## TNSAPI FUNCTIONS #############################
+#--------------------------------------------------------------------
+# TNS API FUNCTIONS
 # Pre-provided helper functions for the TNS API
-# function for changing data to json format                          #
-def format_to_json(source):                                          #
-    # change data to json format and return                          #
-    parsed=json.loads(source,object_pairs_hook=OrderedDict)          #
-    result=json.dumps(parsed,indent=4)                               #
-    return result                                                    #
-#--------------------------------------------------------------------#
-# function for search obj                                            #
-def search(url,json_list):                                           #
-    try:                                                               #
-        # url for search obj                                             #
-        search_url=url+'/search'                                         #
-        # change json_list to json format                                #
-        json_file=OrderedDict(json_list)                                 #
-        # construct the list of (key,value) pairs                        #
-        search_data=[('api_key',(None, api_key)),                        #
-                     ('data',(None,json.dumps(json_file)))]              #
-        # search obj using request module                                #
-        response=requests.post(search_url, files=search_data)            #
-        # return response                                                #
-        return response                                                  #
-    except Exception as e:                                             #
-        return [None,'Error message : \n'+str(e)]                        #
-#--------------------------------------------------------------------#
-# function for get obj                                               #
-def get(url,json_list):                                              #
-    try:                                                               #
-        # url for get obj                                                #
-        get_url=url+'/object'                                            #
-        # change json_list to json format                                #
-        json_file=OrderedDict(json_list)                                 #
-        # construct the list of (key,value) pairs                        #
-        get_data=[('api_key',(None, api_key)),                           #
-                     ('data',(None,json.dumps(json_file)))]              #
-        # get obj using request module                                   #
-        response=requests.post(get_url, files=get_data)                  #
-        # return response                                                #
-        return response                                                  #
-    except Exception as e:                                             #
-        return [None,'Error message : \n'+str(e)]                        #
+# Obtained from https://wis-tns.weizmann.ac.il/content/tns-getting-started
+# function for changing data to json format
+url_tns_api = "https://wis-tns.weizmann.ac.il/api/get"
+def format_to_json(source):
+    # change data to json format and return
+    parsed = json.loads(source,object_pairs_hook=OrderedDict)
+    result = json.dumps(parsed,indent=4)
+    return result
 
+# function for search obj
+def search(url,json_list):
+    try:
+        # url for search obj
+        search_url = url+'/search'
+        # change json_list to json format
+        json_file = OrderedDict(json_list)
+        # construct the list of (key,value) pairs
+        search_data = [('api_key',(None, api_key)),
+                     ('data',(None,json.dumps(json_file)))]
+        # search obj using request module
+        response = requests.post(search_url, files=search_data)
+        # return response
+        return response
+    except Exception as e:
+        return [None,'Error message : \n'+str(e)]
 
+# function for get obj
+def get(url,json_list):
+    try:
+        # url for get obj
+        get_url = url+'/object'
+        # change json_list to json format
+        json_file = OrderedDict(json_list)
+        # construct the list of (key,value) pairs
+        get_data = [('api_key',(None, api_key)),
+                     ('data',(None,json.dumps(json_file)))]
+        # get obj using request module
+        response = requests.post(get_url, files=get_data)
+        # return response
+        return response
+    except Exception as e:
+        return [None,'Error message : \n'+str(e)]
+#--------------------------------------------------------------------
 #CALCULATE CURRENT DATE AND DATE RANGE TO SEARCH
-dt_end = datetime.date(datetime.now()) - timedelta(days = days_before_today)
-dt_begin = datetime.date(datetime.now()) - timedelta(days = days_to_include)
-
+dt_end = datetime.date(datetime.now()) - timedelta(days=days_before_today)
+dt_begin = datetime.date(datetime.now()) - timedelta(days=days_to_include)
 date_begin = dt_begin.isoformat()
 date_end = dt_end.isoformat()
 
@@ -160,7 +159,7 @@ con.raise_for_status()
 logger.info('query successful')
 # Parse output using BS4, find html table
 soup = BeautifulSoup(con.text, 'html.parser')
-tab=soup.find("table",'results-table')
+tab = soup.find("table",'results-table')
 logger.info('HTML table found')
 
 # Get SN names from TNS html table
@@ -193,7 +192,8 @@ for name in nms:
 
     # Parse output
     if None not in response:
-        if not response.status_code in [200,201,429]:
+        if response.status_code not in [200,201,429]:
+            logger.warning('TNS GET query not successful, raising error..')
             response.raise_for_status()
 
         parsed = json.loads(response.text,object_pairs_hook=OrderedDict)
@@ -218,9 +218,7 @@ for name in nms:
                            status='candidate', project='flows')
             logger.info('upload to FLOWS with targetid = {}'.format(newtargetid))
         except ValueError:
-            logger.warning('upload to FLOWS failed for: '.format(name), exc_info=1)
-
-
+            logger.warning('upload to FLOWS failed for: {}'.format(name), exc_info=1)
     else:
         logger.info('GET query not successful for {} \nResponse code: {}'.format(sn,response[1]))
     # Wait before next loop
