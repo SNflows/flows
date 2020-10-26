@@ -88,6 +88,7 @@ def main():
 		ax.set_ylabel('Magnitude')
 		ax.legend()
 		fig.savefig(os.path.join(output_dir, '{0:s}-ztf.png'.format(target_name)), format='png', bbox_inches='tight')
+		plt.close(fig)
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
