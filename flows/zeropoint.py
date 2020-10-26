@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Provides functions for computing the zeropoint and its error 
-using bootstrapping with sigma clipping as outlier rejection,
+Provides functions for computing the zeropoint and its error.
+Uses bootstrapping with sigma clipping as outlier rejection,
 where the sigma is determined by the Chauvenet criteria. Also
 allows for arbitrary outlier and fitting functions.
 
