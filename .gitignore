@@ -134,4 +134,8 @@ dmypy.json
 # JetBrains IDEs
 .idea/
 
+# Visual Studio Code:
+.vscode/
+
+# OSX stuff:
 .DS_Store
