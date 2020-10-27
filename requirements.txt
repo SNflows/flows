@@ -13,4 +13,5 @@ jplephem
 vtk
 scikit-image
 tqdm
+pytz
 git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
