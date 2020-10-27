@@ -133,3 +133,5 @@ dmypy.json
 
 # JetBrains IDEs
 .idea/
+
+.DS_Store

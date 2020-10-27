@@ -31,6 +31,7 @@ def main():
 	parser.add_argument('--filters', '-f', type=str, nargs='*', default=None, choices=all_filters,
 		help='List of space delimited filters. If not provided will use all')
 	parser.add_argument('--offset', '-jd', type=float, default=2458800.0)
+	parser.add_argument('--subonly',type=boolean, default=False, help='True or False')
 	args = parser.parse_args()
 
 	# To use when only plotting some filters
@@ -115,10 +116,17 @@ def main():
 	cps = sns.color_palette()
 	colors = dict(zip(filters,(cps[2],cps[3],cps[0],cps[-1],cps[1])))
 
-	for filt in filters:
-		lc = phot[phot['filter'] == filt]
-		ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
-			marker='s', linestyle='None', label=filt, color=colors[filt])
+	if args.subonly:
+		for filt in filters:
+			lc = phot[(phot['filter'] == filt) & (phot['sub']==True)]
+			ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
+				marker='s', linestyle='None', label=filt, color=colors[filt])
+
+	else:
+		for filt in filters:
+			lc = phot[phot['filter'] == filt]
+			ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
+				marker='s', linestyle='None', label=filt, color=colors[filt])
 
 	ax.invert_yaxis()
 	ax.legend()
