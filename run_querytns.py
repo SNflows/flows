@@ -60,8 +60,8 @@ logger.setLevel(logging_level)
 config = load_config()
 api_key = config.get('TNS', 'api_key')
 # PARAMETERS
-days_before_today = args.days_begin  # end = now - dbt
-days_to_include = args.days_end  # begin = now - dti
+days_before_today = args.days_end  # end = now - dbt
+days_to_include = args.days_begin  # begin = now - dti
 z_min = args.zmin
 z_max = args.zmax
 months = args.limit_months  # pre-limit TNS search to candidates reported in the last X months
@@ -156,15 +156,20 @@ logger.debug(query)
 logger.info('querying TNS for all targets, this may take awhile')
 con = requests.post(query)
 con.raise_for_status()
-logger.info('query successful')
+
+logger.info('query successful with status code: {}'.format(con.status_code))
 # Parse output using BS4, find html table
 soup = BeautifulSoup(con.text, 'html.parser')
 tab = soup.find("table",'results-table')
 logger.info('HTML table found')
 
+if tab==None:
+    logger.warn('No HTML table obtained from query!')
+    raise AttributeError('No HTML Table Found')
+
 # Get SN names from TNS html table
-def get_names(soup):
-    names = soup.find_all('td','cell-name')
+def get_names(soup1):
+    names = soup1.find_all('td','cell-name')
     names_list = []
     for name in names:
         if name.text.startswith('SN'):
