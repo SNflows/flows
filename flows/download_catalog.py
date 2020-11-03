@@ -118,7 +118,7 @@ def _query_casjobs_refcat2_divide_and_conquer(coo_centre, radius):
 	logger = logging.getLogger(__name__)
 
 	# Just put in a stop criterion to avoid infinite recursion:
-	if radius < 0.04:
+	if radius < 0.04*u.deg:
 		raise Exception("Too many subdivides")
 
 	# Search central cone:

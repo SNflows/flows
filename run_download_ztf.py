@@ -48,7 +48,7 @@ def main():
 
 	# Check that output directory exists:
 	if not os.path.isdir(output_dir):
-		parser.error("Output directory does not exist: '%s'" % output_dir)
+		parser.error("Output directory does not exist: '%s'" % output_dir) # noqa: G002
 
 	# Use API to get list of targets to process:
 	if args.target is None:

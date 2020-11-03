@@ -1,3 +1,7 @@
+pytest
+flake8
+flake8-builtins
+flake8-logging-format
 numpy >= 1.16
 scipy
 Bottleneck == 1.3.2
@@ -13,4 +17,5 @@ jplephem
 vtk
 scikit-image
 tqdm
+pytz
 git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
