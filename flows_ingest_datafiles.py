@@ -9,7 +9,6 @@ import sys
 import os.path
 import glob
 from astropy.table import Table
-import hashlib
 import shutil
 import gzip
 from zipfile import ZipFile
@@ -73,7 +72,7 @@ class CounterFilter(logging.Filter):
 		super().__init__(*args, **kwargs)
 		self.counter = defaultdict(int)
 
-	def filter(self, record):
+	def filter(self, record): # noqa: A003
 		self.counter[record.levelname] += 1
 		return True
 
@@ -132,7 +131,7 @@ def ingest_from_inbox():
 					if uploadlogid:
 						db.cursor.execute("UPDATE flows.uploadlog SET status='Invalid file type' WHERE logid=%s;", [uploadlogid])
 						db.conn.commit()
-					logger.error("Invalid file type: %s" % os.path.relpath(fpath, rootdir_inbox))
+					logger.error("Invalid file type: %s", os.path.relpath(fpath, rootdir_inbox))
 					continue
 
 				# Get the name of the directory:
@@ -184,7 +183,7 @@ def ingest_from_inbox():
 						if uploadlogid:
 							db.cursor.execute("UPDATE flows.uploadlog SET status='original science image not found' WHERE logid=%s;", [uploadlogid])
 							db.conn.commit()
-						logger.error("ORIGINAL SCIENCE IMAGE COULD NOT BE FOUND: %s" % os.path.basename(fpath))
+						logger.error("ORIGINAL SCIENCE IMAGE COULD NOT BE FOUND: %s", os.path.basename(fpath))
 						continue
 					else:
 						subtracted_original_fileid = subtracted_original_fileid[0]
@@ -314,7 +313,7 @@ def ingest_photometry_from_inbox():
 				if uploadlogid:
 					db.cursor.execute("UPDATE flows.uploadlog SET status='Invalid file type' WHERE logid=%s;", [uploadlogid])
 					db.conn.commit()
-				logger.error("Invalid file type: %s" % os.path.relpath(fpath, rootdir_inbox))
+				logger.error("Invalid file type: %s", os.path.relpath(fpath, rootdir_inbox))
 				continue
 
 			# Get the name of the directory:
