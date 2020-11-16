@@ -201,9 +201,9 @@ if __name__ == '__main__':
 
         # Parse output
         if None not in response:
-            if response.status_code not in [200,201,429]:
-                logger.warning('TNS GET query not successful, raising error..')
-                response.raise_for_status()
+            #if response.status_code not in [200,201,429]:
+            #    logger.warning('TNS GET query not successful, raising error..')
+            response.raise_for_status()
 
             parsed = json.loads(response.text,object_pairs_hook=OrderedDict)
             logger.info('GET query successful')
