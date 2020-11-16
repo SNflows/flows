@@ -127,8 +127,8 @@ if __name__ == '__main__':
 
 
     #CALCULATE CURRENT DATE AND DATE RANGE TO SEARCH
-    dt_end = datetime.date(datetime.now()) - timedelta(days=days_before_today)
-    dt_begin = datetime.date(datetime.now()) - timedelta(days=days_to_include)
+    dt_end = datetime.date(datetime.utcnow()) - timedelta(days=days_before_today)
+    dt_begin = datetime.date(datetime.utcnow()) - timedelta(days=days_to_include)
     date_begin = dt_begin.isoformat()
     date_end = dt_end.isoformat()
 
@@ -201,8 +201,6 @@ if __name__ == '__main__':
 
         # Parse output
         if None not in response:
-            #if response.status_code not in [200,201,429]:
-            #    logger.warning('TNS GET query not successful, raising error..')
             response.raise_for_status()
 
             parsed = json.loads(response.text,object_pairs_hook=OrderedDict)
