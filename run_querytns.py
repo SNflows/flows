@@ -178,7 +178,7 @@ if __name__ == '__main__':
         logger.warn('No HTML table obtained from query!')
         raise AttributeError('No HTML Table Found')
 
-
+    #Get SN names
     nms = get_names(tab)
 
     # Remove already existing names using flows api
@@ -207,15 +207,16 @@ if __name__ == '__main__':
             logger.info('GET query successful')
 
             # Extract object info
-            name = parsed['data']['reply']['objname']
-            coord = SkyCoord(ra=parsed['data']['reply']['radeg']*u.deg,dec=parsed['data']['reply']['decdeg']*u.deg)
-            redshift = parsed['data']['reply']['redshift']
-            discovery_date = Time(parsed['data']['reply']['discoverydate'])
-            discovery_mag = parsed['data']['reply']['discoverymag']
-            host_galaxy = parsed['data']['reply']['hostname']
+            reply = parsed['data']['reply']
+            name = reply['objname']
+            coord = SkyCoord(ra=reply['radeg']*u.deg,dec=reply['decdeg']*u.deg)
+            redshift = reply['redshift']
+            discovery_date = Time(reply['discoverydate'],format='iso',scale='utc')
+            discovery_mag = reply['discoverymag']
+            host_galaxy = reply['hostname']
             ztf = None
-            if 'ZTF' in parsed['data']['reply']['internal_names']:
-                rptnms = parsed['data']['reply']['internal_names'].replace(' ','').split(',')
+            if 'ZTF' in reply['internal_names']:
+                rptnms = reply['internal_names'].replace(' ','').split(',')
                 ztf = rptnms['ztf' in rptnms]
 
             # Try to upload to FLOWS
