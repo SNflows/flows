@@ -134,31 +134,31 @@ if __name__ == '__main__':
 
     #QUERY STRING
     query = "https://wis-tns.weizmann.ac.il/search?&discovered_period_value={}\
-    &discovered_period_units=months&unclassified_at=0&classified_sne=1\
-    &include_frb=0&name=&name_like=0&isTNS_AT=all&public=all&ra=&decl=&radius=\
-    &coords_unit=arcsec&reporting_groupid[]=null&groupid[]=null\
-    &classifier_groupid[]=null\
-    &objtype[]={}\
-    &at_type[]=null\
-    &date_start[date]={}\
-    &date_end[date]={}&discovery_mag_min=&discovery_mag_max=\
-    &internal_name=&discoverer=&classifier=&spectra_count=&redshift_min={}\
-    &redshift_max={}&hostname=&ext_catid=&ra_range_min=&ra_range_max=\
-    &decl_range_min=&decl_range_max=&discovery_instrument[]=null\
-    &classification_instrument[]=null&associated_groups[]=null\
-    &at_rep_remarks=&class_rep_remarks=&frb_repeat=all&frb_repeater_of_objid=\
-    &frb_measured_redshift=0&frb_dm_range_min=&frb_dm_range_max=&frb_rm_range_min=\
-    &frb_rm_range_max=&frb_snr_range_min=&frb_snr_range_max=&frb_flux_range_min=\
-    &frb_flux_range_max=&num_page=500&display[redshift]=1&display[hostname]=1\
-    &display[host_redshift]=1&display[source_group_name]=1\
-    &display[classifying_source_group_name]=1&display[discovering_instrument_name]=0\
-    &display[classifing_instrument_name]=0&display[programs_name]=0\
-    &display[internal_name]=1&display[isTNS_AT]=0&display[public]=1\
-    &display[end_pop_period]=0&display[spectra_count]=1\
-    &display[discoverymag]=1&display[discmagfilter]=1\
-    &display[discoverydate]=1&display[discoverer]=1\
-    &display[remarks]=0&display[sources]=0&display[bibcode]=0\
-    &display[ext_catalogs]=0".format(months,objtype,date_begin,date_end,z_min,z_max)
+&discovered_period_units=months&unclassified_at=0&classified_sne=1\
+&include_frb=0&name=&name_like=0&isTNS_AT=all&public=all&ra=&decl=&radius=\
+&coords_unit=arcsec&reporting_groupid[]=null&groupid[]=null\
+&classifier_groupid[]=null\
+&objtype[]={}\
+&at_type[]=null\
+&date_start[date]={}\
+&date_end[date]={}&discovery_mag_min=&discovery_mag_max=\
+&internal_name=&discoverer=&classifier=&spectra_count=&redshift_min={}\
+&redshift_max={}&hostname=&ext_catid=&ra_range_min=&ra_range_max=\
+&decl_range_min=&decl_range_max=&discovery_instrument[]=null\
+&classification_instrument[]=null&associated_groups[]=null\
+&at_rep_remarks=&class_rep_remarks=&frb_repeat=all&frb_repeater_of_objid=\
+&frb_measured_redshift=0&frb_dm_range_min=&frb_dm_range_max=&frb_rm_range_min=\
+&frb_rm_range_max=&frb_snr_range_min=&frb_snr_range_max=&frb_flux_range_min=\
+&frb_flux_range_max=&num_page=500&display[redshift]=1&display[hostname]=1\
+&display[host_redshift]=1&display[source_group_name]=1\
+&display[classifying_source_group_name]=1&display[discovering_instrument_name]=0\
+&display[classifing_instrument_name]=0&display[programs_name]=0\
+&display[internal_name]=1&display[isTNS_AT]=0&display[public]=1\
+&display[end_pop_period]=0&display[spectra_count]=1\
+&display[discoverymag]=1&display[discmagfilter]=1\
+&display[discoverydate]=1&display[discoverer]=1\
+&display[remarks]=0&display[sources]=0&display[bibcode]=0\
+&display[ext_catalogs]=0".format(months,objtype,date_begin,date_end,z_min,z_max)
 
     logger.info('Date begin = {}, date_end = {}'.format(date_begin,date_end))
     logger.debug(query)
@@ -203,7 +203,8 @@ if __name__ == '__main__':
         if None not in response:
             response.raise_for_status()
 
-            parsed = json.loads(response.text,object_pairs_hook=OrderedDict)
+            parsed = response.json()
+            #parsed = json.loads(response.text,object_pairs_hook=OrderedDict)
             logger.info('GET query successful')
 
             # Extract object info
