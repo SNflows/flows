@@ -125,7 +125,6 @@ if __name__ == '__main__':
         logger.warning('Months limit restricts days_begin, consider increasing limit_months.')
     objtype = args.objtype  # Relevant TNS SN Ia subtypes.
 
-
     #CALCULATE CURRENT DATE AND DATE RANGE TO SEARCH
     dt_end = datetime.date(datetime.utcnow()) - timedelta(days=days_before_today)
     dt_begin = datetime.date(datetime.utcnow()) - timedelta(days=days_to_include)
@@ -174,7 +173,7 @@ if __name__ == '__main__':
     tab = soup.find("table",'results-table')
     logger.info('HTML table found')
 
-    if tab==None:
+    if tab is None:
         logger.warn('No HTML table obtained from query!')
         raise AttributeError('No HTML Table Found')
 
