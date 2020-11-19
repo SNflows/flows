@@ -83,12 +83,9 @@ def create_plot(filepath):
 
 	img = load_image(filepath)
 
-	cmap = plt.cm.Blues
-	cmap.set_bad('w')
-
 	fig = plt.figure(figsize=(12,12))
 	ax = fig.add_subplot(111)
-	plot_image(img.clean, ax=ax, scale='linear', percentile=[5, 99], cmap=cmap, cbar='right')
+	plot_image(img.clean, ax=ax, scale='linear', percentile=[5, 99], cbar='right')
 	fig.savefig(output_fpath, bbox_inches='tight')
 	plt.close(fig)
 
