@@ -84,8 +84,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Query TNS and upload to candidate marshal')
     parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
     parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
-    parser.add_argument('-z', '--zmax', type=float, help='Z max', default=0.105)
-    parser.add_argument('--zmin', type=float, help='Z min', default=0.000000001)
+    parser.add_argument('-z', '--zmax', type=float, help='maximum redshift', default=0.105)
+    parser.add_argument('--zmin', type=float, help='minimum redshift', default=0.000000001)
     parser.add_argument('-b', '--days_begin', type=int, help='Discovery day at least X days before today', default=30)
     parser.add_argument('-e', '--days_end', type=int, help='Discovery day at most X days before today', default=3)
     parser.add_argument('-o', '--objtype', type=str, help='TNS objtype int given as comma separed string with no spaces', default='3,104')
@@ -209,7 +209,7 @@ if __name__ == '__main__':
             # Extract object info
             reply = parsed['data']['reply']
             name = reply['objname']
-            coord = SkyCoord(ra=reply['radeg']*u.deg,dec=reply['decdeg']*u.deg)
+            coord = SkyCoord(ra=reply['radeg']*u.deg,dec=reply['decdeg']*u.deg,frame='ICRS')
             redshift = reply['redshift']
             discovery_date = Time(reply['discoverydate'],format='iso',scale='utc')
             discovery_mag = reply['discoverymag']
