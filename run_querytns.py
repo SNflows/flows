@@ -10,6 +10,7 @@ TNS bot apikey must exist in config
 """
 
 import argparse
+import sys
 import logging
 import requests
 import json
@@ -17,7 +18,6 @@ from collections import OrderedDict
 from bs4 import BeautifulSoup
 import numpy as np
 from astropy.coordinates import SkyCoord
-import astropy.units as u
 from astropy.time import Time
 from datetime import datetime, timedelta
 #import time
@@ -70,9 +70,18 @@ def get_obj_tns(json_list):
 	except Exception as e:
 		return [None, 'Error message : \n'+str(e)]
 
-# Get SN names from TNS html table
-def get_names(soup1):
-	names = soup1.find_all('td','cell-name')
+def tns_get_names(html):
+	"""Get SN names from TNS html table"""
+	logger = logging.getLogger(__name__)
+	# Parse output using BS4, find html table
+	soup = BeautifulSoup(html, 'html.parser')
+	tab = soup.find('table', 'results-table')
+	if tab is None:
+		logger.error('No HTML table obtained from query!')
+		return None
+	logger.info('HTML table found')
+
+	names = tab.find_all('td', 'cell-name')
 	names_list = []
 	for name in names:
 		if name.text.startswith('SN'):
@@ -136,82 +145,103 @@ if __name__ == '__main__':
 	dt_begin = datetime.date(datetime.utcnow()) - timedelta(days=days_to_include)
 	date_begin = dt_begin.isoformat()
 	date_end = dt_end.isoformat()
+	logger.info('Date begin = %s, date_end = %s', date_begin, date_end)
 
 	# QUERY STRING
-	"""
 	params = {
 		'discovered_period_value': months,
 		'discovered_period_units': 'months',
 		'unclassified_at': 0,
 		'classified_sne': 1,
 		'include_frb': 0,
-		'name': None,
+		#'name': ,
 		'name_like': 0,
 		'isTNS_AT': 'all',
 		'public': 'all',
-		'ra': None,
-		'decl': None,
-		'radius': None,
+		#'ra':
+		#'decl':
+		#'radius':
+		'coords_unit': 'arcsec',
+		'reporting_groupid[]': 'null',
+		'groupid[]': 'null',
+		'classifier_groupid[]': 'null',
+		'objtype[]': objtype,
+		'at_type[]': 'null',
+		'date_start[date]': date_begin,
+		'date_end[date]': date_end,
+		#'discovery_mag_min':
+		#'discovery_mag_max':
+		#'internal_name':
+		#'discoverer':
+		#'classifier':
+		#'spectra_count':
+		'redshift_min': z_min,
+		'redshift_max': z_max,
+		#'hostname':
+		#'ext_catid':
+		#'ra_range_min':
+		#'ra_range_max':
+		#'decl_range_min':
+		#'decl_range_max':
+		'discovery_instrument[]': 'null',
+		'classification_instrument[]': 'null',
+		'associated_groups[]': 'null',
+		#'at_rep_remarks':
+		#'class_rep_remarks':
+		#'frb_repeat': 'all'
+		#'frb_repeater_of_objid':
+		'frb_measured_redshift': 0,
+		#'frb_dm_range_min':
+		#'frb_dm_range_max':
+		#'frb_rm_range_min':
+		#'frb_rm_range_max':
+		#'frb_snr_range_min':
+		#'frb_snr_range_max':
+		#'frb_flux_range_min':
+		#'frb_flux_range_max':
+		'num_page': 500,
+		'display[redshift]': 1,
+		'display[hostname]': 1,
+		'display[host_redshift]': 1,
+		'display[source_group_name]': 1,
+		'display[classifying_source_group_name]': 1,
+		'display[discovering_instrument_name]': 0,
+		'display[classifing_instrument_name]': 0,
+		'display[programs_name]': 0,
+		'display[internal_name]': 1,
+		'display[isTNS_AT]': 0,
+		'display[public]': 1,
+		'display[end_pop_period]': 0,
+		'display[spectra_count]': 1,
+		'display[discoverymag]': 1,
+		'display[discmagfilter]': 1,
+		'display[discoverydate]': 1,
+		'display[discoverer]': 1,
+		'display[remarks]': 0,
+		'display[sources]': 0,
+		'display[bibcode]': 0,
+		'display[ext_catalogs]': 0
 	}
-	"""
-
-	query = "https://wis-tns.weizmann.ac.il/search?&discovered_period_value={}\
-&discovered_period_units=months&unclassified_at=0&classified_sne=1\
-&include_frb=0&name=&name_like=0&isTNS_AT=all&public=all&ra=&decl=&radius=\
-&coords_unit=arcsec&reporting_groupid[]=null&groupid[]=null\
-&classifier_groupid[]=null\
-&objtype[]={}\
-&at_type[]=null\
-&date_start[date]={}\
-&date_end[date]={}&discovery_mag_min=&discovery_mag_max=\
-&internal_name=&discoverer=&classifier=&spectra_count=&redshift_min={}\
-&redshift_max={}&hostname=&ext_catid=&ra_range_min=&ra_range_max=\
-&decl_range_min=&decl_range_max=&discovery_instrument[]=null\
-&classification_instrument[]=null&associated_groups[]=null\
-&at_rep_remarks=&class_rep_remarks=&frb_repeat=all&frb_repeater_of_objid=\
-&frb_measured_redshift=0&frb_dm_range_min=&frb_dm_range_max=&frb_rm_range_min=\
-&frb_rm_range_max=&frb_snr_range_min=&frb_snr_range_max=&frb_flux_range_min=\
-&frb_flux_range_max=&num_page=500&display[redshift]=1&display[hostname]=1\
-&display[host_redshift]=1&display[source_group_name]=1\
-&display[classifying_source_group_name]=1&display[discovering_instrument_name]=0\
-&display[classifing_instrument_name]=0&display[programs_name]=0\
-&display[internal_name]=1&display[isTNS_AT]=0&display[public]=1\
-&display[end_pop_period]=0&display[spectra_count]=1\
-&display[discoverymag]=1&display[discmagfilter]=1\
-&display[discoverydate]=1&display[discoverer]=1\
-&display[remarks]=0&display[sources]=0&display[bibcode]=0\
-&display[ext_catalogs]=0".format(months,objtype,date_begin,date_end,z_min,z_max)
-
-	logger.info('Date begin = %s, date_end = %s', date_begin, date_end)
-	logger.debug(query)
 
 	# Query TNS
 	logger.info('querying TNS for all targets, this may take awhile')
-	con = requests.post(query)
+	con = requests.get('https://wis-tns.weizmann.ac.il/search', params=params)
 	con.raise_for_status()
 
 	logger.info('query successful with status code: %d', con.status_code)
-	# Parse output using BS4, find html table
-	soup = BeautifulSoup(con.text, 'html.parser')
-	tab = soup.find("table", 'results-table')
-	if tab is None:
-		logger.error('No HTML table obtained from query!')
-		return
-	logger.info('HTML table found')
 
 	# Get SN names
-	nms = get_names(tab)
+	nms = tns_get_names(con.text)
+	if not nms:
+		logger.info("No targets were found.")
+		sys.exit()
 
 	# Remove already existing names using flows api
-	included_names = []
-	flows_targets = api.get_targets()
-	for target in flows_targets:
-		included_names.append('SN' + target['target_name'])
+	included_names = ['SN' + target['target_name'] for target in api.get_targets()]
 	nms = list(set(nms) - set(included_names))
 	logger.info('Target names obtained: %s', nms)
 
 	# Query TNS for object info using API, then upload to FLOWS using API.
-	#sleep_time = 0.25 # seconds to wait in between each query
 	for name in nms:
 		sn = name.replace('SN', '')
 		logger.info('querying TNS for: %s', sn)
@@ -230,7 +260,7 @@ if __name__ == '__main__':
 			# Extract object info
 			reply = parsed['data']['reply']
 			name = reply['objname']
-			coord = SkyCoord(ra=reply['radeg'], dec=reply['decdeg'], unit='deg', frame='ICRS')
+			coord = SkyCoord(ra=reply['radeg'], dec=reply['decdeg'], unit='deg', frame='icrs')
 			redshift = reply['redshift']
 			discovery_date = Time(reply['discoverydate'], format='iso', scale='utc')
 			discovery_mag = reply['discoverymag']
@@ -253,6 +283,3 @@ if __name__ == '__main__':
 				logger.info('upload to FLOWS with targetid = %d', newtargetid)
 		else:
 			logger.info('GET query not successful for %s\nResponse code: %d', sn, response[1])
-
-		# Wait before next loop
-		#time.sleep(sleep_time)
