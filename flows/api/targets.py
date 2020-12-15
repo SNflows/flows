@@ -30,6 +30,11 @@ def get_target(target):
 	r.raise_for_status()
 	jsn = r.json()
 
+	# Parse some of the fields to Python objects:
+	jsn['inserted'] = datetime.strptime(jsn['inserted'], '%Y-%m-%d %H:%M:%S.%f')
+	if jsn['discovery_date']:
+		jsn['discovery_date'] = Time(jsn['discovery_date'], format='iso', scale='utc')
+
 	return jsn
 
 #--------------------------------------------------------------------------------------------------
@@ -46,6 +51,12 @@ def get_targets():
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
 	jsn = r.json()
+
+	# Parse some of the fields to Python objects:
+	for tgt in jsn:
+		tgt['inserted'] = datetime.strptime(tgt['inserted'], '%Y-%m-%d %H:%M:%S.%f')
+		if tgt['discovery_date']:
+			tgt['discovery_date'] = Time(tgt['discovery_date'], format='iso', scale='utc')
 
 	return jsn
 

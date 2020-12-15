@@ -17,6 +17,8 @@ from flows import api, photometry, load_config
 def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False):
 
 	logger = logging.getLogger('flows')
+	logging.captureWarnings(True)
+	logger_warn = logging.getLogger('py.warnings')
 	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 	datafile = api.get_datafile(fid)
@@ -39,6 +41,7 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 		_filehandler.setFormatter(formatter)
 		_filehandler.setLevel(logging.INFO)
 		logger.addHandler(_filehandler)
+		logger_warn.addHandler(_filehandler)
 
 		photfile = photometry(fileid=fid,
 			output_folder=output_folder,
@@ -58,6 +61,7 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 
 	if _filehandler is not None:
 		logger.removeHandler(_filehandler)
+		logger_warn.removeHandler(_filehandler)
 
 	if photfile is not None:
 		if autoupload:

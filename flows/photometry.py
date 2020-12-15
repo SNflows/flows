@@ -37,6 +37,7 @@ from .plots import plt, plot_image
 from .version import get_version
 from .load_image import load_image
 from .run_imagematch import run_imagematch
+from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 
 __version__ = get_version(pep440=False)
 
@@ -545,6 +546,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	mag_inst_err = (2.5/np.log(10)) * (tab['flux_psf_error'] / tab['flux_psf'])
 
 	# Corresponding magnitudes in catalog:
+	#TODO: add color terms here
 	mag_catalog = tab[ref_filter]
 
 	# Mask out things that should not be used in calibration:
@@ -563,7 +565,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fitter = fitting.FittingWithOutlierRemoval(fitting.LinearLSQFitter(), sigma_clip, sigma=3.0)
 	best_fit, sigma_clipped = fitter(model, x, y, weights=weights)
 
-	# Extract zero-point and estimate its error:
+	# Extract zero-point and estimate its error using a single weighted fit:
 	# I don't know why there is not an error-estimate attached directly to the Parameter?
 	zp = -1*best_fit.intercept.value # Negative, because that is the way zeropoints are usually defined
 
@@ -573,10 +575,36 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
 	else:
 		zp_error = np.NaN
+	logger.info('Leastsquare ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp, zp_error))
+
+	# Determine sigma clipping sigma according to Chauvenet method
+	# But don't allow less than sigma = sigmamin, setting to 1.5 for now.
+	# Should maybe be 2?
+	sigmamin = 1.5
+	sigChauv = sigma_from_Chauvenet(len(x))
+	sigChauv = sigChauv if sigChauv >= sigmamin else sigmamin
+
+	# Extract zero point and error using bootstrap method
+	Nboot = 1000
+	logger.info('Running bootstrap with sigma = {0:0.2f} and n = {1:0.0f}'.format(sigChauv,Nboot))
+	pars = bootstrap_outlier(x, y, yerr, n=Nboot, model=model, fitter=fitting.LinearLSQFitter,
+		outlier=sigma_clip, outlier_kwargs={'sigma':sigChauv}, summary='median',
+		error='bootstrap', return_vals=False)
+
+	zp_bs = pars['intercept'] * -1.0
+	zp_error_bs = pars['intercept_error']
+
+	logger.info('Bootstrapped ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp_bs,zp_error_bs))
+
+	# Check that difference is not large
+	zp_diff = 0.4
+	if np.abs(zp_bs - zp) >= zp_diff:
+		logger.warning("Bootstrap and weighted LSQ ZPs differ by {:0.2f}, \
+		which is more than the allowed {:0.2f} mag.".format(np.abs(zp_bs - zp), zp_diff))
 
 	# Add calibrated magnitudes to the photometry table:
-	tab['mag'] = mag_inst + zp
-	tab['mag_error'] = np.sqrt(mag_inst_err**2 + zp_error**2)
+	tab['mag'] = mag_inst + zp_bs
+	tab['mag_error'] = np.sqrt(mag_inst_err**2 + zp_error_bs**2)
 
 	fig, ax = plt.subplots(1, 1)
 	ax.errorbar(x, y, yerr=yerr, fmt='k.')
@@ -617,8 +645,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	tab.meta['pixel_scale'] = pixel_scale * u.arcsec/u.pixel
 	tab.meta['seeing'] = (fwhm*pixel_scale) * u.arcsec
 	tab.meta['obstime-bmjd'] = float(image.obstime.mjd)
-	tab.meta['zp'] = zp
-	tab.meta['zp_error'] = zp_error
+	tab.meta['zp'] = zp_bs
+	tab.meta['zp_error'] = zp_error_bs
+	tab.meta['zp_diff'] = np.abs(zp_bs - zp)
+	tab.meta['zp_error_weights'] = zp_error
 
 	# Filepath where to save photometry:
 	photometry_output = os.path.join(output_folder, 'photometry.ecsv')
