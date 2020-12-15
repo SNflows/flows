@@ -18,4 +18,5 @@ vtk
 scikit-image
 tqdm
 pytz
+beautifulsoup4
 git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
