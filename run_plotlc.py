@@ -32,8 +32,6 @@ def main():
 		help='List of space delimited filters. If not provided will use all')
 	parser.add_argument('--offset', '-jd', type=float, default=2458800.0)
 	parser.add_argument('--subonly', help='Only show template subtracted data points.', action='store_true')
-	parser.add_argument('--savephot', type=str, default='None',
-		help='None or filepath to save the photometry to as ecsv file.')
 	args = parser.parse_args()
 
 	# To use when only plotting some filters
@@ -146,8 +144,6 @@ def main():
 	mplcursors.cursor(ax).connect("add", annotate)
 	plt.show(block=True)
 
-	if args.savephot != 'None':
-		phot.write(args.savephot,format='ascii.ecsv')
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
 	main()
