@@ -75,10 +75,9 @@ def main():
 		tab.write(os.path.join(output_dir, '{0:s}-ztf.ecsv'.format(target_name)),
 			format='ascii.ecsv', delimiter=',')
 
+		# Find time of maxmimum and 14 days from that:
 		indx_min = np.argmin(tab['mag'])
 		maximum_mjd = tab['mjd'][indx_min]
-		maximum_mag = tab['mag'][indx_min]
-		minimum_mag = np.max(tab['mag'])
 		fortnight_mjd = maximum_mjd + 14
 
 		# Get LC data out and save as CSV files
