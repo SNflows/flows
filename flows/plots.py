@@ -7,7 +7,7 @@ Plotting utilities.
 """
 
 import logging
-import os
+import copy
 import numpy as np
 from bottleneck import allnan
 import matplotlib
@@ -25,6 +25,48 @@ plt.switch_backend('Agg')
 matplotlib.rcParams['font.family'] = 'serif'
 matplotlib.rcParams['text.usetex'] = False
 matplotlib.rcParams['mathtext.fontset'] = 'dejavuserif'
+
+#--------------------------------------------------------------------------------------------------
+def plots_interactive(backend=('Qt5Agg', 'MacOSX', 'Qt4Agg', 'Qt5Cairo', 'TkAgg')):
+	"""
+	Change plotting to using an interactive backend.
+
+	Parameters:
+		backend (str or list): Backend to change to. If not provided, will try different
+			interactive backends and use the first one that works.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+
+	logger = logging.getLogger(__name__)
+	logger.debug("Valid interactive backends: %s", matplotlib.rcsetup.interactive_bk)
+
+	if isinstance(backend, str):
+		backend = [backend]
+
+	for bckend in backend:
+		if bckend not in matplotlib.rcsetup.interactive_bk:
+			logger.warning("Interactive backend '%s' is not found", bckend)
+			continue
+
+		# Try to change the backend, and catch errors
+		# it it didn't work:
+		try:
+			plt.switch_backend(bckend)
+		except (ModuleNotFoundError, ImportError):
+			pass
+		else:
+			break
+
+#--------------------------------------------------------------------------------------------------
+def plots_noninteractive():
+	"""
+	Change plotting to using a non-interactive backend, which can e.g. be used on a cluster.
+	Will set backend to 'Agg'.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+	plt.switch_backend('Agg')
 
 #--------------------------------------------------------------------------------------------------
 def plot_image(image, ax=None, scale='log', cmap=None, origin='lower', xlabel=None,
@@ -146,9 +188,9 @@ def plot_image(image, ax=None, scale='log', cmap=None, origin='lower', xlabel=No
 	# Set up the colormap to use. If a bad color is defined,
 	# add it to the colormap:
 	if cmap is None:
-		cmap = plt.get_cmap('Blues')
+		cmap = copy.copy(plt.get_cmap('Blues'))
 	elif isinstance(cmap, str):
-		cmap = plt.get_cmap(cmap)
+		cmap = copy.copy(plt.get_cmap(cmap))
 
 	if color_bad:
 		cmap.set_bad(color_bad, 1.0)
@@ -183,7 +225,7 @@ def plot_image(image, ax=None, scale='log', cmap=None, origin='lower', xlabel=No
 			cax = divider.append_axes('right', size=cbar_size, pad=cbar_pad)
 			orientation = 'vertical'
 
-		cb = fig.colorbar(im, norm=norm, cax=cax, orientation=orientation)
+		cb = fig.colorbar(im, cax=cax, orientation=orientation)
 
 		if cbar == 'top':
 			cax.xaxis.set_ticks_position('top')

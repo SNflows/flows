@@ -24,22 +24,27 @@ from . import api
 
 #--------------------------------------------------------------------------------------------------
 class OnlyGetScriptPath(install):
-    def run(self):
-        # does not call install.run() by design
-        self.distribution.install_scripts = self.install_scripts
+	def run(self):
+		# does not call install.run() by design
+		self.distribution.install_scripts = self.install_scripts
 
 def get_setuptools_script_dir():
-    dist = Distribution({'cmdclass': {'install': OnlyGetScriptPath}})
-    dist.dry_run = True  # not sure if necessary, but to be safe
-    dist.parse_config_files()
-    command = dist.get_command_obj('install')
-    command.ensure_finalized()
-    command.run()
-    return dist.install_scripts
+	dist = Distribution({'cmdclass': {'install': OnlyGetScriptPath}})
+	dist.dry_run = True  # not sure if necessary, but to be safe
+	dist.parse_config_files()
+	command = dist.get_command_obj('install')
+	command.ensure_finalized()
+	command.run()
+	return dist.install_scripts
 
 #--------------------------------------------------------------------------------------------------
 def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scale=None):
 	"""
+	Run ImageMatch on a datafile.
+
+	Parameters:
+		datafile (dict): Data file to run ImageMatch on.
+		target (:class:`astropy.table.Table`, optional): Target informaton.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
@@ -125,8 +130,8 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 		shutil.copy(science_image, tmpdir)
 
 		# Construct the command to run ImageMatch:
-		for match_threshold in (3.0, 5.0, 7.0):
-			cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -p {kernel_radius:d} -s {match:f} -scale {pixel_scale:} -mscale {mscale:} -m "{reference_image:s}" "{science_image:s}"'.format(
+		for match_threshold in (3.0, 5.0, 7.0, 10.0):
+			cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -p {kernel_radius:d} -o {order:d} -s {match:f} -scale {pixel_scale:} -mscale {mscale:} -m "{reference_image:s}" "{science_image:s}"'.format(
 				python=sys.executable,
 				imgmatch=imgmatch,
 				config_file=config_file,
@@ -137,7 +142,8 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 				match=match_threshold,
 				kernel_radius=kernel_radius,
 				pixel_scale=pixel_scale,
-				mscale=mscale
+				mscale=mscale,
+				order=1
 			)
 			logger.info("Executing command: %s", cmd)
 
@@ -149,29 +155,34 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 				stderr=subprocess.PIPE,
 				universal_newlines=True)
 			stdout_data, stderr_data = proc.communicate()
+			returncode = proc.returncode
+			proc.kill() # Cleanup - Is this really needed?
 
 			# Check the outputs from the subprocess:
-			logger.info("Return code: %d", proc.returncode)
+			logger.info("Return code: %d", returncode)
 			logger.info("STDOUT:\n%s", stdout_data.strip())
 			if stderr_data.strip() != '':
 				logger.error("STDERR:\n%s", stderr_data.strip())
-			if proc.returncode < 0:
-				raise Exception("ImageMatch failed. Processed killed by OS with returncode %d." % proc.returncode)
+			if returncode < 0:
+				raise Exception("ImageMatch failed. Processed killed by OS with returncode %d." % returncode)
 			elif 'Failed object match... giving up.' in stdout_data:
 				#raise Exception("ImageMatch giving up matching objects")
 				continue
-			elif proc.returncode > 0:
+			elif returncode > 0:
 				raise Exception("ImageMatch failed.")
 
 			# Load the resulting difference image into memory:
-			diffimg_path = os.path.join(tmpdir, os.path.splitext(os.path.basename(science_image))[0] + 'diff.fits')
+			diffimg_name = re.sub(r'\.fits(\.gz|\.bz2)?$', r'diff.fits\1', os.path.basename(science_image))
+			diffimg_path = os.path.join(tmpdir, diffimg_name)
 			if not os.path.isfile(diffimg_path):
 				raise FileNotFoundError(diffimg_path)
 
 			break
 
+		else:
+			raise Exception("ImageMatch could not create difference image.")
+
 		with fits.open(diffimg_path, mode='readonly') as hdu:
 			diffimg = np.asarray(hdu[0].data)
 
 	return diffimg
-

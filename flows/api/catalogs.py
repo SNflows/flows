@@ -49,7 +49,8 @@ def get_catalog(target, radius=None, output='table'):
 
 	# Convert timestamps to actual Time objects:
 	jsn['target']['inserted'] = Time(jsn['target']['inserted'], scale='utc')
-	jsn['target']['discovery_date'] = Time(jsn['target']['discovery_date'], scale='utc')
+	if jsn['target']['discovery_date'] is not None:
+		jsn['target']['discovery_date'] = Time(jsn['target']['discovery_date'], scale='utc')
 
 	if output in ('json', 'dict'):
 		return jsn
@@ -57,8 +58,8 @@ def get_catalog(target, radius=None, output='table'):
 	dict_tables = {}
 
 	tab = Table(
-		names=('targetid', 'target_name', 'ra', 'decl', 'redshift', 'redshift_error', 'discovery_mag', 'catalog_downloaded', 'pointing_model_created', 'inserted', 'discovery_date', 'project', 'host_galaxy'),
-		dtype=('int32', 'str', 'float64', 'float64', 'float32', 'float32', 'float32', 'bool', 'bool', 'object', 'object', 'str', 'str'),
+		names=('targetid', 'target_name', 'target_status', 'ra', 'decl', 'redshift', 'redshift_error', 'discovery_mag', 'catalog_downloaded', 'pointing_model_created', 'inserted', 'discovery_date', 'project', 'host_galaxy', 'ztf_id'),
+		dtype=('int32', 'str', 'str', 'float64', 'float64', 'float32', 'float32', 'float32', 'bool', 'bool', 'object', 'object', 'str', 'str', 'str'),
 		rows=[jsn['target']])
 
 	tab['ra'].description = 'Right ascension'
@@ -69,9 +70,9 @@ def get_catalog(target, radius=None, output='table'):
 
 	for table_name in ('references', 'avoid'):
 		tab = Table(
-		   names=('starid', 'ra', 'decl', 'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'gaia_variability', 'B_mag', 'V_mag', 'H_mag', 'J_mag', 'K_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag', 'distance'),
-		   dtype=('int64', 'float64', 'float64', 'float32', 'float32', 'float32', 'float32', 'float32', 'int32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float64'),
-		   rows=jsn[table_name])
+			names=('starid', 'ra', 'decl', 'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'gaia_variability', 'B_mag', 'V_mag', 'H_mag', 'J_mag', 'K_mag', 'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag', 'distance'),
+			dtype=('int64', 'float64', 'float64', 'float32', 'float32', 'float32', 'float32', 'float32', 'int32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float32', 'float64'),
+			rows=jsn[table_name])
 
 		tab['starid'].description = 'Unique identifier in REFCAT2 catalog'
 		tab['ra'].description = 'Right ascension'
@@ -94,6 +95,7 @@ def get_catalog(target, radius=None, output='table'):
 		tab['H_mag'].description = '2MASS H magnitude'
 		tab['J_mag'].description = '2MASS J magnitude'
 		tab['K_mag'].description = '2MASS K magnitude'
+		tab['u_mag'].description = 'u magnitude'
 		tab['g_mag'].description = 'g magnitude'
 		tab['r_mag'].description = 'r magnitude'
 		tab['i_mag'].description = 'i magnitude'

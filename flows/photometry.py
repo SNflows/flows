@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Flows photometry code.
@@ -8,13 +8,13 @@ Flows photometry code.
 
 import os
 import numpy as np
-from bottleneck import nanstd
+from bottleneck import nansum, nanmedian, allnan
 from timeit import default_timer
 import logging
 import warnings
+from copy import deepcopy
 
 from astropy.utils.exceptions import AstropyDeprecationWarning
-warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 import astropy.units as u
 import astropy.coordinates as coords
 from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
@@ -23,6 +23,7 @@ from astropy.nddata import NDData
 from astropy.modeling import models, fitting
 from astropy.wcs.utils import proj_plane_pixel_area
 
+warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.psf import EPSFBuilder, EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
 from photutils import Background2D, SExtractorBackground
@@ -36,20 +37,30 @@ from .plots import plt, plot_image
 from .version import get_version
 from .load_image import load_image
 from .run_imagematch import run_imagematch
+from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 
 __version__ = get_version(pep440=False)
 
+warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
+
 #--------------------------------------------------------------------------------------------------
-def photometry(fileid):
+def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	"""
 	Run photometry.
+
+	Parameters:
+		fileid (int): File ID to process.
+		output_folder (str, optional): Path to directory where output should be placed.
+		attempt_imagematch (bool, optional): If no subtracted image is available, but a
+			template image is, should we attempt to run ImageMatch using standard settings.
+			Default=True.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
 	# Settings:
-	ref_mag_limit = 17 # Lower limit on reference target brightness
-	ref_target_dist_limit = 30 # Reference star must be further than this away to be included
+	#ref_mag_limit = 22 # Lower limit on reference target brightness
+	ref_target_dist_limit = 10 * u.arcsec # Reference star must be further than this away to be included
 
 	logger = logging.getLogger(__name__)
 	tic = default_timer()
@@ -61,35 +72,27 @@ def photometry(fileid):
 	datafile = api.get_datafile(fileid)
 	logger.debug("Datafile: %s", datafile)
 	targetid = datafile['targetid']
+	target_name = datafile['target_name']
 	photfilter = datafile['photfilter']
 
 	archive_local = config.get('photometry', 'archive_local', fallback=None)
 	if archive_local is not None:
 		datafile['archive_path'] = archive_local
 	if not os.path.isdir(datafile['archive_path']):
-		raise FileNotFoundError("ARCHIVE is not available")
+		raise FileNotFoundError("ARCHIVE is not available: " + datafile['archive_path'])
 
 	# Get the catalog containing the target and reference stars:
 	# TODO: Include proper-motion to the time of observation
 	catalog = api.get_catalog(targetid, output='table')
 	target = catalog['target'][0]
-
-	# Extract information about target:
-	target_name = str(target['target_name'])
 	target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
 
 	# Folder to save output:
-	# TODO: Change this!
-	output_folder_root = config.get('photometry', 'output', fallback='.')
-	output_folder = os.path.join(output_folder_root, target_name, '%04d' % fileid)
+	if output_folder is None:
+		output_folder_root = config.get('photometry', 'output', fallback='.')
+		output_folder = os.path.join(output_folder_root, target_name, '%05d' % fileid)
+	logger.info("Placing output in '%s'", output_folder)
 	os.makedirs(output_folder, exist_ok=True)
-
-	# Also write any logging output to the
-	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-	_filehandler = logging.FileHandler(os.path.join(output_folder, 'photometry.log'), mode='w')
-	_filehandler.setFormatter(formatter)
-	_filehandler.setLevel(logging.INFO)
-	logger.addHandler(_filehandler)
 
 	# The paths to the science image:
 	filepath = os.path.join(datafile['archive_path'], datafile['path'])
@@ -100,24 +103,29 @@ def photometry(fileid):
 	#	api.download_datafile(datafile, archive_local)
 
 	# Translate photometric filter into table column:
-	if photfilter == 'gp':
-		ref_filter = 'g_mag'
-	elif photfilter == 'rp':
-		ref_filter = 'r_mag'
-	elif photfilter == 'ip':
-		ref_filter = 'i_mag'
-	elif photfilter == 'zp':
-		ref_filter = 'z_mag'
-	elif photfilter == 'B':
-		ref_filter = 'B_mag'
-	elif photfilter == 'V':
-		ref_filter = 'V_mag'
-	else:
+	ref_filter = {
+		'up': 'u_mag',
+		'gp': 'g_mag',
+		'rp': 'r_mag',
+		'ip': 'i_mag',
+		'zp': 'z_mag',
+		'B': 'B_mag',
+		'V': 'V_mag',
+		'J': 'J_mag',
+		'H': 'H_mag',
+		'K': 'K_mag',
+	}.get(photfilter, None)
+
+	if ref_filter is None:
 		logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
 		ref_filter = 'g_mag'
 
 	references = catalog['references']
 	references.sort(ref_filter)
+
+	# Check that there actually are reference stars in that filter:
+	if allnan(references[ref_filter]):
+		raise ValueError("No reference stars found in current photfilter.")
 
 	# Load the image from the FITS file:
 	image = load_image(filepath)
@@ -134,10 +142,11 @@ def photometry(fileid):
 	hsize = 10
 	x = references['pixel_column']
 	y = references['pixel_row']
-	references = references[(np.sqrt((x - target_pixel_pos[0])**2 + (y - target_pixel_pos[1])**2) > ref_target_dist_limit)
-		& (references[ref_filter] < ref_mag_limit)
+	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'], unit='deg', frame='icrs')
+	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
 		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
 		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+	# 		& (references[ref_filter] < ref_mag_limit)
 
 	#==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
@@ -159,12 +168,11 @@ def photometry(fileid):
 	# Estimate image background:
 	# Not using image.clean here, since we are redefining the mask anyway
 	bkg = Background2D(image.clean, (128, 128), filter_size=(5, 5),
-		#mask=image.mask | (image.clean > background_cutoff),
 		sigma_clip=SigmaClip(sigma=3.0),
 		bkg_estimator=SExtractorBackground(),
-		exclude_percentile=50.0
-		)
+		exclude_percentile=50.0)
 	image.background = bkg.background
+	image.std = bkg.background_rms_median
 
 	# Create background-subtracted image:
 	image.subclean = image.clean - image.background
@@ -189,7 +197,7 @@ def photometry(fileid):
 	radius = 10
 	fwhm_guess = 6.0
 	fwhm_min = 3.5
-	fwhm_max = 13.5
+	fwhm_max = 18.0
 
 	# Extract stars sub-images:
 	#stars = extract_stars(
@@ -213,43 +221,80 @@ def photometry(fileid):
 	for i, (x, y) in enumerate(zip(references['pixel_column'], references['pixel_row'])):
 		x = int(np.round(x))
 		y = int(np.round(y))
-		x0, y0, width, height = x - radius, y - radius, 2 * radius, 2 * radius
-		cutout = slice(y0 - 1, y0 + height), slice(x0 - 1, x0 + width)
+		xmin = max(x - radius, 0)
+		xmax = min(x + radius + 1, image.shape[1])
+		ymin = max(y - radius, 0)
+		ymax = min(y + radius + 1, image.shape[0])
 
-		curr_star = image.subclean[cutout] / np.max(image.subclean[cutout])
-		npix = len(curr_star)
+		curr_star = deepcopy(image.subclean[ymin:ymax, xmin:xmax])
 
-		ypos, xpos = np.mgrid[:npix, :npix]
+		edge = np.zeros_like(curr_star, dtype='bool')
+		edge[(0,-1),:] = True
+		edge[:,(0,-1)] = True
+		curr_star -= nanmedian(curr_star[edge])
+		curr_star /= np.max(curr_star)
+
+		ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
 		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
 
 		fwhms[i] = gfit.x_fwhm
 
-	mask = ~np.isfinite(fwhms) | (fwhms <= fwhm_min) | (fwhms >= fwhm_max)
-	masked_fwhms = np.ma.masked_array(fwhms, mask)
-
+	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
 	fwhm = np.mean(sigma_clip(masked_fwhms, maxiters=20, sigma=2.0))
 	logger.info("FWHM: %f", fwhm)
+	if np.isnan(fwhm):
+		raise Exception("Could not estimate FWHM")
 
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
-	cleanout_references = (len(references) > 50)
-
+	min_references = 6
+	cleanout_references = (len(references) > 6)
+	logger.debug("Number of references before cleaning: %d", len(references))
 	if cleanout_references:
-		daofind_tbl = DAOStarFinder(100, fwhm=fwhm, roundlo=-0.5, roundhi=0.5).find_stars(image.subclean, mask=image.mask)
-		indx_good = np.zeros(len(references), dtype='bool')
-		for k, ref in enumerate(references):
-			dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
-			if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
-				indx_good[k] = True
+		# Arguments for DAOStarFind, starting with the strictest and ending with the
+		# least strict settings to try:
+		# We will stop with the first set that yield more than the minimum number
+		# of reference stars.
+		daofind_args = [{
+			'threshold': 7 * image.std,
+			'fwhm': fwhm,
+			'exclude_border': True,
+			'sharphi': 0.8,
+			'sigma_radius': 1.1,
+			'peakmax': image.peakmax
+		}, {
+			'threshold': 3 * image.std,
+			'fwhm': fwhm,
+			'roundlo': -0.5,
+			'roundhi': 0.5
+		}]
 
-		references = references[indx_good]
+		# Loop through argument sets for DAOStarFind:
+		for kwargs in daofind_args:
+			# Run DAOStarFind with the given arguments:
+			daofind_tbl = DAOStarFinder(**kwargs).find_stars(image.subclean, mask=image.mask)
 
+			# Match the found stars with the catalog references:
+			indx_good = np.zeros(len(references), dtype='bool')
+			for k, ref in enumerate(references):
+				dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
+				if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
+					indx_good[k] = True
+
+			logger.debug("Number of references after cleaning: %d", np.sum(indx_good))
+			if np.sum(indx_good) >= min_references:
+				references = references[indx_good]
+				break
+
+	logger.debug("Number of references after cleaning: %d", len(references))
+
+	# Create plot of target and reference star positions:
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
-	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', alpha=0.3)
+	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
 	if cleanout_references:
-		ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', alpha=0.3)
-	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', c='r')
+		ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', marker='o', alpha=0.6)
+	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
 	fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
 	plt.close(fig)
 
@@ -316,6 +361,7 @@ def photometry(fileid):
 	plot_image(epsf.data, ax=ax1, cmap='viridis')
 
 	fwhms = []
+	bad_epsf_detected = False
 	for a, ax in ((0, ax3), (1, ax2)):
 		# Collapse the PDF along this axis:
 		profile = epsf.data.sum(axis=a)
@@ -327,27 +373,37 @@ def photometry(fileid):
 		# for some reason
 		profile_intp = UnivariateSpline(np.arange(0, len(profile)), profile - poffset, k=3, s=0, ext=3)
 		lr = profile_intp.roots()
-		axis_fwhm = lr[1] - lr[0]
 
-		fwhms.append(axis_fwhm)
-
+		# Plot the profile and spline:
 		x_fine = np.linspace(-0.5, len(profile)-0.5, 500)
-
 		ax.plot(profile, 'k.-')
 		ax.plot(x_fine, profile_intp(x_fine) + poffset, 'g-')
 		ax.axvline(itop)
-		ax.axvspan(lr[0], lr[1], facecolor='g', alpha=0.2)
 		ax.set_xlim(-0.5, len(profile)-0.5)
+
+		# Do some sanity checks on the ePSF:
+		# It should pass 50% exactly twice and have the maximum inside that region.
+		# I.e. it should be a single gaussian-like peak
+		if len(lr) != 2 or itop < lr[0] or itop > lr[1]:
+			logger.error("Bad PSF along axis %d", a)
+			bad_epsf_detected = True
+		else:
+			axis_fwhm = lr[1] - lr[0]
+			fwhms.append(axis_fwhm)
+			ax.axvspan(lr[0], lr[1], facecolor='g', alpha=0.2)
+
+	# Save the ePSF figure:
+	ax4.axis('off')
+	fig.savefig(os.path.join(output_folder, 'epsf.png'), bbox_inches='tight')
+	plt.close(fig)
+
+	# There was a problem with the ePSF:
+	if bad_epsf_detected:
+		raise Exception("Bad ePSF detected.")
 
 	# Let's make the final FWHM the largest one we found:
 	fwhm = np.max(fwhms)
 	logger.info("Final FWHM based on ePSF: %f", fwhm)
-
-	#ax2.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
-	#ax3.axvspan(itop - fwhm/2, itop + fwhm/2, facecolor='b', alpha=0.2)
-	ax4.axis('off')
-	fig.savefig(os.path.join(output_folder, 'epsf.png'), bbox_inches='tight')
-	plt.close(fig)
 
 	#==============================================================================================
 	# COORDINATES TO DO PHOTOMETRY AT
@@ -355,9 +411,9 @@ def photometry(fileid):
 
 	coordinates = np.array([[ref['pixel_column'], ref['pixel_row']] for ref in references])
 
-	# Add the main target position as the first entry:
-	if datafile.get('template') is None:
-		coordinates = np.concatenate(([target_pixel_pos], coordinates), axis=0)
+	# Add the main target position as the first entry for doing photometry directly in the
+	# science image:
+	coordinates = np.concatenate(([target_pixel_pos], coordinates), axis=0)
 
 	#==============================================================================================
 	# APERTURE PHOTOMETRY
@@ -401,17 +457,26 @@ def photometry(fileid):
 	# TEMPLATE SUBTRACTION AND TARGET PHOTOMETRY
 	#==============================================================================================
 
-	if datafile.get('template') is not None:
-		# Find the pixel-scale of the science image:
-		pixel_area = proj_plane_pixel_area(image.wcs.celestial)
-		pixel_scale = np.sqrt(pixel_area)*3600 # arcsec/pixel
-		#print(image.wcs.celestial.cunit) % Doesn't work?
-		logger.info("Science image pixel scale: %f", pixel_scale)
+	# Find the pixel-scale of the science image:
+	pixel_area = proj_plane_pixel_area(image.wcs.celestial)
+	pixel_scale = np.sqrt(pixel_area)*3600 # arcsec/pixel
+	#print(image.wcs.celestial.cunit) % Doesn't work?
+	logger.info("Science image pixel scale: %f", pixel_scale)
 
+	diffimage = None
+	if datafile.get('diffimg') is not None:
+
+		diffimg_path = os.path.join(datafile['archive_path'], datafile['diffimg']['path'])
+		diffimage = load_image(diffimg_path)
+		diffimage = diffimage.image
+
+	elif attempt_imagematch and datafile.get('template') is not None:
 		# Run the template subtraction, and get back
 		# the science image where the template has been subtracted:
 		diffimage = run_imagematch(datafile, target, star_coord=coordinates, fwhm=fwhm, pixel_scale=pixel_scale)
 
+	# We have a diff image, so let's do photometry of the target using this:
+	if diffimage is not None:
 		# Include mask from original image:
 		diffimage = np.ma.masked_array(diffimage, image.mask)
 
@@ -447,8 +512,12 @@ def photometry(fileid):
 	# Build results table:
 	tab = references.copy()
 	tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
-	for key in ('pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'H_mag','J_mag','K_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'):
-		tab[0][key] = np.NaN
+	if diffimage is not None:
+		tab.insert_row(0, {'starid': -1, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
+	indx_main_target = (tab['starid'] <= 0)
+	for key in ('pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'B_mag', 'V_mag', 'H_mag','J_mag','K_mag', 'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'):
+		for i in np.where(indx_main_target)[0]: # No idea why this is needed, but giving a boolean array as slice doesn't work
+			tab[i][key] = np.NaN
 
 	# Subtract background estimated from annuli:
 	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
@@ -464,8 +533,8 @@ def photometry(fileid):
 	tab['pixel_column_psf_fit_error'] = psfphot_tbl['x_0_unc']
 	tab['pixel_row_psf_fit_error'] = psfphot_tbl['y_0_unc']
 
-	# Theck that we got valid photometry:
-	if not np.isfinite(tab[0]['flux_psf']) or not np.isfinite(tab[0]['flux_psf_error']):
+	# Check that we got valid photometry:
+	if np.any(~np.isfinite(tab[indx_main_target]['flux_psf'])) or np.any(~np.isfinite(tab[indx_main_target]['flux_psf_error'])):
 		raise Exception("Target magnitude is undefined.")
 
 	#==============================================================================================
@@ -477,31 +546,65 @@ def photometry(fileid):
 	mag_inst_err = (2.5/np.log(10)) * (tab['flux_psf_error'] / tab['flux_psf'])
 
 	# Corresponding magnitudes in catalog:
+	#TODO: add color terms here
 	mag_catalog = tab[ref_filter]
 
 	# Mask out things that should not be used in calibration:
 	use_for_calibration = np.ones_like(mag_catalog, dtype='bool')
-	use_for_calibration[0] = False # Do not use target for calibration
+	use_for_calibration[indx_main_target] = False # Do not use target for calibration
 	use_for_calibration[~np.isfinite(mag_inst) | ~np.isfinite(mag_catalog)] = False
 
 	# Just creating some short-hands:
 	x = mag_catalog[use_for_calibration]
 	y = mag_inst[use_for_calibration]
 	yerr = mag_inst_err[use_for_calibration]
+	weights = 1.0/yerr**2
 
 	# Fit linear function with fixed slope, using sigma-clipping:
 	model = models.Linear1D(slope=1, fixed={'slope': True})
 	fitter = fitting.FittingWithOutlierRemoval(fitting.LinearLSQFitter(), sigma_clip, sigma=3.0)
-	best_fit, sigma_clipped = fitter(model, x, y, weights=1.0/yerr**2)
+	best_fit, sigma_clipped = fitter(model, x, y, weights=weights)
 
-	# Extract zero-point and estimate its error:
+	# Extract zero-point and estimate its error using a single weighted fit:
 	# I don't know why there is not an error-estimate attached directly to the Parameter?
 	zp = -1*best_fit.intercept.value # Negative, because that is the way zeropoints are usually defined
-	zp_error = nanstd(y[~sigma_clipped] - best_fit(x[~sigma_clipped]))
+
+	weights[sigma_clipped] = 0 # Trick to make following expression simpler
+	N = len(weights.nonzero()[0])
+	if N > 1:
+		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
+	else:
+		zp_error = np.NaN
+	logger.info('Leastsquare ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp, zp_error))
+
+	# Determine sigma clipping sigma according to Chauvenet method
+	# But don't allow less than sigma = sigmamin, setting to 1.5 for now.
+	# Should maybe be 2?
+	sigmamin = 1.5
+	sigChauv = sigma_from_Chauvenet(len(x))
+	sigChauv = sigChauv if sigChauv >= sigmamin else sigmamin
+
+	# Extract zero point and error using bootstrap method
+	Nboot = 1000
+	logger.info('Running bootstrap with sigma = {0:0.2f} and n = {1:0.0f}'.format(sigChauv,Nboot))
+	pars = bootstrap_outlier(x, y, yerr, n=Nboot, model=model, fitter=fitting.LinearLSQFitter,
+		outlier=sigma_clip, outlier_kwargs={'sigma':sigChauv}, summary='median',
+		error='bootstrap', return_vals=False)
+
+	zp_bs = pars['intercept'] * -1.0
+	zp_error_bs = pars['intercept_error']
+
+	logger.info('Bootstrapped ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp_bs,zp_error_bs))
+
+	# Check that difference is not large
+	zp_diff = 0.4
+	if np.abs(zp_bs - zp) >= zp_diff:
+		logger.warning("Bootstrap and weighted LSQ ZPs differ by {:0.2f}, \
+		which is more than the allowed {:0.2f} mag.".format(np.abs(zp_bs - zp), zp_diff))
 
 	# Add calibrated magnitudes to the photometry table:
-	tab['mag'] = mag_inst + zp
-	tab['mag_error'] = np.sqrt(mag_inst_err**2 + zp_error**2)
+	tab['mag'] = mag_inst + zp_bs
+	tab['mag_error'] = np.sqrt(mag_inst_err**2 + zp_error_bs**2)
 
 	fig, ax = plt.subplots(1, 1)
 	ax.errorbar(x, y, yerr=yerr, fmt='k.')
@@ -511,6 +614,10 @@ def photometry(fileid):
 	ax.set_ylabel('Instrumental magnitude')
 	fig.savefig(os.path.join(output_folder, 'calibration.png'), bbox_inches='tight')
 	plt.close(fig)
+
+	# Check that we got valid photometry:
+	if not np.isfinite(tab[0]['mag']) or not np.isfinite(tab[0]['mag_error']):
+		raise Exception("Target magnitude is undefined.")
 
 	#==============================================================================================
 	# SAVE PHOTOMETRY
@@ -532,11 +639,16 @@ def photometry(fileid):
 	tab.meta['version'] = __version__
 	tab.meta['fileid'] = fileid
 	tab.meta['template'] = None if datafile.get('template') is None else datafile['template']['fileid']
+	tab.meta['diffimg'] = None if datafile.get('diffimg') is None else datafile['diffimg']['fileid']
 	tab.meta['photfilter'] = photfilter
-	tab.meta['fwhm'] = fwhm
+	tab.meta['fwhm'] = fwhm * u.pixel
+	tab.meta['pixel_scale'] = pixel_scale * u.arcsec/u.pixel
+	tab.meta['seeing'] = (fwhm*pixel_scale) * u.arcsec
 	tab.meta['obstime-bmjd'] = float(image.obstime.mjd)
-	tab.meta['zp'] = zp
-	tab.meta['zp_error'] = zp_error
+	tab.meta['zp'] = zp_bs
+	tab.meta['zp_error'] = zp_error_bs
+	tab.meta['zp_diff'] = np.abs(zp_bs - zp)
+	tab.meta['zp_error_weights'] = zp_error
 
 	# Filepath where to save photometry:
 	photometry_output = os.path.join(output_folder, 'photometry.ecsv')
@@ -545,6 +657,10 @@ def photometry(fileid):
 	tab.write(photometry_output, format='ascii.ecsv', delimiter=',', overwrite=True)
 
 	toc = default_timer()
+
+	logger.info("------------------------------------------------------")
+	logger.info("Success!")
+	logger.info("Main target: %f +/- %f", tab[0]['mag'], tab[0]['mag_error'])
 	logger.info("Photometry took: %f seconds", toc-tic)
 
 	return photometry_output

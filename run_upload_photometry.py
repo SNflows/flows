@@ -1,19 +1,22 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
+Upload photometry results to Flows server.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
 import argparse
 import logging
-from flows import api, download_catalog
+from flows import api
 
-if __name__ == '__main__':
+#--------------------------------------------------------------------------------------------------
+def main():
 	# Parse command line arguments:
-	parser = argparse.ArgumentParser(description='Run catalog.')
+	parser = argparse.ArgumentParser(description='Upload photometry.')
 	parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
 	parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
-	parser.add_argument('-t', '--target', type=str, help='Target to print catalog for.', nargs='?', default=None)
+	parser.add_argument('fileids', type=int, help='File IDs to be uploaded.', nargs='+')
 	args = parser.parse_args()
 
 	# Set logging level:
@@ -32,16 +35,10 @@ if __name__ == '__main__':
 		logger.addHandler(console)
 	logger.setLevel(logging_level)
 
-	for target in api.get_catalog_missing():
-		logger.info("Downloading catalog for target=%s...", target)
-		download_catalog(target)
+	# Loop through the fileids and upload the results:
+	for fid in args.fileids:
+		api.upload_photometry(fid)
 
-	if args.target is not None:
-		cat = api.get_catalog(args.target)
-
-		print("Target:")
-		cat['target'].pprint_all()
-		print("\nReferences:")
-		cat['references'].pprint_all()
-		print("\nAvoid:")
-		cat['avoid'].pprint_all()
+#--------------------------------------------------------------------------------------------------
+if __name__ == '__main__':
+	main()
