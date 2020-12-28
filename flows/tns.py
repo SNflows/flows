@@ -17,8 +17,8 @@ from collections import OrderedDict
 from bs4 import BeautifulSoup
 from .config import load_config
 
-url_tns_api = 'https://wis-tns.weizmann.ac.il/api/get'
-url_tns_search = 'https://wis-tns.weizmann.ac.il/search'
+url_tns_api = 'https://www.wis-tns.org/api/get'
+url_tns_search = 'https://www.wis-tns.org/search'
 
 #--------------------------------------------------------------------------------------------------
 def tns_search(coord=None, radius=3*u.arcsec, objname=None, internal_name=None):
