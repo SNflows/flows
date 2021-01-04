@@ -189,6 +189,15 @@ def load_image(FILENAME):
 			image.obstime = Time(hdr['TMID'], format='mjd', scale='utc', location=image.site['EarthLocation'])
 			image.photfilter = hdr['FILTER']
 
+		elif origin == 'ESO' and telescope == 'ESO-NTT' and instrument == 'EFOSC':
+			image.site = api.get_site(12) # Hard-coded the siteid for NTT, ESO
+			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
+			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
+			image.photfilter = {
+				'g782': 'gp',
+				'B639': 'B',
+			}.get(hdr['FILTER'], hdr['FILTER'])
+
 		elif telescope == 'SAI-2.5' and instrument == 'ASTRONIRCAM':
 			image.site = api.get_site(13) # Hard-coded the siteid for Caucasus Mountain Observatory
 			image.obstime = Time(hdr['MJD-AVG'], format='mjd', scale='utc', location=image.site['EarthLocation'])
