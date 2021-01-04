@@ -36,6 +36,8 @@ def load_image(FILENAME):
 	with fits.open(FILENAME, mode='readonly') as hdul:
 		hdr = hdul[0].header
 		origin = hdr.get('ORIGIN')
+		telescope = hdr.get('TELESCOP')
+		instrument = hdr.get('INSTRUME')
 
 		image.image = np.asarray(hdul[0].data)
 		image.shape = image.image.shape
@@ -74,7 +76,7 @@ def load_image(FILENAME):
 			#image.peakmax = hdr.get('MAXLIN') # Presumed non-linearity limit from header
 			image.peakmax = 60000 # From experience, this one is better.
 
-		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE') == 'IMAGING':
+		elif telescope == 'NOT' and instrument in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE') == 'IMAGING':
 			image.site = api.get_site(5) # Hard-coded the siteid for NOT
 			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=image.site['EarthLocation'])
 
@@ -110,7 +112,7 @@ def load_image(FILENAME):
 			# TODO: grab these from a table for all detector setups of ALFOSC
 			image.peakmax = 80000 # For ALFOSC D, 1x1, 200; the standard for SNe.
 
-		elif hdr.get('TELESCOP') == 'NOT' and hdr.get('INSTRUME') == 'NOTCAM' and hdr.get('OBS_MODE', '').lower() == 'imaging':
+		elif telescope == 'NOT' and instrument == 'NOTCAM' and hdr.get('OBS_MODE', '').lower() == 'imaging':
 			image.site = api.get_site(5) # Hard-coded the siteid for NOT
 			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=image.site['EarthLocation'])
 
@@ -139,7 +141,7 @@ def load_image(FILENAME):
 				'z.00000': 'zp'
 			}.get(hdr['FPA.FILTER'], hdr['FPA.FILTER'])
 
-		elif hdr.get('TELESCOP') == 'Liverpool Telescope':
+		elif telescope == 'Liverpool Telescope':
 			# Liverpool telescope
 			image.site = api.get_site(8) # Hard-coded the siteid for Liverpool Telescope
 			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
@@ -156,12 +158,45 @@ def load_image(FILENAME):
 				'SDSS-Z': 'zp'
 			}.get(hdr['FILTER1'], hdr['FILTER1'])
 
-		elif hdr.get('TELESCOP') == 'CA 3.5m' and hdr.get('INSTRUME') == 'Omega2000':
+		elif telescope == 'CA 3.5m' and instrument == 'Omega2000':
 			# Calar Alto 3.5m (Omege2000)
 			image.site = api.get_site(9) # Hard-coded the siteid for Calar Alto 3.5m
 			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=image.site['EarthLocation'])
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 			image.photfilter = hdr['FILTER']
+
+		elif telescope == 'SWO' and hdr.get('SITENAME') == 'LCO':
+			image.site = api.get_site(10) # Hard-coded the siteid for Swope, Las Campanas Observatory
+			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = {
+				'u': 'up',
+				'g': 'gp',
+				'r': 'rp',
+				'i': 'ip',
+			}.get(hdr['FILTER'], hdr['FILTER'])
+
+		elif telescope == 'Baade' and hdr.get('SITENAME') == 'LCO' and instrument == 'FourStar':
+			image.site = api.get_site(11) # Hard-coded the siteid for Swope, Las Campanas Observatory
+			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = {
+				'Ks': 'K',
+				'J1': 'Y',
+			}.get(hdr['FILTER'], hdr['FILTER'])
+			image.exptime *= int(hdr['NCOMBINE']) # EXPTIME is only for a single exposure
+
+		elif origin == 'ESO' and telescope == 'ESO-NTT' and instrument == 'SOFI':
+			image.site = api.get_site(12) # Hard-coded the siteid for NTT, ESO
+			image.obstime = Time(hdr['TMID'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = hdr['FILTER']
+
+		elif telescope == 'SAI-2.5' and instrument == 'ASTRONIRCAM':
+			image.site = api.get_site(13) # Hard-coded the siteid for Caucasus Mountain Observatory
+			image.obstime = Time(hdr['MJD-AVG'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = {
+				'H_Open': 'H',
+				'K_Open': 'K',
+			}.get(hdr['FILTER'], hdr['FILTER'])
+			image.exptime = float(hdr['FULL_EXP'])
 
 		else:
 			raise Exception("Could not determine origin of image")
