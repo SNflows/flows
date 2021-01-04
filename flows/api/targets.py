@@ -105,7 +105,7 @@ def add_target(name, coord, redshift=None, redshift_error=None, discovery_date=N
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 	# Check and convert input:
-	if not re.match(r'^[12]\d{3}[a-z]{1,4}$', name.strip()):
+	if not re.match(r'^[12]\d{3}([A-Z]|[a-z]{2,4})$', name.strip()):
 		raise ValueError("Invalid target name.")
 
 	if redshift is None and redshift_error is not None:
