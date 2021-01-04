@@ -76,7 +76,7 @@ def load_image(FILENAME):
 			#image.peakmax = hdr.get('MAXLIN') # Presumed non-linearity limit from header
 			image.peakmax = 60000 # From experience, this one is better.
 
-		elif telescope == 'NOT' and instrument in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE') == 'IMAGING':
+		elif telescope == 'NOT' and instrument in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE', '').lower() == 'imaging':
 			image.site = api.get_site(5) # Hard-coded the siteid for NOT
 			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=image.site['EarthLocation'])
 
