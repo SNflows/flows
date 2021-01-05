@@ -76,7 +76,7 @@ def load_image(FILENAME):
 			#image.peakmax = hdr.get('MAXLIN') # Presumed non-linearity limit from header
 			image.peakmax = 60000 # From experience, this one is better.
 
-		elif telescope == 'NOT' and instrument in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE') == 'IMAGING':
+		elif telescope == 'NOT' and instrument in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE', '').lower() == 'imaging':
 			image.site = api.get_site(5) # Hard-coded the siteid for NOT
 			image.obstime = Time(hdr['DATE-AVG'], format='isot', scale='utc', location=image.site['EarthLocation'])
 
@@ -175,6 +175,16 @@ def load_image(FILENAME):
 				'i': 'ip',
 			}.get(hdr['FILTER'], hdr['FILTER'])
 
+		elif telescope == 'DUP' and hdr.get('SITENAME') == 'LCO':
+			image.site = api.get_site(14) # Hard-coded the siteid for Du Pont, Las Campanas Observatory
+			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = {
+				'u': 'up',
+				'g': 'gp',
+				'r': 'rp',
+				'i': 'ip',
+			}.get(hdr['FILTER'], hdr['FILTER'])
+
 		elif telescope == 'Baade' and hdr.get('SITENAME') == 'LCO' and instrument == 'FourStar':
 			image.site = api.get_site(11) # Hard-coded the siteid for Swope, Las Campanas Observatory
 			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
@@ -188,6 +198,15 @@ def load_image(FILENAME):
 			image.site = api.get_site(12) # Hard-coded the siteid for NTT, ESO
 			image.obstime = Time(hdr['TMID'], format='mjd', scale='utc', location=image.site['EarthLocation'])
 			image.photfilter = hdr['FILTER']
+
+		elif origin == 'ESO' and telescope == 'ESO-NTT' and instrument == 'EFOSC':
+			image.site = api.get_site(12) # Hard-coded the siteid for NTT, ESO
+			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
+			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
+			image.photfilter = {
+				'g782': 'gp',
+				'B639': 'B',
+			}.get(hdr['FILTER'], hdr['FILTER'])
 
 		elif telescope == 'SAI-2.5' and instrument == 'ASTRONIRCAM':
 			image.site = api.get_site(13) # Hard-coded the siteid for Caucasus Mountain Observatory
