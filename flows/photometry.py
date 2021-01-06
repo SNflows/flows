@@ -263,18 +263,18 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fwhm_found = False
 	min_references_achieved = False
 
-	import pandas as pd
-	gfitsdf = pd.DataFrame(gfits)
-	gfitsdf['pixel_column'] = gfitsdf.y_mean + references['pixel_column'] - 10.
-	gfitsdf['pixel_row'] = gfitsdf.x_mean + references['pixel_row'] - 10.
+	#import pandas as pd
+	#gfitsdf = pd.DataFrame(gfits)
+	#gfitsdf['pixel_column'] = gfitsdf.y_mean + references['pixel_column'] - 10.
+	#gfitsdf['pixel_row'] = gfitsdf.x_mean + references['pixel_row'] - 10.
 	# Create plot of target and reference star positions:
-	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
-	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
-	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
-	ax.scatter(gfitsdf['pixel_column'], gfitsdf['pixel_row'], c='g', marker='o', alpha=0.6)
-	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
-	fig.savefig(os.path.join(output_folder, 'positions_.png'), bbox_inches='tight')
-	plt.close(fig)
+	#fig, ax = plt.subplots(1, 1, figsize=(20, 18))
+	#plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
+	#ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
+	#ax.scatter(gfitsdf['pixel_column'], gfitsdf['pixel_row'], c='g', marker='o', alpha=0.6)
+	#ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
+	#fig.savefig(os.path.join(output_folder, 'positions_.png'), bbox_inches='tight')
+	#plt.close(fig)
 
 	while not min_references_achieved:
 		for rsqval in rsqvals:
