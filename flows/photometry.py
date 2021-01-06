@@ -218,6 +218,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	gfitter = fitting.LevMarLSQFitter()
 
 	fwhms = np.full(len(references), np.NaN)
+	gfits = []
+	#gfit_err = []
+	rsqs = np.full(len(references), np.NaN)
 	for i, (x, y) in enumerate(zip(references['pixel_column'], references['pixel_row'])):
 		x = int(np.round(x))
 		y = int(np.round(y))
@@ -238,16 +241,88 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
 
 		fwhms[i] = gfit.x_fwhm
+		#print(gfitter.fit_info,gfit.param_names)
+		#return(gfitter.fit_info,gfit)
+		#print(gfit.param_names,gfit.parameters,np.sqrt(np.diag(gfitter.fit_info['param_cov'])))
+		gfits.append(dict(zip(gfit.param_names,gfit.parameters)))
+		#gfit_err.append(dict(zip(gfit.param_names[:-2],np.sqrt(np.diag(gfitter.fit_info['param_cov'])))))
+		#Calculate rsq
+		sstot = ((curr_star - curr_star.mean()) ** 2).sum()
+		sserr = (gfitter.fit_info['fvec']**2).sum()
+		rsqs[i]=1.-(sserr/sstot)
 
 	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
-	fwhm = np.mean(sigma_clip(masked_fwhms, maxiters=20, sigma=2.0))
+	masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
+	# Use R^2 to more robustly determine initial FWHM guess.
+	# This cleaning is good when we have FEW references.
+	min_fwhm_references = 2
+	min_references = 6
+	min_references_now = min_references
+	rsq_min = 0.15
+	rsqvals = np.arange(rsq_min,0.95,0.15)[::-1]
+	fwhm_found = False
+	min_references_achieved = False
+
+	import pandas as pd
+	gfitsdf = pd.DataFrame(gfits)
+	gfitsdf['pixel_column'] = gfitsdf.y_mean + references['pixel_column'] - 10.
+	gfitsdf['pixel_row'] = gfitsdf.x_mean + references['pixel_row'] - 10.
+	# Create plot of target and reference star positions:
+	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
+	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
+	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
+	ax.scatter(gfitsdf['pixel_column'], gfitsdf['pixel_row'], c='g', marker='o', alpha=0.6)
+	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
+	fig.savefig(os.path.join(output_folder, 'positions_.png'), bbox_inches='tight')
+	plt.close(fig)
+
+	while not min_references_achieved:
+		for rsqval in rsqvals:
+			mask = (masked_rsqs >= rsqval) & (masked_rsqs<1.0)
+			nreferences = len(np.isfinite(masked_fwhms[mask]))
+			if nreferences >= min_fwhm_references:
+				_fwhms_cut_ = np.mean(sigma_clip(masked_fwhms[mask], maxiters=100, sigma=2.0))
+				logger.info('R^2 >= '+str(rsqval)+': '+str(len(np.isfinite(masked_fwhms[mask])))+' stars w/ mean FWHM = '+str(np.round(_fwhms_cut_,1)))
+				if not fwhm_found:
+					fwhm = _fwhms_cut_
+					fwhm_found = True
+				#fwhms_cut.append(_fwhms_cut_)
+			if nreferences >= min_references_now:
+				references = references[mask]
+				min_references_achieved = True
+				break
+		if min_references_achieved: break
+		min_references_now = min_references_now - 2
+		if (min_references_now < 2) and fwhm_found: break
+		elif not fwhm_found: raise Exception("Could not estimate FWHM")
+		logger.debug('{} {} {}'.format(min_references_now,min_fwhm_references,nreferences))
+
+
 	logger.info("FWHM: %f", fwhm)
 	if np.isnan(fwhm):
 		raise Exception("Could not estimate FWHM")
 
+	# if minimum references not found, then take what we can get with even a weaker cut.
+	# TODO: Is this right, or should we grab rsq_min (or even weaker?)
+	min_references_now = min_references - 2
+	while not min_references_achieved:
+		mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)
+		nreferences = len(np.isfinite(masked_fwhms[mask]))
+		if nreferences >= min_references_now:
+			references = references[mask]
+			min_references_achieved = True
+		rsq_min = rsq_min - 0.07
+		min_references_now = min_references_now - 1
+
+	# Check len of references as this is a destructive cleaning.
+	if len(references)==2:
+		logger.info('2 reference stars remaining, check WCS and image quality')
+	elif len(references)<2:
+		raise Exception(str(len(references))+"References remaining; could not clean.")
+
+	# This cleaning is good when we have MANY references.
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
-	min_references = 6
 	cleanout_references = (len(references) > 6)
 	logger.debug("Number of references before cleaning: %d", len(references))
 	if cleanout_references:
@@ -287,6 +362,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 				break
 
 	logger.debug("Number of references after cleaning: %d", len(references))
+	# Further clean references based on 2D gaussian fits
 
 	# Create plot of target and reference star positions:
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
