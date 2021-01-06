@@ -241,12 +241,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
 
 		fwhms[i] = gfit.x_fwhm
-		#print(gfitter.fit_info,gfit.param_names)
-		#return(gfitter.fit_info,gfit)
-		#print(gfit.param_names,gfit.parameters,np.sqrt(np.diag(gfitter.fit_info['param_cov'])))
 		gfits.append(dict(zip(gfit.param_names,gfit.parameters)))
-		#gfit_err.append(dict(zip(gfit.param_names[:-2],np.sqrt(np.diag(gfitter.fit_info['param_cov'])))))
-		#Calculate rsq
+		# Calculate rsq
 		sstot = ((curr_star - curr_star.mean()) ** 2).sum()
 		sserr = (gfitter.fit_info['fvec']**2).sum()
 		rsqs[i]=1.-(sserr/sstot)
@@ -263,11 +259,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fwhm_found = False
 	min_references_achieved = False
 
+	# Create plot of target and reference star positions from 2D Gaussian fits.
+	# Get data into pandas DF
 	#import pandas as pd
 	#gfitsdf = pd.DataFrame(gfits)
 	#gfitsdf['pixel_column'] = gfitsdf.y_mean + references['pixel_column'] - 10.
 	#gfitsdf['pixel_row'] = gfitsdf.x_mean + references['pixel_row'] - 10.
-	# Create plot of target and reference star positions:
+	# Make the plot
 	#fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	#plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
 	#ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
@@ -276,6 +274,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	#fig.savefig(os.path.join(output_folder, 'positions_.png'), bbox_inches='tight')
 	#plt.close(fig)
 
+	# Clean based on R^2 Value
 	while not min_references_achieved:
 		for rsqval in rsqvals:
 			mask = (masked_rsqs >= rsqval) & (masked_rsqs<1.0)
@@ -286,7 +285,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 				if not fwhm_found:
 					fwhm = _fwhms_cut_
 					fwhm_found = True
-				#fwhms_cut.append(_fwhms_cut_)
 			if nreferences >= min_references_now:
 				references = references[mask]
 				min_references_achieved = True
