@@ -175,6 +175,16 @@ def load_image(FILENAME):
 				'i': 'ip',
 			}.get(hdr['FILTER'], hdr['FILTER'])
 
+		elif telescope == 'DUP' and hdr.get('SITENAME') == 'LCO':
+			image.site = api.get_site(14) # Hard-coded the siteid for Du Pont, Las Campanas Observatory
+			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = {
+				'u': 'up',
+				'g': 'gp',
+				'r': 'rp',
+				'i': 'ip',
+			}.get(hdr['FILTER'], hdr['FILTER'])
+
 		elif telescope == 'Baade' and hdr.get('SITENAME') == 'LCO' and instrument == 'FourStar':
 			image.site = api.get_site(11) # Hard-coded the siteid for Swope, Las Campanas Observatory
 			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
