@@ -45,7 +45,8 @@ __version__ = get_version(pep440=False)
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 
-#--------------------------------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------------------------------
 def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	"""
 	Run photometry.
@@ -61,8 +62,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	"""
 
 	# Settings:
-	#ref_mag_limit = 22 # Lower limit on reference target brightness
-	ref_target_dist_limit = 10 * u.arcsec # Reference star must be further than this away to be included
+	# ref_mag_limit = 22 # Lower limit on reference target brightness
+	ref_target_dist_limit = 10 * u.arcsec  # Reference star must be further than this away to be included
 
 	logger = logging.getLogger(__name__)
 	tic = default_timer()
@@ -101,7 +102,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# TODO: Download datafile using API to local drive:
 	# TODO: Is this a security concern?
-	#if archive_local:
+	# if archive_local:
 	#	api.download_datafile(datafile, archive_local)
 
 	# Translate photometric filter into table column:
@@ -135,7 +136,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Account for proper motion
 	mycoords = coords.SkyCoord(references['ra'], references['decl'], obstime=Time(2015.5, format='decimalyear'),
 							   pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'], distance=1 * u.kpc,
-							   radial_velocity=1000 * u.km / u.s) # Dummy velocity and distance needed for procession.
+							   radial_velocity=1000 * u.km / u.s)  # Dummy velocity and distance needed for procession.
 
 	mycoords = mycoords.apply_space_motion(image.obstime)
 	references['ra_obs'] = mycoords.ra
@@ -143,8 +144,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Calculate pixel-coordinates of references:
 	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]), 0)
-	references['pixel_column'] = row_col_coords[:,0]
-	references['pixel_row'] = row_col_coords[:,1]
+	references['pixel_column'] = row_col_coords[:, 0]
+	references['pixel_row'] = row_col_coords[:, 1]
 
 	# Calculate the targets position in the image:
 	target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
@@ -155,20 +156,20 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	y = references['pixel_row']
 	refs_coord = coords.SkyCoord(ra=references['ra_obs'], dec=references['decl_obs'], unit='deg', frame='icrs')
 	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
-		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
-		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+							& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
+							& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
 	# 		& (references[ref_filter] < ref_mag_limit)
 
-	#==============================================================================================
+	# ==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
-	#==============================================================================================
+	# ==============================================================================================
 
 	ltt_bary = image.obstime.light_travel_time(target_coord, ephemeris='jpl')
 	image.obstime = image.obstime.tdb + ltt_bary
 
-	#==============================================================================================
+	# ==============================================================================================
 	# BACKGROUND ESTIMATION
-	#==============================================================================================
+	# ==============================================================================================
 
 	fig, ax = plt.subplots(1, 2, figsize=(20, 18))
 	plot_image(image.clean, ax=ax[0], scale='log', cbar='right', title='Image')
@@ -179,9 +180,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Estimate image background:
 	# Not using image.clean here, since we are redefining the mask anyway
 	bkg = Background2D(image.clean, (128, 128), filter_size=(5, 5),
-		sigma_clip=SigmaClip(sigma=3.0),
-		bkg_estimator=SExtractorBackground(),
-		exclude_percentile=50.0)
+					   sigma_clip=SigmaClip(sigma=3.0),
+					   bkg_estimator=SExtractorBackground(),
+					   exclude_percentile=50.0)
 	image.background = bkg.background
 	image.std = bkg.background_rms_median
 
@@ -199,9 +200,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# TODO: Is this correct?!
 	image.error = calc_total_error(image.clean, bkg.background_rms, 1.0)
 
-	#==============================================================================================
+	# ==============================================================================================
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
-	#==============================================================================================
+	# ==============================================================================================
 
 	logger.info("References:\n%s", references)
 
@@ -211,10 +212,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fwhm_max = 18.0
 
 	# Set up 2D Gaussian model for fitting to reference stars:
-	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius, x_stddev=fwhm_guess*gaussian_fwhm_to_sigma)
+	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius, x_stddev=fwhm_guess * gaussian_fwhm_to_sigma)
 	g2d.amplitude.bounds = (0.1, 2.0)
-	g2d.x_mean.bounds = (0.5*radius, 1.5*radius)
-	g2d.y_mean.bounds = (0.5*radius, 1.5*radius)
+	g2d.x_mean.bounds = (0.5 * radius, 1.5 * radius)
+	g2d.y_mean.bounds = (0.5 * radius, 1.5 * radius)
 	g2d.x_stddev.bounds = (fwhm_min * gaussian_fwhm_to_sigma, fwhm_max * gaussian_fwhm_to_sigma)
 	g2d.y_stddev.tied = lambda model: model.x_stddev
 	g2d.theta.fixed = True
@@ -223,7 +224,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	fwhms = np.full(len(references), np.NaN)
 	gfits = []
-	#gfit_err = []
+	# gfit_err = []
 	rsqs = np.full(len(references), np.NaN)
 	for i, (x, y) in enumerate(zip(references['pixel_column'], references['pixel_row'])):
 		x = int(np.round(x))
@@ -236,8 +237,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		curr_star = deepcopy(image.subclean[ymin:ymax, xmin:xmax])
 
 		edge = np.zeros_like(curr_star, dtype='bool')
-		edge[(0,-1),:] = True
-		edge[:,(0,-1)] = True
+		edge[(0, -1), :] = True
+		edge[:, (0, -1)] = True
 		curr_star -= nanmedian(curr_star[edge])
 		curr_star /= np.max(curr_star)
 
@@ -245,11 +246,11 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
 
 		fwhms[i] = gfit.x_fwhm
-		gfits.append(dict(zip(gfit.param_names,gfit.parameters)))
+		gfits.append(dict(zip(gfit.param_names, gfit.parameters)))
 		# Calculate rsq
 		sstot = ((curr_star - curr_star.mean()) ** 2).sum()
 		sserr = (gfitter.fit_info['fvec'] ** 2).sum()
-		rsqs[i] = 1.-(sserr/sstot)
+		rsqs[i] = 1. - (sserr / sstot)
 
 	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
 	masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
@@ -259,7 +260,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	min_references = 6
 	min_references_now = min_references
 	rsq_min = 0.15
-	rsqvals = np.arange(rsq_min,0.95,0.15)[::-1]
+	rsqvals = np.arange(rsq_min, 0.95, 0.15)[::-1]
 	fwhm_found = False
 	min_references_achieved = False
 
@@ -280,11 +281,12 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Clean based on R^2 Value
 	while not min_references_achieved:
 		for rsqval in rsqvals:
-			mask = (masked_rsqs >= rsqval) & (masked_rsqs<1.0)
+			mask = (masked_rsqs >= rsqval) & (masked_rsqs < 1.0)
 			nreferences = len(np.isfinite(masked_fwhms[mask]))
 			if nreferences >= min_fwhm_references:
 				_fwhms_cut_ = np.mean(sigma_clip(masked_fwhms[mask], maxiters=100, sigma=2.0))
-				logger.info('R^2 >= '+str(rsqval)+': '+str(len(np.isfinite(masked_fwhms[mask])))+' stars w/ mean FWHM = '+str(np.round(_fwhms_cut_,1)))
+				logger.info('R^2 >= ' + str(rsqval) + ': ' + str(
+					len(np.isfinite(masked_fwhms[mask]))) + ' stars w/ mean FWHM = ' + str(np.round(_fwhms_cut_, 1)))
 				if not fwhm_found:
 					fwhm = _fwhms_cut_
 					fwhm_found = True
@@ -294,9 +296,11 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 				break
 		if min_references_achieved: break
 		min_references_now = min_references_now - 2
-		if (min_references_now < 2) and fwhm_found: break
-		elif not fwhm_found: raise Exception("Could not estimate FWHM")
-		logger.debug('{} {} {}'.format(min_references_now,min_fwhm_references,nreferences))
+		if (min_references_now < 2) and fwhm_found:
+			break
+		elif not fwhm_found:
+			raise Exception("Could not estimate FWHM")
+		logger.debug('{} {} {}'.format(min_references_now, min_fwhm_references, nreferences))
 
 	logger.info("FWHM: %f", fwhm)
 	if np.isnan(fwhm):
@@ -352,8 +356,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 			# Match the found stars with the catalog references:
 			indx_good = np.zeros(len(references), dtype='bool')
 			for k, ref in enumerate(references):
-				dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
-				if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
+				dist = np.sqrt((daofind_tbl['xcentroid'] - ref['pixel_column']) ** 2 + (
+							daofind_tbl['ycentroid'] - ref['pixel_row']) ** 2)
+				if np.any(dist <= fwhm / 4):  # Cutoff set somewhat arbitrary
 					indx_good[k] = True
 
 			logger.debug("Number of references after cleaning: %d", np.sum(indx_good))
@@ -374,22 +379,22 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
 	plt.close(fig)
 
-	#==============================================================================================
+	# ==============================================================================================
 	# CREATE EFFECTIVE PSF MODEL
-	#==============================================================================================
+	# ==============================================================================================
 
 	# Make cutouts of stars using extract_stars:
 	# Scales with FWHM
-	size = int(np.round(29*fwhm/6))
+	size = int(np.round(29 * fwhm / 6))
 	if size % 2 == 0:
-		size += 1 # Make sure it's a uneven number
-	size = max(size, 15) # Never go below 15 pixels
+		size += 1  # Make sure it's a uneven number
+	size = max(size, 15)  # Never go below 15 pixels
 	hsize = (size - 1) / 2
 
 	x = references['pixel_column']
 	y = references['pixel_row']
 	mask_near_edge = ((x > hsize) & (x < (image.shape[1] - 1 - hsize))
-		& (y > hsize) & (y < (image.shape[0] - 1 - hsize)))
+					  & (y > hsize) & (y < (image.shape[0] - 1 - hsize)))
 
 	stars_for_epsf = Table()
 	stars_for_epsf['x'] = x[mask_near_edge]
@@ -410,24 +415,24 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	nrows = 5
 	ncols = 5
 	imgnr = 0
-	for k in range(int(np.ceil(len(stars_for_epsf)/(nrows*ncols)))):
+	for k in range(int(np.ceil(len(stars_for_epsf) / (nrows * ncols)))):
 		fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, 20), squeeze=True)
 		ax = ax.ravel()
-		for i in range(nrows*ncols):
-			if imgnr > len(stars_for_epsf)-1:
+		for i in range(nrows * ncols):
+			if imgnr > len(stars_for_epsf) - 1:
 				ax[i].axis('off')
 			else:
 				plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis')
 			imgnr += 1
 
-		fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k+1)), bbox_inches='tight')
+		fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k + 1)), bbox_inches='tight')
 		plt.close(fig)
 
 	# Build the ePSF:
 	epsf = EPSFBuilder(
 		oversampling=1.0,
 		maxiters=500,
-		fitter=EPSFFitter(fit_boxsize=2*fwhm),
+		fitter=EPSFFitter(fit_boxsize=2 * fwhm),
 		progress_bar=True
 	)(stars)[0]
 
@@ -442,7 +447,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		# Collapse the PDF along this axis:
 		profile = epsf.data.sum(axis=a)
 		itop = profile.argmax()
-		poffset = profile[itop]/2
+		poffset = profile[itop] / 2
 
 		# Run a spline through the points, but subtract half of the peak value, and find the roots:
 		# We have to use a cubic spline, since roots() is not supported for other splines
@@ -451,11 +456,11 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		lr = profile_intp.roots()
 
 		# Plot the profile and spline:
-		x_fine = np.linspace(-0.5, len(profile)-0.5, 500)
+		x_fine = np.linspace(-0.5, len(profile) - 0.5, 500)
 		ax.plot(profile, 'k.-')
 		ax.plot(x_fine, profile_intp(x_fine) + poffset, 'g-')
 		ax.axvline(itop)
-		ax.set_xlim(-0.5, len(profile)-0.5)
+		ax.set_xlim(-0.5, len(profile) - 0.5)
 
 		# Do some sanity checks on the ePSF:
 		# It should pass 50% exactly twice and have the maximum inside that region.
@@ -481,9 +486,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fwhm = np.max(fwhms)
 	logger.info("Final FWHM based on ePSF: %f", fwhm)
 
-	#==============================================================================================
+	# ==============================================================================================
 	# COORDINATES TO DO PHOTOMETRY AT
-	#==============================================================================================
+	# ==============================================================================================
 
 	coordinates = np.array([[ref['pixel_column'], ref['pixel_row']] for ref in references])
 
@@ -491,22 +496,22 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# science image:
 	coordinates = np.concatenate(([target_pixel_pos], coordinates), axis=0)
 
-	#==============================================================================================
+	# ==============================================================================================
 	# APERTURE PHOTOMETRY
-	#==============================================================================================
+	# ==============================================================================================
 
 	# Define apertures for aperture photometry:
 	apertures = CircularAperture(coordinates, r=fwhm)
-	annuli = CircularAnnulus(coordinates, r_in=1.5*fwhm, r_out=2.5*fwhm)
+	annuli = CircularAnnulus(coordinates, r_in=1.5 * fwhm, r_out=2.5 * fwhm)
 
 	apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli], mask=image.mask, error=image.error)
 
 	logger.debug("Aperture Photometry Table:\n%s", apphot_tbl)
 	logger.info('Apperature Photometry Success')
 
-	#==============================================================================================
+	# ==============================================================================================
 	# PSF PHOTOMETRY
-	#==============================================================================================
+	# ==============================================================================================
 
 	# Are we fixing the postions?
 	epsf.fixed.update({'x_0': False, 'y_0': False})
@@ -529,14 +534,14 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	logger.debug("PSF Photometry Table:\n%s", psfphot_tbl)
 	logger.info('PSF Photometry Success')
 
-	#==============================================================================================
+	# ==============================================================================================
 	# TEMPLATE SUBTRACTION AND TARGET PHOTOMETRY
-	#==============================================================================================
+	# ==============================================================================================
 
 	# Find the pixel-scale of the science image:
 	pixel_area = proj_plane_pixel_area(image.wcs.celestial)
-	pixel_scale = np.sqrt(pixel_area)*3600 # arcsec/pixel
-	#print(image.wcs.celestial.cunit) % Doesn't work?
+	pixel_scale = np.sqrt(pixel_area) * 3600  # arcsec/pixel
+	# print(image.wcs.celestial.cunit) % Doesn't work?
 	logger.info("Science image pixel scale: %f", pixel_scale)
 
 	diffimage = None
@@ -558,7 +563,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 		# Create apertures around the target:
 		apertures = CircularAperture(target_pixel_pos, r=fwhm)
-		annuli = CircularAnnulus(target_pixel_pos, r_in=1.5*fwhm, r_out=2.5*fwhm)
+		annuli = CircularAnnulus(target_pixel_pos, r_in=1.5 * fwhm, r_out=2.5 * fwhm)
 
 		# Create two plots of the difference image:
 		fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
@@ -567,8 +572,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		fig.savefig(os.path.join(output_folder, 'diffimg.png'), bbox_inches='tight')
 		apertures.plot(color='r')
 		annuli.plot(color='k')
-		ax.set_xlim(target_pixel_pos[0]-50, target_pixel_pos[0]+50)
-		ax.set_ylim(target_pixel_pos[1]-50, target_pixel_pos[1]+50)
+		ax.set_xlim(target_pixel_pos[0] - 50, target_pixel_pos[0] + 50)
+		ax.set_ylim(target_pixel_pos[1] - 50, target_pixel_pos[1] + 50)
 		fig.savefig(os.path.join(output_folder, 'diffimg_zoom.png'), bbox_inches='tight')
 		plt.close(fig)
 
@@ -587,54 +592,62 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Build results table:
 	tab = references.copy()
-	tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
+	tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0],
+					   'pixel_row': target_pixel_pos[1]})
 	if diffimage is not None:
-		tab.insert_row(0, {'starid': -1, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
+		tab.insert_row(0,
+					   {'starid': -1, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0],
+						'pixel_row': target_pixel_pos[1]})
 	indx_main_target = (tab['starid'] <= 0)
-	for key in ('pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'B_mag', 'V_mag', 'H_mag','J_mag','K_mag', 'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'):
-		for i in np.where(indx_main_target)[0]: # No idea why this is needed, but giving a boolean array as slice doesn't work
+	for key in (
+	'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'B_mag', 'V_mag', 'H_mag', 'J_mag', 'K_mag', 'u_mag',
+	'g_mag', 'r_mag', 'i_mag', 'z_mag'):
+		for i in np.where(indx_main_target)[
+			0]:  # No idea why this is needed, but giving a boolean array as slice doesn't work
 			tab[i][key] = np.NaN
 
 	# Subtract background estimated from annuli:
 	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
-	flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0']**2 + (apphot_tbl['aperture_sum_err_1']/annuli.area() * apertures.area())**2)
+	flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0'] ** 2 + (
+				apphot_tbl['aperture_sum_err_1'] / annuli.area() * apertures.area()) ** 2)
 
 	# Add table columns with results:
-	tab['flux_aperture'] = flux_aperture/image.exptime
-	tab['flux_aperture_error'] = flux_aperture_error/image.exptime
-	tab['flux_psf'] = psfphot_tbl['flux_fit']/image.exptime
-	tab['flux_psf_error'] = psfphot_tbl['flux_unc']/image.exptime
+	tab['flux_aperture'] = flux_aperture / image.exptime
+	tab['flux_aperture_error'] = flux_aperture_error / image.exptime
+	tab['flux_psf'] = psfphot_tbl['flux_fit'] / image.exptime
+	tab['flux_psf_error'] = psfphot_tbl['flux_unc'] / image.exptime
 	tab['pixel_column_psf_fit'] = psfphot_tbl['x_fit']
 	tab['pixel_row_psf_fit'] = psfphot_tbl['y_fit']
 	tab['pixel_column_psf_fit_error'] = psfphot_tbl['x_0_unc']
 	tab['pixel_row_psf_fit_error'] = psfphot_tbl['y_0_unc']
 
 	# Check that we got valid photometry:
-	if np.any(~np.isfinite(tab[indx_main_target]['flux_psf'])) or np.any(~np.isfinite(tab[indx_main_target]['flux_psf_error'])):
+	if np.any(~np.isfinite(tab[indx_main_target]['flux_psf'])) or np.any(
+			~np.isfinite(tab[indx_main_target]['flux_psf_error'])):
 		raise Exception("Target magnitude is undefined.")
 
-	#==============================================================================================
+	# ==============================================================================================
 	# CALIBRATE
-	#==============================================================================================
+	# ==============================================================================================
 
 	# Convert PSF fluxes to magnitudes:
 	mag_inst = -2.5 * np.log10(tab['flux_psf'])
-	mag_inst_err = (2.5/np.log(10)) * (tab['flux_psf_error'] / tab['flux_psf'])
+	mag_inst_err = (2.5 / np.log(10)) * (tab['flux_psf_error'] / tab['flux_psf'])
 
 	# Corresponding magnitudes in catalog:
-	#TODO: add color terms here
+	# TODO: add color terms here
 	mag_catalog = tab[ref_filter]
 
 	# Mask out things that should not be used in calibration:
 	use_for_calibration = np.ones_like(mag_catalog, dtype='bool')
-	use_for_calibration[indx_main_target] = False # Do not use target for calibration
+	use_for_calibration[indx_main_target] = False  # Do not use target for calibration
 	use_for_calibration[~np.isfinite(mag_inst) | ~np.isfinite(mag_catalog)] = False
 
 	# Just creating some short-hands:
 	x = mag_catalog[use_for_calibration]
 	y = mag_inst[use_for_calibration]
 	yerr = mag_inst_err[use_for_calibration]
-	weights = 1.0/yerr**2
+	weights = 1.0 / yerr ** 2
 
 	# Fit linear function with fixed slope, using sigma-clipping:
 	model = models.Linear1D(slope=1, fixed={'slope': True})
@@ -643,12 +656,12 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Extract zero-point and estimate its error using a single weighted fit:
 	# I don't know why there is not an error-estimate attached directly to the Parameter?
-	zp = -1*best_fit.intercept.value # Negative, because that is the way zeropoints are usually defined
+	zp = -1 * best_fit.intercept.value  # Negative, because that is the way zeropoints are usually defined
 
-	weights[sigma_clipped] = 0 # Trick to make following expression simpler
+	weights[sigma_clipped] = 0  # Trick to make following expression simpler
 	N = len(weights.nonzero()[0])
 	if N > 1:
-		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
+		zp_error = np.sqrt(N * nansum(weights * (y - best_fit(x)) ** 2) / nansum(weights) / (N - 1))
 	else:
 		zp_error = np.NaN
 	logger.info('Leastsquare ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp, zp_error))
@@ -662,15 +675,15 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Extract zero point and error using bootstrap method
 	Nboot = 1000
-	logger.info('Running bootstrap with sigma = {0:0.2f} and n = {1:0.0f}'.format(sigChauv,Nboot))
+	logger.info('Running bootstrap with sigma = {0:0.2f} and n = {1:0.0f}'.format(sigChauv, Nboot))
 	pars = bootstrap_outlier(x, y, yerr, n=Nboot, model=model, fitter=fitting.LinearLSQFitter,
-		outlier=sigma_clip, outlier_kwargs={'sigma':sigChauv}, summary='median',
-		error='bootstrap', return_vals=False)
+							 outlier=sigma_clip, outlier_kwargs={'sigma': sigChauv}, summary='median',
+							 error='bootstrap', return_vals=False)
 
 	zp_bs = pars['intercept'] * -1.0
 	zp_error_bs = pars['intercept_error']
 
-	logger.info('Bootstrapped ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp_bs,zp_error_bs))
+	logger.info('Bootstrapped ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp_bs, zp_error_bs))
 
 	# Check that difference is not large
 	zp_diff = 0.4
@@ -680,7 +693,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Add calibrated magnitudes to the photometry table:
 	tab['mag'] = mag_inst + zp_bs
-	tab['mag_error'] = np.sqrt(mag_inst_err**2 + zp_error_bs**2)
+	tab['mag_error'] = np.sqrt(mag_inst_err ** 2 + zp_error_bs ** 2)
 
 	fig, ax = plt.subplots(1, 1)
 	ax.errorbar(x, y, yerr=yerr, fmt='k.')
@@ -695,15 +708,15 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	if not np.isfinite(tab[0]['mag']) or not np.isfinite(tab[0]['mag_error']):
 		raise Exception("Target magnitude is undefined.")
 
-	#==============================================================================================
+	# ==============================================================================================
 	# SAVE PHOTOMETRY
-	#==============================================================================================
+	# ==============================================================================================
 
 	# Descriptions of columns:
-	tab['flux_aperture'].unit = u.count/u.second
-	tab['flux_aperture_error'].unit = u.count/u.second
-	tab['flux_psf'].unit = u.count/u.second
-	tab['flux_psf_error'].unit = u.count/u.second
+	tab['flux_aperture'].unit = u.count / u.second
+	tab['flux_aperture_error'].unit = u.count / u.second
+	tab['flux_psf'].unit = u.count / u.second
+	tab['flux_psf_error'].unit = u.count / u.second
 	tab['pixel_column'].unit = u.pixel
 	tab['pixel_row'].unit = u.pixel
 	tab['pixel_column_psf_fit'].unit = u.pixel
@@ -718,8 +731,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	tab.meta['diffimg'] = None if datafile.get('diffimg') is None else datafile['diffimg']['fileid']
 	tab.meta['photfilter'] = photfilter
 	tab.meta['fwhm'] = fwhm * u.pixel
-	tab.meta['pixel_scale'] = pixel_scale * u.arcsec/u.pixel
-	tab.meta['seeing'] = (fwhm*pixel_scale) * u.arcsec
+	tab.meta['pixel_scale'] = pixel_scale * u.arcsec / u.pixel
+	tab.meta['seeing'] = (fwhm * pixel_scale) * u.arcsec
 	tab.meta['obstime-bmjd'] = float(image.obstime.mjd)
 	tab.meta['zp'] = zp_bs
 	tab.meta['zp_error'] = zp_error_bs
@@ -737,6 +750,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	logger.info("------------------------------------------------------")
 	logger.info("Success!")
 	logger.info("Main target: %f +/- %f", tab[0]['mag'], tab[0]['mag_error'])
-	logger.info("Photometry took: %f seconds", toc-tic)
+	logger.info("Photometry took: %f seconds", toc - tic)
 
 	return photometry_output
