@@ -13,6 +13,7 @@ from timeit import default_timer
 import logging
 import warnings
 from copy import deepcopy
+import pandas as pd
 
 from astropy.utils.exceptions import AstropyDeprecationWarning
 import astropy.units as u
@@ -22,6 +23,7 @@ from astropy.table import Table, vstack
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
 from astropy.wcs.utils import proj_plane_pixel_area
+from astropy.time import Time
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
@@ -130,8 +132,17 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Load the image from the FITS file:
 	image = load_image(filepath)
 
+	# Account for proper motion
+	mycoords = coords.SkyCoord(references['ra'], references['decl'], obstime=Time(2015.5, format='decimalyear'),
+							   pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'], distance=1 * u.kpc,
+							   radial_velocity=1000 * u.km / u.s) # Dummy velocity and distance needed for procession.
+
+	mycoords = mycoords.apply_space_motion(image.obstime)
+	references['ra_obs'] = mycoords.ra
+	references['decl_obs'] = mycoords.dec
+
 	# Calculate pixel-coordinates of references:
-	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra'], ref['decl']] for ref in references]), 0)
+	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]), 0)
 	references['pixel_column'] = row_col_coords[:,0]
 	references['pixel_row'] = row_col_coords[:,1]
 
@@ -142,7 +153,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	hsize = 10
 	x = references['pixel_column']
 	y = references['pixel_row']
-	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'], unit='deg', frame='icrs')
+	refs_coord = coords.SkyCoord(ra=references['ra_obs'], dec=references['decl_obs'], unit='deg', frame='icrs')
 	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
 		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
 		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
@@ -156,7 +167,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	image.obstime = image.obstime.tdb + ltt_bary
 
 	#==============================================================================================
-	# BACKGROUND ESITMATION
+	# BACKGROUND ESTIMATION
 	#==============================================================================================
 
 	fig, ax = plt.subplots(1, 2, figsize=(20, 18))
@@ -199,13 +210,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fwhm_min = 3.5
 	fwhm_max = 18.0
 
-	# Extract stars sub-images:
-	#stars = extract_stars(
-	#	NDData(data=image.subclean, mask=image.mask),
-	#	stars_for_epsf,
-	#	size=size
-	#)
-
 	# Set up 2D Gaussian model for fitting to reference stars:
 	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius, x_stddev=fwhm_guess*gaussian_fwhm_to_sigma)
 	g2d.amplitude.bounds = (0.1, 2.0)
@@ -244,8 +248,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		gfits.append(dict(zip(gfit.param_names,gfit.parameters)))
 		# Calculate rsq
 		sstot = ((curr_star - curr_star.mean()) ** 2).sum()
-		sserr = (gfitter.fit_info['fvec']**2).sum()
-		rsqs[i]=1.-(sserr/sstot)
+		sserr = (gfitter.fit_info['fvec'] ** 2).sum()
+		rsqs[i] = 1.-(sserr/sstot)
 
 	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
 	masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
@@ -261,7 +265,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Create plot of target and reference star positions from 2D Gaussian fits.
 	# Get data into pandas DF
-	import pandas as pd
 	gfitsdf = pd.DataFrame(gfits)
 	gfitsdf['pixel_column'] = gfitsdf.y_mean + references['pixel_column'] - 10.
 	gfitsdf['pixel_row'] = gfitsdf.x_mean + references['pixel_row'] - 10.
@@ -295,7 +298,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		elif not fwhm_found: raise Exception("Could not estimate FWHM")
 		logger.debug('{} {} {}'.format(min_references_now,min_fwhm_references,nreferences))
 
-
 	logger.info("FWHM: %f", fwhm)
 	if np.isnan(fwhm):
 		raise Exception("Could not estimate FWHM")
@@ -313,10 +315,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		min_references_now = min_references_now - 1
 
 	# Check len of references as this is a destructive cleaning.
-	if len(references)==2:
+	if len(references) == 2:
 		logger.info('2 reference stars remaining, check WCS and image quality')
-	elif len(references)<2:
-		raise Exception(str(len(references))+"References remaining; could not clean.")
+	elif len(references) < 2:
+		raise Exception("{} References remaining; could not clean.".format(len(references)))
 
 	# This cleaning is good when we have MANY references.
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
