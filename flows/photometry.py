@@ -8,11 +8,13 @@ Flows photometry code.
 
 import os
 import numpy as np
+import sep
 from bottleneck import nansum, nanmedian, allnan
 from timeit import default_timer
 import logging
 import warnings
 from copy import deepcopy
+import pandas as pd
 
 from astropy.utils.exceptions import AstropyDeprecationWarning
 import astropy.units as u
@@ -22,6 +24,7 @@ from astropy.table import Table, vstack
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
 from astropy.wcs.utils import proj_plane_pixel_area
+from astropy.time import Time
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
@@ -123,6 +126,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	references = catalog['references']
 	references.sort(ref_filter)
 
+
+
+	#time_delta = image.obstime - Time(2015.5, format='jyear')
+	#references['decl_obs'] = references['decl'] * u.deg + references['pm_dec'] * u.marcsec / u.yr * time_delta
+	#cosdecavg = np.cos((references['decl_obs']-references['decl'])/2)*u.deg
+	#references['ra_obs'] = references['ra']*u.deg + references['pm_ra']*u.marcsec/u.yr*time_delta * cosdecavg
+
 	# Check that there actually are reference stars in that filter:
 	if allnan(references[ref_filter]):
 		raise ValueError("No reference stars found in current photfilter.")
@@ -130,8 +140,16 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Load the image from the FITS file:
 	image = load_image(filepath)
 
+	# Account for proper motion
+	mycoords = coords.SkyCoord(references['ra'], references['decl'], obstime=Time(2015.5, format='decimalyear'),
+							   pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'], distance=1 * u.kpc,
+							   radial_velocity=1000 * u.km / u.s)  # Dummy velocity and distance needed for procession calc.
+	mycoords = mycoords.apply_space_motion(image.obstime)
+	references['ra_obs'] = mycoords.ra
+	references['decl_obs'] = mycoords.dec
+
 	# Calculate pixel-coordinates of references:
-	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra'], ref['decl']] for ref in references]), 0)
+	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]), 0)
 	references['pixel_column'] = row_col_coords[:,0]
 	references['pixel_row'] = row_col_coords[:,1]
 
@@ -142,12 +160,12 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	hsize = 10
 	x = references['pixel_column']
 	y = references['pixel_row']
-	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'], unit='deg', frame='icrs')
+	refs_coord = coords.SkyCoord(ra=references['ra_obs'], dec=references['decl_obs'], unit='deg', frame='icrs')
 	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
 		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
 		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
 	# 		& (references[ref_filter] < ref_mag_limit)
-
+	debug_references = references.copy()
 	#==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
 	#==============================================================================================
@@ -156,7 +174,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	image.obstime = image.obstime.tdb + ltt_bary
 
 	#==============================================================================================
-	# BACKGROUND ESITMATION
+	# BACKGROUND ESTIMATION
 	#==============================================================================================
 
 	fig, ax = plt.subplots(1, 2, figsize=(20, 18))
@@ -188,6 +206,16 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# TODO: Is this correct?!
 	image.error = calc_total_error(image.clean, bkg.background_rms, 1.0)
 
+	# Use sep to for soure extraction
+	image.sepdata = image.image.byteswap().newbyteorder()
+	image.sepbkg = sep.Background(image.sepdata,mask=image.mask)
+	image.sepsub = image.sepdata - image.sepbkg
+	logger.debug('sub: {} bkg_rms: {} mask: {}'.format(np.shape(image.sepsub),np.shape(image.sepbkg.globalrms),
+													  np.shape(image.mask)))
+	objects = sep.extract(image.sepsub, thresh=5., err=image.sepbkg.globalrms, mask=image.mask,
+						  deblend_cont=0.1, minarea=9, clean_param=2.0)
+
+
 	#==============================================================================================
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
 	#==============================================================================================
@@ -199,13 +227,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fwhm_min = 3.5
 	fwhm_max = 18.0
 
-	# Extract stars sub-images:
-	#stars = extract_stars(
-	#	NDData(data=image.subclean, mask=image.mask),
-	#	stars_for_epsf,
-	#	size=size
-	#)
-
 	# Set up 2D Gaussian model for fitting to reference stars:
 	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius, x_stddev=fwhm_guess*gaussian_fwhm_to_sigma)
 	g2d.amplitude.bounds = (0.1, 2.0)
@@ -216,6 +237,39 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	g2d.theta.fixed = True
 
 	gfitter = fitting.LevMarLSQFitter()
+
+	# SEP references reject
+	sep_xy = np.full((len(objects),2), np.NaN)
+	sep_rsqs = np.full(len(objects), np.NaN)
+	for i, (x, y) in enumerate(zip(objects['x'], objects['y'])):
+		x = int(np.round(x))
+		y = int(np.round(y))
+		xmin = max(x - radius, 0)
+		xmax = min(x + radius + 1, image.shape[1])
+		ymin = max(y - radius, 0)
+		ymax = min(y + radius + 1, image.shape[0])
+
+		curr_star = deepcopy(image.subclean[ymin:ymax, xmin:xmax])
+
+		edge = np.zeros_like(curr_star, dtype='bool')
+		edge[(0,-1),:] = True
+		edge[:,(0,-1)] = True
+		curr_star -= nanmedian(curr_star[edge])
+		curr_star /= np.max(curr_star)
+
+		ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
+		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
+
+		sep_xy[i] = np.array([gfit.x_mean+x-radius,gfit.y_mean+y-radius],dtype=np.float64)
+		# Calculate rsq
+		sstot = ((curr_star - curr_star.mean()) ** 2).sum()
+		sserr = (gfitter.fit_info['fvec']**2).sum()
+		sep_rsqs[i]=1.-(sserr/sstot)
+
+	masked_sep_xy = np.ma.masked_array(sep_xy, ~np.isfinite(sep_xy))
+	masked_sep_rsqs = np.ma.masked_array(sep_rsqs, ~np.isfinite(sep_rsqs))
+	sep_mask = (masked_sep_rsqs >= 0.5) & (masked_sep_rsqs < 1.0) # Reject Rsq<0.5
+	masked_sep_xy = masked_sep_xy[sep_mask] # Clean extracted array.
 
 	fwhms = np.full(len(references), np.NaN)
 	gfits = []
@@ -261,15 +315,17 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Create plot of target and reference star positions from 2D Gaussian fits.
 	# Get data into pandas DF
-	import pandas as pd
 	gfitsdf = pd.DataFrame(gfits)
 	gfitsdf['pixel_column'] = gfitsdf.y_mean + references['pixel_column'] - 10.
 	gfitsdf['pixel_row'] = gfitsdf.x_mean + references['pixel_row'] - 10.
 	# Make the plot
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
+	#ax.scatter(debug_references['pixel_column'], debug_references['pixel_row'], c='orange', marker='o', alpha=0.6)
 	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
-	ax.scatter(gfitsdf['pixel_column'], gfitsdf['pixel_row'], c='g', marker='o', alpha=0.6)
+	#ax.scatter(gfitsdf['pixel_column'], gfitsdf['pixel_row'], c='g', marker='o', alpha=0.6)
+	ax.scatter(masked_sep_xy[:,0],masked_sep_xy[:,1],marker='s',alpha=0.6, edgecolors='cyan' ,facecolors='none')
+	#ax.scatter(objects['x'],objects['y'],marker='d',alpha=0.6, edgecolors='cyan' ,facecolors='none')
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
 	fig.savefig(os.path.join(output_folder, 'positions_g2d.png'), bbox_inches='tight')
 	plt.close(fig)
@@ -323,6 +379,19 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# star was actually detected close to the references-star coordinate:
 	cleanout_references = (len(references) > 6)
 	logger.debug("Number of references before cleaning: %d", len(references))
+	daofind_args = [{
+		'threshold': 7 * image.std,
+		'fwhm': fwhm,
+		'exclude_border': True,
+		'sharphi': 0.8,
+		'sigma_radius': 1.1,
+		'peakmax': image.peakmax
+	}, {
+		'threshold': 3 * image.std,
+		'fwhm': fwhm,
+		'roundlo': -0.5,
+		'roundhi': 0.5
+	}]
 	if cleanout_references:
 		# Arguments for DAOStarFind, starting with the strictest and ending with the
 		# least strict settings to try:
@@ -358,7 +427,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 			if np.sum(indx_good) >= min_references:
 				references = references[indx_good]
 				break
-
+	daofind_tbl = DAOStarFinder(**daofind_args[0]).find_stars(image.subclean, mask=image.mask)
 	logger.debug("Number of references after cleaning: %d", len(references))
 	# Further clean references based on 2D gaussian fits
 
@@ -737,4 +806,4 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	logger.info("Main target: %f +/- %f", tab[0]['mag'], tab[0]['mag_error'])
 	logger.info("Photometry took: %f seconds", toc-tic)
 
-	return photometry_output
+	return photometry_output,objects,masked_sep_xy,debug_references,masked_sep_rsqs,sep_mask,image.wcs
