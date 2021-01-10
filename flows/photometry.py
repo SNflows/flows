@@ -4,6 +4,7 @@
 Flows photometry code.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 """
 
 import os
