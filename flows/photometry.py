@@ -9,7 +9,7 @@ Flows photometry code.
 
 import os
 import numpy as np
-from bottleneck import nansum, nanmedian, nanmax, allnan, anynan, replace
+from bottleneck import nansum, nanmedian, nanmax, allnan, replace
 from timeit import default_timer
 import logging
 import warnings
@@ -652,7 +652,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
 	else:
 		zp_error = np.NaN
-	logger.info('Leastsquare ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp, zp_error))
+	logger.info('Leastsquare ZP = %.3f, ZP_error = %.3f', zp, zp_error)
 
 	# Determine sigma clipping sigma according to Chauvenet method
 	# But don't allow less than sigma = sigmamin, setting to 1.5 for now.
@@ -663,7 +663,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Extract zero point and error using bootstrap method
 	Nboot = 1000
-	logger.info('Running bootstrap with sigma = {0:0.2f} and n = {1:0.0f}'.format(sigChauv,Nboot))
+	logger.info('Running bootstrap with sigma = %.2f and n = %d', sigChauv, Nboot)
 	pars = bootstrap_outlier(x, y, yerr, n=Nboot, model=model, fitter=fitting.LinearLSQFitter,
 		outlier=sigma_clip, outlier_kwargs={'sigma':sigChauv}, summary='median',
 		error='bootstrap', return_vals=False)
@@ -671,13 +671,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	zp_bs = pars['intercept'] * -1.0
 	zp_error_bs = pars['intercept_error']
 
-	logger.info('Bootstrapped ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp_bs,zp_error_bs))
+	logger.info('Bootstrapped ZP = %.3f, ZP_error = %.3f', zp_bs, zp_error_bs)
 
 	# Check that difference is not large
 	zp_diff = 0.4
 	if np.abs(zp_bs - zp) >= zp_diff:
-		logger.warning("Bootstrap and weighted LSQ ZPs differ by {:0.2f}, \
-		which is more than the allowed {:0.2f} mag.".format(np.abs(zp_bs - zp), zp_diff))
+		logger.warning("Bootstrap and weighted LSQ ZPs differ by %.2f, \
+		which is more than the allowed %.2f mag.", np.abs(zp_bs - zp), zp_diff)
 
 	# Add calibrated magnitudes to the photometry table:
 	tab['mag'] = mag_inst + zp_bs
