@@ -309,12 +309,12 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	min_references_now = min_references - 2
 	while not min_references_achieved:
 		mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)
-		nreferences = len(np.isfinite(masked_fwhms[mask]))
+		nreferences = np.sum(np.isfinite(masked_fwhms[mask]))
 		if nreferences >= min_references_now:
 			references = references[mask]
 			min_references_achieved = True
-		rsq_min = rsq_min - 0.07
-		min_references_now = min_references_now - 1
+		rsq_min -= 0.07
+		min_references_now -= 1
 
 	# Check len of references as this is a destructive cleaning.
 	if len(references) == 2:
