@@ -364,7 +364,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 				break
 
 	logger.debug("Number of references after cleaning: %d", len(references))
-	# Further clean references based on 2D gaussian fits
 
 	# Create plot of target and reference star positions:
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
