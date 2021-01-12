@@ -39,6 +39,8 @@ from .load_image import load_image
 from .run_imagematch import run_imagematch
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 
+from .wcs import WCS
+
 __version__ = get_version(pep440=False)
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
@@ -120,33 +122,17 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
 		ref_filter = 'g_mag'
 
-	references = catalog['references']
-	references.sort(ref_filter)
-
 	# Check that there actually are reference stars in that filter:
-	if allnan(references[ref_filter]):
+	if allnan(catalog['references'][ref_filter]):
 		raise ValueError("No reference stars found in current photfilter.")
 
 	# Load the image from the FITS file:
 	image = load_image(filepath)
 
-	# Calculate pixel-coordinates of references:
-	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra'], ref['decl']] for ref in references]), 0)
-	references['pixel_column'] = row_col_coords[:,0]
-	references['pixel_row'] = row_col_coords[:,1]
+	references = extract_references(catalog, image.wcs, ref_filter, hsize, ref_target_dist_limit)
 
 	# Calculate the targets position in the image:
 	target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
-
-	# Clean out the references:
-	hsize = 10
-	x = references['pixel_column']
-	y = references['pixel_row']
-	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'], unit='deg', frame='icrs')
-	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
-		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
-		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
-	# 		& (references[ref_filter] < ref_mag_limit)
 
 	#==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
@@ -271,19 +257,51 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 		# Loop through argument sets for DAOStarFind:
 		for kwargs in daofind_args:
+
 			# Run DAOStarFind with the given arguments:
 			daofind_tbl = DAOStarFinder(**kwargs).find_stars(image.subclean, mask=image.mask)
 
-			# Match the found stars with the catalog references:
-			indx_good = np.zeros(len(references), dtype='bool')
-			for k, ref in enumerate(references):
-				dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
-				if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
-					indx_good[k] = True
+			def match_catalog_to_image_with_wcs(wcs):
 
-			logger.debug("Number of references after cleaning: %d", np.sum(indx_good))
-			if np.sum(indx_good) >= min_references:
+				references = extract_references(catalog, wcs, ref_filter, hsize, ref_target_dist_limit)
+
+				xy_stars_grid = np.tile(daofind_tbl['xcentroid'], (len(references), 1)), np.tile(daofind_tbl['ycentroid'], (len(references), 1))
+				xy_references = np.array([references['pixel_column'], references['pixel_row']]).reshape([2, len(references), 1])
+				distances = np.sqrt(np.power(xy_stars_grid - xy_references, 2).sum(axis=0))
+				idx_refs, idx_stars = np.any(distances <= fwhm/4, axis=1)
+
+				return references, (idx_refs, idx_stars)
+
+			# indices of matching reference stars and image stars
+			idx_refs, idx_stars = match_catalog_to_image_with_wcs(image.wcs)[1]
+
+			while True:
+
+				wcs_new = WCS.from_astropy_wcs(image.wcs)
+				wcs_new.adjust_with_points(
+						xy = list(zip(daofind_tbl['xcentroid'][idx_stars], daofind_tbl['ycentroid'][idx_stars])),
+						rd = list(zip(references['ra'][idx_refs], references['decl'][idx_refs]))
+				)
+				wcs_new = wcs_new.astropy_wcs
+
+				references_new, (idx_refs_new, idx_stars_new) = match_catalog_to_image_with_wcs(wcs_new)
+
+				# break out if wcs_new did not locate more stars
+				if len(idx_refs_new) <= len(idx_refs):
+					break
+
+				references, image.wcs = references_new, wcs_new
+				idx_refs, idx_stars = idx_refs_new, idx_stars_new
+
+			indx_good = idx_refs
+
+			logger.debug("Number of references after cleaning: %d", len(indx_good))
+
+			if len(indx_good) >= min_references:
+
 				references = references[indx_good]
+				target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
+
 				break
 
 	logger.debug("Number of references after cleaning: %d", len(references))
@@ -664,3 +682,24 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	logger.info("Photometry took: %f seconds", toc-tic)
 
 	return photometry_output
+
+#--------------------------------------------------------------------------------------------------
+
+def extract_references(catalog, wcs, ref_filter='g_mag', hsize=10, ref_target_dist_limit=10*u.arcsec):
+
+	references, target = catalog['references'], catalog['target'][0]
+	references.sort(ref_filter)
+
+	references['pixel_column'], references['pixel_row'] = x, y = \
+			list(zip(*wcs.all_world2pix(list(zip(references['ra'], references['decl'])), 0)))
+
+	targ_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
+	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'], unit='deg', frame='icrs')
+	references = references[
+			(targ_coord.separation(refs_coord) > ref_target_dist_limit) &
+			(x > hsize) & (x < (image.shape[1] - 1 - hsize)) &
+			(y > hsize) & (y < (image.shape[0] - 1 - hsize))
+	]
+	# 		& (references[ref_filter] < ref_mag_limit)
+
+	return references
