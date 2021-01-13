@@ -146,40 +146,4 @@ if __name__ == '__main__':
 			print("="*72)
 			print(fid)
 			print("="*72)
-			_,objects,masked_sep_xy,debug_references,masked_sep_rsqs,sep_mask,wcs = process_fileid_wrapper(fid)
-
-	#from astropy.table import Table
-	import numpy as np
-	import astroalign as aa
-	import matplotlib
-	matplotlib.use('qt5agg')
-	import matplotlib.pyplot as plt
-
-	def mkposxy(posx, posy):
-		img_posxy = np.array([[x, y] for x, y in zip(posx, posy)], dtype="float64")
-		return img_posxy
-
-
-	aa.NUM_NEAREST_NEIGHBORS = 5
-	aa.MIN_MATCHES_FRACTION = 0.8
-	aa.PIXEL_TOL = 5
-
-	#import pandas as pd
-	from astropy.table import Table
-	objects=Table(objects)
-	#objects.sort('flux',reverse=True)
-	#daofind_tbl.sort('flux', reverse=True)
-	debug_references.sort('g_mag')
-	at = Table({'xy': masked_sep_xy, 'flux': objects['flux'][sep_mask]})
-	at.sort('flux',reverse=True)
-	masked_sep_xy = at['xy'].data.data
-
-	source = mkposxy(debug_references['pixel_column'].data,debug_references['pixel_row'].data)
-	target = masked_sep_xy
-
-	plt.scatter(source[:,0],source[:,1],label='references',alpha=0.5,marker='d')
-	plt.scatter(masked_sep_xy[:,0],masked_sep_xy[:,1],label='clean sep',alpha=0.5)
-	plt.legend()
-	plt.show(block=True)
-
-	out = aa.find_transform(source,target,max_control_points=3)
+			process_fileid_wrapper(fid)

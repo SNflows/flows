@@ -14,7 +14,7 @@ from timeit import default_timer
 import logging
 import warnings
 from copy import deepcopy
-import pandas as pd
+import astroalign as aa
 
 from astropy.utils.exceptions import AstropyDeprecationWarning
 import astropy.units as u
@@ -23,7 +23,7 @@ from astropy.stats import sigma_clip, SigmaClip, gaussian_fwhm_to_sigma
 from astropy.table import Table, vstack
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
-from astropy.wcs.utils import proj_plane_pixel_area
+from astropy.wcs.utils import proj_plane_pixel_area, fit_wcs_from_points
 from astropy.time import Time
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
@@ -41,6 +41,8 @@ from .version import get_version
 from .load_image import load_image
 from .run_imagematch import run_imagematch
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
+from .wcs import force_reject_g2d, mkposxy, clean_with_rsq_and_get_fwhm, \
+	min_to_max_astroalign, kdtree, get_new_wcs, get_clean_references
 
 __version__ = get_version(pep440=False)
 
@@ -126,13 +128,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	references = catalog['references']
 	references.sort(ref_filter)
 
-
-
-	#time_delta = image.obstime - Time(2015.5, format='jyear')
-	#references['decl_obs'] = references['decl'] * u.deg + references['pm_dec'] * u.marcsec / u.yr * time_delta
-	#cosdecavg = np.cos((references['decl_obs']-references['decl'])/2)*u.deg
-	#references['ra_obs'] = references['ra']*u.deg + references['pm_ra']*u.marcsec/u.yr*time_delta * cosdecavg
-
 	# Check that there actually are reference stars in that filter:
 	if allnan(references[ref_filter]):
 		raise ValueError("No reference stars found in current photfilter.")
@@ -165,7 +160,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
 		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
 	# 		& (references[ref_filter] < ref_mag_limit)
-	debug_references = references.copy()
+
 	#==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
 	#==============================================================================================
@@ -227,216 +222,177 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fwhm_min = 3.5
 	fwhm_max = 18.0
 
-	# Set up 2D Gaussian model for fitting to reference stars:
-	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius, x_stddev=fwhm_guess*gaussian_fwhm_to_sigma)
-	g2d.amplitude.bounds = (0.1, 2.0)
-	g2d.x_mean.bounds = (0.5*radius, 1.5*radius)
-	g2d.y_mean.bounds = (0.5*radius, 1.5*radius)
-	g2d.x_stddev.bounds = (fwhm_min * gaussian_fwhm_to_sigma, fwhm_max * gaussian_fwhm_to_sigma)
-	g2d.y_stddev.tied = lambda model: model.x_stddev
-	g2d.theta.fixed = True
+	# Clean extracted stars
+	masked_sep_xy,sep_mask,masked_sep_rsqs = force_reject_g2d(objects['x'], objects['y'], image, get_fwhm=False,
+					 radius=radius, fwhm_guess=fwhm_guess, rsq_min=0.3, fwhm_max=fwhm_max, fwhm_min=fwhm_min)
 
-	gfitter = fitting.LevMarLSQFitter()
+	# Clean reference star locations
+	masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(references['pixel_column'],
+																		   references['pixel_row'],
+																		   image,
+																		   get_fwhm=True,
+																		   radius=radius,
+																		   fwhm_guess=fwhm_guess,
+																		   fwhm_max=fwhm_max,
+																		   fwhm_min=fwhm_min,
+																		   rsq_min=0.15)
 
-	# SEP references reject
-	sep_xy = np.full((len(objects),2), np.NaN)
-	sep_rsqs = np.full(len(objects), np.NaN)
-	for i, (x, y) in enumerate(zip(objects['x'], objects['y'])):
-		x = int(np.round(x))
-		y = int(np.round(y))
-		xmin = max(x - radius, 0)
-		xmax = min(x + radius + 1, image.shape[1])
-		ymin = max(y - radius, 0)
-		ymax = min(y + radius + 1, image.shape[0])
 
-		curr_star = deepcopy(image.subclean[ymin:ymax, xmin:xmax])
-
-		edge = np.zeros_like(curr_star, dtype='bool')
-		edge[(0,-1),:] = True
-		edge[:,(0,-1)] = True
-		curr_star -= nanmedian(curr_star[edge])
-		curr_star /= np.max(curr_star)
-
-		ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
-		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
-
-		sep_xy[i] = np.array([gfit.x_mean+x-radius,gfit.y_mean+y-radius],dtype=np.float64)
-		# Calculate rsq
-		sstot = ((curr_star - curr_star.mean()) ** 2).sum()
-		sserr = (gfitter.fit_info['fvec']**2).sum()
-		sep_rsqs[i]=1.-(sserr/sstot)
-
-	masked_sep_xy = np.ma.masked_array(sep_xy, ~np.isfinite(sep_xy))
-	masked_sep_rsqs = np.ma.masked_array(sep_rsqs, ~np.isfinite(sep_rsqs))
-	sep_mask = (masked_sep_rsqs >= 0.5) & (masked_sep_rsqs < 1.0) # Reject Rsq<0.5
-	masked_sep_xy = masked_sep_xy[sep_mask] # Clean extracted array.
-
-	fwhms = np.full(len(references), np.NaN)
-	gfits = []
-	#gfit_err = []
-	rsqs = np.full(len(references), np.NaN)
-	for i, (x, y) in enumerate(zip(references['pixel_column'], references['pixel_row'])):
-		x = int(np.round(x))
-		y = int(np.round(y))
-		xmin = max(x - radius, 0)
-		xmax = min(x + radius + 1, image.shape[1])
-		ymin = max(y - radius, 0)
-		ymax = min(y + radius + 1, image.shape[0])
-
-		curr_star = deepcopy(image.subclean[ymin:ymax, xmin:xmax])
-
-		edge = np.zeros_like(curr_star, dtype='bool')
-		edge[(0,-1),:] = True
-		edge[:,(0,-1)] = True
-		curr_star -= nanmedian(curr_star[edge])
-		curr_star /= np.max(curr_star)
-
-		ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
-		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
-
-		fwhms[i] = gfit.x_fwhm
-		gfits.append(dict(zip(gfit.param_names,gfit.parameters)))
-		# Calculate rsq
-		sstot = ((curr_star - curr_star.mean()) ** 2).sum()
-		sserr = (gfitter.fit_info['fvec']**2).sum()
-		rsqs[i]=1.-(sserr/sstot)
-
-	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
-	masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
 	# Use R^2 to more robustly determine initial FWHM guess.
 	# This cleaning is good when we have FEW references.
-	min_fwhm_references = 2
-	min_references = 6
-	min_references_now = min_references
-	rsq_min = 0.15
-	rsqvals = np.arange(rsq_min,0.95,0.15)[::-1]
-	fwhm_found = False
-	min_references_achieved = False
+	fwhm, clean_references = clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references,
+								min_fwhm_references=2, min_references=6, rsq_min=0.15)
 
 	# Create plot of target and reference star positions from 2D Gaussian fits.
-	# Get data into pandas DF
-	gfitsdf = pd.DataFrame(gfits)
-	gfitsdf['pixel_column'] = gfitsdf.y_mean + references['pixel_column'] - 10.
-	gfitsdf['pixel_row'] = gfitsdf.x_mean + references['pixel_row'] - 10.
-	# Make the plot
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
-	#ax.scatter(debug_references['pixel_column'], debug_references['pixel_row'], c='orange', marker='o', alpha=0.6)
-	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
-	#ax.scatter(gfitsdf['pixel_column'], gfitsdf['pixel_row'], c='g', marker='o', alpha=0.6)
-	ax.scatter(masked_sep_xy[:,0],masked_sep_xy[:,1],marker='s',alpha=0.6, edgecolors='cyan' ,facecolors='none')
-	#ax.scatter(objects['x'],objects['y'],marker='d',alpha=0.6, edgecolors='cyan' ,facecolors='none')
+	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.3)
+	ax.scatter(clean_references['pixel_column'], clean_references['pixel_row'], c='yellow', marker='o', alpha=0.3)
+	#ax.scatter(masked_ref_xys[:,0], masked_ref_xys[:,0], marker='o', alpha=0.6, edgecolors='green', facecolors='none')
+	ax.scatter(masked_sep_xy[:,0],masked_sep_xy[:,1],marker='s',alpha=1.0, edgecolors='green' ,facecolors='none')
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
 	fig.savefig(os.path.join(output_folder, 'positions_g2d.png'), bbox_inches='tight')
 	plt.close(fig)
 
-	# Clean based on R^2 Value
-	while not min_references_achieved:
-		for rsqval in rsqvals:
-			mask = (masked_rsqs >= rsqval) & (masked_rsqs<1.0)
-			nreferences = len(np.isfinite(masked_fwhms[mask]))
-			if nreferences >= min_fwhm_references:
-				_fwhms_cut_ = np.mean(sigma_clip(masked_fwhms[mask], maxiters=100, sigma=2.0))
-				logger.info('R^2 >= '+str(rsqval)+': '+str(len(np.isfinite(masked_fwhms[mask])))+' stars w/ mean FWHM = '+str(np.round(_fwhms_cut_,1)))
-				if not fwhm_found:
-					fwhm = _fwhms_cut_
-					fwhm_found = True
-			if nreferences >= min_references_now:
-				references = references[mask]
-				min_references_achieved = True
+	# Sort by brightness
+	clean_references.sort('g_mag') #  Sorted by g mag
+	_at = Table({'xy': masked_sep_xy, 'flux': objects['flux'][sep_mask]})
+	_at.sort('flux', reverse=True) #  Sorted by flux
+	masked_sep_xy = _at['xy'].data.data
+
+	# Check WCS
+	wcs_rotation = 0
+	wcs_rota_max = 3
+	nreferences = len(clean_references['pixel_column'])
+
+	while wcs_rotation < wcs_rota_max:
+		nreferences_old = nreferences
+		ref_xys = mkposxy(clean_references['pixel_column'], clean_references['pixel_row'])
+
+		clean_coords = coords.SkyCoord(clean_references['ra'], clean_references['decl'],obstime=Time(2015.5, format='decimalyear'),
+							pm_ra_cosdec = clean_references['pm_ra'], pm_dec = clean_references['pm_dec'],
+							distance = 1 * u.kpc, radial_velocity = 1000 * u.km / u.s)
+
+		# Find matches using astroalign
+		#ref_ind, sep_ind, success_aa = min_to_max_astroalign(ref_xys, masked_sep_xy, fwhm=fwhm, fwhm_min=2,
+		#												  fwhm_max=4, knn_min=5, knn_max=25, max_stars=100,
+		#												  min_matches=3)
+		# Basically if aa is failing us by not finding more than 3 matches, use KDtree for the last iteration.
+		try_kd = True
+		success_aa = False
+
+		#if success_aa:
+		#	astroalign_nmatches = len(ref_ind)
+		#	if wcs_rotation > 1 and astroalign_nmatches <= 3:
+		#		try_kd = True
+
+		# Find matches using nearest neighbor
+		#if not success_aa or try_kd:
+			#fwhm_max = wcs_rotation
+		ref_ind_kd, sep_ind_kd, success_kd = kdtree(ref_xys, masked_sep_xy, fwhm, fwhm_max=4)
+		if success_kd:
+			kdtree_nmatches = len(ref_ind_kd)
+			if try_kd and kdtree_nmatches > 3:
+				ref_ind = ref_ind_kd
+				sep_ind = sep_ind_kd
+			else:
+				success_kd = False
+
+		if success_aa or success_kd:
+			# Fit for new WCS
+			image.new_wcs = get_new_wcs(sep_ind, masked_sep_xy, clean_references, ref_ind, image.obstime)
+			wcs_rotation += 1
+
+			# Calculate pixel-coordinates of references:
+			row_col_coords = image.new_wcs.all_world2pix(np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]),0)
+			references['pixel_column'] = row_col_coords[:, 0]
+			references['pixel_row'] = row_col_coords[:, 1]
+
+			masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(references['pixel_column'],
+																				   references['pixel_row'],
+																				   image,
+																				   get_fwhm=True,
+																				   radius=radius,
+																				   fwhm_guess=fwhm,
+																				   fwhm_max=fwhm_max,
+																				   fwhm_min=fwhm_min,
+																				   rsq_min=0.15)
+			# Clean with R^2
+			fwhm, clean_references = clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references,
+																 min_fwhm_references=2, min_references=6, rsq_min=0.15)
+			image.fwhm = fwhm
+
+			nreferences_new = len(clean_references)
+			logging.info('{} References were found after new wcs compared to {} references before'.format(nreferences_old,nreferences_new))
+			nreferences = nreferences_new
+			wcs_success = True
+
+			# Break early if no improvement after 2nd pass.
+			if wcs_rotation > 1 and nreferences_new <= nreferences_old:
 				break
-		if min_references_achieved: break
-		min_references_now = min_references_now - 2
-		if (min_references_now < 2) and fwhm_found: break
-		elif not fwhm_found: raise Exception("Could not estimate FWHM")
-		logger.debug('{} {} {}'.format(min_references_now,min_fwhm_references,nreferences))
 
+		else:
+			logging.info('New WCS could not be computed due to lack of matches.')
+			wcs_success = False
+			break
 
-	logger.info("FWHM: %f", fwhm)
-	if np.isnan(fwhm):
-		raise Exception("Could not estimate FWHM")
+	if wcs_success:
+		image.wcs = image.new_wcs
 
-	# if minimum references not found, then take what we can get with even a weaker cut.
-	# TODO: Is this right, or should we grab rsq_min (or even weaker?)
-	min_references_now = min_references - 2
-	while not min_references_achieved:
-		mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)
-		nreferences = len(np.isfinite(masked_fwhms[mask]))
-		if nreferences >= min_references_now:
-			references = references[mask]
-			min_references_achieved = True
-		rsq_min = rsq_min - 0.07
-		min_references_now = min_references_now - 1
-
-	# Check len of references as this is a destructive cleaning.
-	if len(references)==2:
-		logger.info('2 reference stars remaining, check WCS and image quality')
-	elif len(references)<2:
-		raise Exception(str(len(references))+"References remaining; could not clean.")
-
-	# This cleaning is good when we have MANY references.
-	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
-	# star was actually detected close to the references-star coordinate:
-	cleanout_references = (len(references) > 6)
+	# Final cleanout of references
 	logger.debug("Number of references before cleaning: %d", len(references))
-	daofind_args = [{
-		'threshold': 7 * image.std,
-		'fwhm': fwhm,
-		'exclude_border': True,
-		'sharphi': 0.8,
-		'sigma_radius': 1.1,
-		'peakmax': image.peakmax
-	}, {
-		'threshold': 3 * image.std,
-		'fwhm': fwhm,
-		'roundlo': -0.5,
-		'roundhi': 0.5
-	}]
-	if cleanout_references:
-		# Arguments for DAOStarFind, starting with the strictest and ending with the
-		# least strict settings to try:
-		# We will stop with the first set that yield more than the minimum number
-		# of reference stars.
-		daofind_args = [{
-			'threshold': 7 * image.std,
-			'fwhm': fwhm,
-			'exclude_border': True,
-			'sharphi': 0.8,
-			'sigma_radius': 1.1,
-			'peakmax': image.peakmax
-		}, {
-			'threshold': 3 * image.std,
-			'fwhm': fwhm,
-			'roundlo': -0.5,
-			'roundhi': 0.5
-		}]
-
-		# Loop through argument sets for DAOStarFind:
-		for kwargs in daofind_args:
-			# Run DAOStarFind with the given arguments:
-			daofind_tbl = DAOStarFinder(**kwargs).find_stars(image.subclean, mask=image.mask)
-
-			# Match the found stars with the catalog references:
-			indx_good = np.zeros(len(references), dtype='bool')
-			for k, ref in enumerate(references):
-				dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
-				if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
-					indx_good[k] = True
-
-			logger.debug("Number of references after cleaning: %d", np.sum(indx_good))
-			if np.sum(indx_good) >= min_references:
-				references = references[indx_good]
-				break
-	daofind_tbl = DAOStarFinder(**daofind_args[0]).find_stars(image.subclean, mask=image.mask)
+	references = get_clean_references(references, masked_rsqs)
 	logger.debug("Number of references after cleaning: %d", len(references))
-	# Further clean references based on 2D gaussian fits
+
+	#
+	# # This cleaning is good when we have MANY references.
+	# # Use DAOStarFinder to search the image for stars, and only use reference-stars where a
+	# # star was actually detected close to the references-star coordinate:
+	# cleanout_references = (len(references) > 6)
+	# logger.debug("Number of references before cleaning: %d", len(references))
+	# if cleanout_references:
+	# 	# Arguments for DAOStarFind, starting with the strictest and ending with the
+	# 	# least strict settings to try:
+	# 	# We will stop with the first set that yield more than the minimum number
+	# 	# of reference stars.
+	# 	daofind_args = [{
+	# 		'threshold': 7 * image.std,
+	# 		'fwhm': fwhm,
+	# 		'exclude_border': True,
+	# 		'sharphi': 0.8,
+	# 		'sigma_radius': 1.1,
+	# 		'peakmax': image.peakmax
+	# 	}, {
+	# 		'threshold': 3 * image.std,
+	# 		'fwhm': fwhm,
+	# 		'roundlo': -0.5,
+	# 		'roundhi': 0.5
+	# 	}]
+	#
+	# 	# Loop through argument sets for DAOStarFind:
+	# 	for kwargs in daofind_args:
+	# 		# Run DAOStarFind with the given arguments:
+	# 		daofind_tbl = DAOStarFinder(**kwargs).find_stars(image.subclean, mask=image.mask)
+	#
+	# 		# Match the found stars with the catalog references:
+	# 		indx_good = np.zeros(len(references), dtype='bool')
+	# 		for k, ref in enumerate(references):
+	# 			dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
+	# 			if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
+	# 				indx_good[k] = True
+	#
+	# 		logger.debug("Number of references after cleaning: %d", np.sum(indx_good))
+	# 		if np.sum(indx_good) >= min_references:
+	# 			references = references[indx_good]
+	# 			break
+	#
+	# logger.debug("Number of references after cleaning: %d", len(references))
 
 	# Create plot of target and reference star positions:
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
 	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
-	if cleanout_references:
-		ax.scatter(daofind_tbl['xcentroid'], daofind_tbl['ycentroid'], c='g', marker='o', alpha=0.6)
+	ax.scatter(masked_sep_xy[:,0],masked_sep_xy[:,1], marker='s' , alpha=0.6, edgecolors='green' ,facecolors='none')
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
 	fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
 	plt.close(fig)
@@ -489,6 +445,24 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 		fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k+1)), bbox_inches='tight')
 		plt.close(fig)
+
+	# # Test epsf builder:
+	# fig, axs = plt.subplots(3,2)
+	# for maxiters,ax in zip([1,10,20,30,40,50],axs.flat):
+	# 	epsf = EPSFBuilder(
+	# 		oversampling=1.0,
+	# 		maxiters=maxiters,
+	# 		fitter=EPSFFitter(fit_boxsize=2 * fwhm),
+	# 		progress_bar=True
+	# 	)(stars)[0]
+	#
+	# 	ax.imshow(epsf.data, cmap='viridis')
+	# 	ax.set_title(maxiters)
+	# fig.savefig(os.path.join(output_folder, 'epsftest.png'), bbox_inches='tight')
+	# plt.close(fig)
+	#
+	# logging.info('FWHM = {}'.format(fwhm))
+	# return stars
 
 	# Build the ePSF:
 	epsf = EPSFBuilder(
@@ -806,4 +780,4 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	logger.info("Main target: %f +/- %f", tab[0]['mag'], tab[0]['mag_error'])
 	logger.info("Photometry took: %f seconds", toc-tic)
 
-	return photometry_output,objects,masked_sep_xy,debug_references,masked_sep_rsqs,sep_mask,image.wcs
+	return photometry_output
