@@ -27,6 +27,7 @@ from astropy.time import Time
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.psf import EPSFBuilder, EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
+from photutils.centroids import centroid_com
 from photutils import Background2D, SExtractorBackground
 from photutils.utils import calc_total_error
 from photutils.centroids import centroid_com
