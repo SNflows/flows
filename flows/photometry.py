@@ -13,8 +13,6 @@ from bottleneck import nansum, nanmedian, allnan
 from timeit import default_timer
 import logging
 import warnings
-from copy import deepcopy
-import astroalign as aa
 
 from astropy.utils.exceptions import AstropyDeprecationWarning
 import astropy.units as u
@@ -31,6 +29,7 @@ from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture
 from photutils.psf import EPSFBuilder, EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
 from photutils import Background2D, SExtractorBackground
 from photutils.utils import calc_total_error
+from photutils.centroids import centroid_com
 
 from scipy.interpolate import UnivariateSpline
 
@@ -42,7 +41,7 @@ from .load_image import load_image
 from .run_imagematch import run_imagematch
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 from .wcs import force_reject_g2d, mkposxy, clean_with_rsq_and_get_fwhm, \
-	min_to_max_astroalign, kdtree, get_new_wcs, get_clean_references
+	try_astroalign, kdtree, get_new_wcs, get_clean_references
 
 __version__ = get_version(pep440=False)
 
@@ -156,7 +155,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	x = references['pixel_column']
 	y = references['pixel_row']
 	refs_coord = coords.SkyCoord(ra=references['ra_obs'], dec=references['decl_obs'], unit='deg', frame='icrs')
-	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
+	clean_references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
 		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
 		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
 	# 		& (references[ref_filter] < ref_mag_limit)
@@ -215,7 +214,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
 	#==============================================================================================
 
-	logger.info("References:\n%s", references)
+	logger.info("References:\n%s", clean_references)
 
 	radius = 10
 	fwhm_guess = 6.0
@@ -227,8 +226,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 					 radius=radius, fwhm_guess=fwhm_guess, rsq_min=0.3, fwhm_max=fwhm_max, fwhm_min=fwhm_min)
 
 	# Clean reference star locations
-	masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(references['pixel_column'],
-																		   references['pixel_row'],
+	masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(clean_references['pixel_column'],
+																		   clean_references['pixel_row'],
 																		   image,
 																		   get_fwhm=True,
 																		   radius=radius,
@@ -240,14 +239,14 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Use R^2 to more robustly determine initial FWHM guess.
 	# This cleaning is good when we have FEW references.
-	fwhm, clean_references = clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references,
+	fwhm, clean_references = clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, clean_references,
 								min_fwhm_references=2, min_references=6, rsq_min=0.15)
 
 	# Create plot of target and reference star positions from 2D Gaussian fits.
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
 	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
-	ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.3)
-	ax.scatter(clean_references['pixel_column'], clean_references['pixel_row'], c='yellow', marker='o', alpha=0.3)
+	#ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.3)
+	ax.scatter(clean_references['pixel_column'], clean_references['pixel_row'], c='r', marker='o', alpha=0.3)
 	#ax.scatter(masked_ref_xys[:,0], masked_ref_xys[:,0], marker='o', alpha=0.6, edgecolors='green', facecolors='none')
 	ax.scatter(masked_sep_xy[:,0],masked_sep_xy[:,1],marker='s',alpha=1.0, edgecolors='green' ,facecolors='none')
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
@@ -264,72 +263,106 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	wcs_rotation = 0
 	wcs_rota_max = 3
 	nreferences = len(clean_references['pixel_column'])
-
+	try_aa = True
 	while wcs_rotation < wcs_rota_max:
 		nreferences_old = nreferences
 		ref_xys = mkposxy(clean_references['pixel_column'], clean_references['pixel_row'])
 
-		clean_coords = coords.SkyCoord(clean_references['ra'], clean_references['decl'],obstime=Time(2015.5, format='decimalyear'),
-							pm_ra_cosdec = clean_references['pm_ra'], pm_dec = clean_references['pm_dec'],
-							distance = 1 * u.kpc, radial_velocity = 1000 * u.km / u.s)
-
 		# Find matches using astroalign
-		#ref_ind, sep_ind, success_aa = min_to_max_astroalign(ref_xys, masked_sep_xy, fwhm=fwhm, fwhm_min=2,
-		#												  fwhm_max=4, knn_min=5, knn_max=25, max_stars=100,
-		#												  min_matches=3)
-		# Basically if aa is failing us by not finding more than 3 matches, use KDtree for the last iteration.
-		try_kd = True
-		success_aa = False
+		# try_kd = True
+		# if try_aa:
+		# 	for maxstars in [80,4]:
+		# 		ref_ind, sep_ind, success_aa = try_astroalign(ref_xys, masked_sep_xy,
+		# 													  pixeltol=4*fwhm,
+		# 													  nnearest=min(20,len(ref_xys)),
+		# 													  max_stars_n=max(maxstars,len(ref_xys)))
+		# 		# Break if successful
+		# 		if success_aa:
+		# 			astroalign_nmatches = len(ref_ind)
+		# 			try_kd = False
+		# 			if wcs_rotation > 1 and astroalign_nmatches <= 4:
+		# 				try_kd = True
+		# 				success_aa = False
+		# 			break
 
-		#if success_aa:
-		#	astroalign_nmatches = len(ref_ind)
-		#	if wcs_rotation > 1 and astroalign_nmatches <= 3:
-		#		try_kd = True
+		try_kd = True
+		success_aa, try_aa = False, False  # Don't use astroalign for now; it's giving false matches!
 
 		# Find matches using nearest neighbor
-		#if not success_aa or try_kd:
-			#fwhm_max = wcs_rotation
-		ref_ind_kd, sep_ind_kd, success_kd = kdtree(ref_xys, masked_sep_xy, fwhm, fwhm_max=4)
-		if success_kd:
-			kdtree_nmatches = len(ref_ind_kd)
-			if try_kd and kdtree_nmatches > 3:
-				ref_ind = ref_ind_kd
-				sep_ind = sep_ind_kd
-			else:
-				success_kd = False
+		if try_kd:
+			ref_ind_kd, sep_ind_kd, success_kd = kdtree(ref_xys, masked_sep_xy, fwhm, fwhm_max=4)
+			if success_kd:
+				kdtree_nmatches = len(ref_ind_kd)
+				if try_kd and kdtree_nmatches > 3:
+					ref_ind = ref_ind_kd
+					sep_ind = sep_ind_kd
+				else:
+					success_kd = False
 
 		if success_aa or success_kd:
 			# Fit for new WCS
-			image.new_wcs = get_new_wcs(sep_ind, masked_sep_xy, clean_references, ref_ind, image.obstime)
 			wcs_rotation += 1
+			image.new_wcs = get_new_wcs(sep_ind, masked_sep_xy, clean_references, ref_ind, image.obstime)
 
 			# Calculate pixel-coordinates of references:
-			row_col_coords = image.new_wcs.all_world2pix(np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]),0)
+			row_col_coords = image.new_wcs.all_world2pix(
+				np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]), 0)
 			references['pixel_column'] = row_col_coords[:, 0]
 			references['pixel_row'] = row_col_coords[:, 1]
 
-			masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(references['pixel_column'],
-																				   references['pixel_row'],
-																				   image,
-																				   get_fwhm=True,
-																				   radius=radius,
-																				   fwhm_guess=fwhm,
-																				   fwhm_max=fwhm_max,
-																				   fwhm_min=fwhm_min,
-																				   rsq_min=0.15)
-			# Clean with R^2
-			fwhm, clean_references = clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references,
-																 min_fwhm_references=2, min_references=6, rsq_min=0.15)
-			image.fwhm = fwhm
+			# Clean out the references:
+			hsize = 10
+			x = references['pixel_column']
+			y = references['pixel_row']
+			refs_coord = coords.SkyCoord(ra=references['ra_obs'], dec=references['decl_obs'], unit='deg',
+										 frame='icrs')
+			clean_references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
+									& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
+									& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+			try:
+				masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(clean_references['pixel_column'],
+																					   clean_references['pixel_row'],
+																					   image,
+																					   get_fwhm=True,
+																					   radius=radius,
+																					   fwhm_guess=fwhm,
+																					   fwhm_max=fwhm_max,
+																					   fwhm_min=fwhm_min,
+																					   rsq_min=0.15)
+				# Clean with R^2
+				fwhm, clean_references = clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, clean_references,
+																	 min_fwhm_references=2, min_references=6, rsq_min=0.15)
+				image.fwhm = fwhm
+				nreferences_new = len(clean_references)
+				logging.info('{} References were found after new wcs compared to {} references before'.format(nreferences_old,nreferences_new))
+				nreferences = nreferences_new
+				wcs_success = True
 
-			nreferences_new = len(clean_references)
-			logging.info('{} References were found after new wcs compared to {} references before'.format(nreferences_old,nreferences_new))
-			nreferences = nreferences_new
-			wcs_success = True
+				# Break early if no improvement after 2nd pass!
+				# Note: New references can actually be less in a better WCS
+				# if the actual stars were within radius (10) pixels of the edge.
+				# @TODO: Adjust nreferences new and old based on whether extracted stars are within radius pix of edge.
+				if wcs_rotation > 1 and nreferences_new <= nreferences_old:
+					break
+			except:
+				# Calculate pixel-coordinates of references using old wcs:
+				row_col_coords = image.wcs.all_world2pix(
+					np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]), 0)
+				references['pixel_column'] = row_col_coords[:, 0]
+				references['pixel_row'] = row_col_coords[:, 1]
 
-			# Break early if no improvement after 2nd pass.
-			if wcs_rotation > 1 and nreferences_new <= nreferences_old:
-				break
+				# Clean out the references:
+				hsize = 10
+				x = references['pixel_column']
+				y = references['pixel_row']
+				refs_coord = coords.SkyCoord(ra=references['ra_obs'], dec=references['decl_obs'], unit='deg',
+											 frame='icrs')
+				clean_references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
+										& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
+										& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+				wcs_success = False
+				if try_aa: try_aa = False
+				elif try_kd: break
 
 		else:
 			logging.info('New WCS could not be computed due to lack of matches.')
@@ -339,54 +372,36 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	if wcs_success:
 		image.wcs = image.new_wcs
 
+	# @Todo: Is the below block needed?
 	# Final cleanout of references
+	# Calculate pixel-coordinates of references using old wcs:
+	row_col_coords = image.wcs.all_world2pix(
+		np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]), 0)
+	references['pixel_column'] = row_col_coords[:, 0]
+	references['pixel_row'] = row_col_coords[:, 1]
+
+	# Clean out the references:
+	hsize = 10
+	x = references['pixel_column']
+	y = references['pixel_row']
+	refs_coord = coords.SkyCoord(ra=references['ra_obs'], dec=references['decl_obs'], unit='deg',
+								 frame='icrs')
+	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
+							& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
+							& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+	masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(references['pixel_column'],
+																		   references['pixel_row'],
+																		   image,
+																		   get_fwhm=True,
+																		   radius=radius,
+																		   fwhm_guess=fwhm,
+																		   fwhm_max=fwhm_max,
+																		   fwhm_min=fwhm_min,
+																		   rsq_min=0.15)
+
 	logger.debug("Number of references before cleaning: %d", len(references))
 	references = get_clean_references(references, masked_rsqs)
 	logger.debug("Number of references after cleaning: %d", len(references))
-
-	#
-	# # This cleaning is good when we have MANY references.
-	# # Use DAOStarFinder to search the image for stars, and only use reference-stars where a
-	# # star was actually detected close to the references-star coordinate:
-	# cleanout_references = (len(references) > 6)
-	# logger.debug("Number of references before cleaning: %d", len(references))
-	# if cleanout_references:
-	# 	# Arguments for DAOStarFind, starting with the strictest and ending with the
-	# 	# least strict settings to try:
-	# 	# We will stop with the first set that yield more than the minimum number
-	# 	# of reference stars.
-	# 	daofind_args = [{
-	# 		'threshold': 7 * image.std,
-	# 		'fwhm': fwhm,
-	# 		'exclude_border': True,
-	# 		'sharphi': 0.8,
-	# 		'sigma_radius': 1.1,
-	# 		'peakmax': image.peakmax
-	# 	}, {
-	# 		'threshold': 3 * image.std,
-	# 		'fwhm': fwhm,
-	# 		'roundlo': -0.5,
-	# 		'roundhi': 0.5
-	# 	}]
-	#
-	# 	# Loop through argument sets for DAOStarFind:
-	# 	for kwargs in daofind_args:
-	# 		# Run DAOStarFind with the given arguments:
-	# 		daofind_tbl = DAOStarFinder(**kwargs).find_stars(image.subclean, mask=image.mask)
-	#
-	# 		# Match the found stars with the catalog references:
-	# 		indx_good = np.zeros(len(references), dtype='bool')
-	# 		for k, ref in enumerate(references):
-	# 			dist = np.sqrt( (daofind_tbl['xcentroid'] - ref['pixel_column'])**2 + (daofind_tbl['ycentroid'] - ref['pixel_row'])**2 )
-	# 			if np.any(dist <= fwhm/4): # Cutoff set somewhat arbitrary
-	# 				indx_good[k] = True
-	#
-	# 		logger.debug("Number of references after cleaning: %d", np.sum(indx_good))
-	# 		if np.sum(indx_good) >= min_references:
-	# 			references = references[indx_good]
-	# 			break
-	#
-	# logger.debug("Number of references after cleaning: %d", len(references))
 
 	# Create plot of target and reference star positions:
 	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
@@ -446,30 +461,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k+1)), bbox_inches='tight')
 		plt.close(fig)
 
-	# # Test epsf builder:
-	# fig, axs = plt.subplots(3,2)
-	# for maxiters,ax in zip([1,10,20,30,40,50],axs.flat):
-	# 	epsf = EPSFBuilder(
-	# 		oversampling=1.0,
-	# 		maxiters=maxiters,
-	# 		fitter=EPSFFitter(fit_boxsize=2 * fwhm),
-	# 		progress_bar=True
-	# 	)(stars)[0]
-	#
-	# 	ax.imshow(epsf.data, cmap='viridis')
-	# 	ax.set_title(maxiters)
-	# fig.savefig(os.path.join(output_folder, 'epsftest.png'), bbox_inches='tight')
-	# plt.close(fig)
-	#
-	# logging.info('FWHM = {}'.format(fwhm))
-	# return stars
-
 	# Build the ePSF:
 	epsf = EPSFBuilder(
 		oversampling=1.0,
 		maxiters=500,
-		fitter=EPSFFitter(fit_boxsize=2*fwhm),
-		progress_bar=True
+		fitter=EPSFFitter(fit_boxsize=np.round(2*fwhm,0).astype(int)),
+		progress_bar=True,
+		recentering_func=centroid_com
 	)(stars)[0]
 
 	logger.info('Successfully built PSF model')
@@ -637,8 +635,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 			tab[i][key] = np.NaN
 
 	# Subtract background estimated from annuli:
-	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area()) * apertures.area()
-	flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0']**2 + (apphot_tbl['aperture_sum_err_1']/annuli.area() * apertures.area())**2)
+	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area) * apertures.area
+	flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0']**2 + (apphot_tbl['aperture_sum_err_1']/annuli.area * apertures.area)**2)
 
 	# Add table columns with results:
 	tab['flux_aperture'] = flux_aperture/image.exptime
