@@ -77,7 +77,7 @@ class CounterFilter(logging.Filter):
 		return True
 
 #--------------------------------------------------------------------------------------------------
-def create_plot(filepath):
+def create_plot(filepath, target_position=None):
 
 	output_fpath = os.path.abspath(re.sub(r'\.fits(\.gz)?$', '', filepath) + '.png')
 
@@ -86,6 +86,8 @@ def create_plot(filepath):
 	fig = plt.figure(figsize=(12,12))
 	ax = fig.add_subplot(111)
 	plot_image(img.clean, ax=ax, scale='linear', percentile=[5, 99], cbar='right')
+	if target_position:
+		ax.scatter(target_position[0], target_position[1], marker='+', s=20, c='r', label='Target')
 	fig.savefig(output_fpath, bbox_inches='tight')
 	plt.close(fig)
 
@@ -137,13 +139,14 @@ def ingest_from_inbox():
 				target_dirname = target_dirname.split(os.path.sep)[0]
 
 				# Convert directory name to target
-				db.cursor.execute("SELECT targetid,target_name FROM flows.targets WHERE target_name=%s;", [target_dirname])
+				db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE target_name=%s;", [target_dirname])
 				row = db.cursor.fetchone()
 				if row is None:
 					logger.error('Could not find target: %s', target_dirname)
 					continue
 				targetid = row['targetid']
 				targetname = row['target_name']
+				target_radec = [[row['ra'], row['decl']]]
 
 				if not fpath.endswith('.gz'):
 					# Gzip the FITS file:
@@ -222,6 +225,20 @@ def ingest_from_inbox():
 					logger.exception("Could not load FITS image")
 					continue
 
+				# Use the WCS in the file to calculate the pixel-positon of the target:
+				try:
+					target_pixels = img.wcs.all_world2pix(target_radec, 0).flatten()
+				except: # noqa: E722, pragma: no cover
+					logger.exception("Could not find target position using the WCS.")
+					continue
+
+				# Check that the position of the target actually falls within
+				# the pixels of the image:
+				if target_pixels[0] < -0.5 or target_pixels[1] < -0.5 \
+					or target_pixels[0] > img.shape[1]-0.5 or target_pixels[1] > img.shape[0]-0.5:
+					logger.error("Target position does not fall within image. Check the WCS.")
+					continue
+
 				# Check that the site was found:
 				if img.site['siteid'] is None:
 					logger.error("Unknown SITE")
@@ -240,7 +257,7 @@ def ingest_from_inbox():
 					filesize = os.path.getsize(fpath)
 
 					if not fpath.endswith('-e00.fits'):
-						create_plot(newpath)
+						create_plot(newpath, target_position=target_pixels)
 
 					db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,1) RETURNING fileid;", {
 						'archive': archive,
