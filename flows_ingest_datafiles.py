@@ -215,12 +215,14 @@ def ingest_from_inbox():
 						db.conn.commit()
 					continue
 
+				# Try to load the image using the same function as the pipeline would:
 				try:
 					img = load_image(fpath)
-				except:
+				except: # noqa: E722, pragma: no cover
 					logger.exception("Could not load FITS image")
 					continue
 
+				# Check that the site was found:
 				if img.site['siteid'] is None:
 					logger.error("Unknown SITE")
 					continue
@@ -261,7 +263,7 @@ def ingest_from_inbox():
 						db.cursor.execute("UPDATE flows.uploadlog SET fileid=%s,status='ok' WHERE logid=%s;", [fileid, uploadlogid])
 
 					db.conn.commit()
-				except:
+				except: # noqa: E722, pragma: no cover
 					db.conn.rollback()
 					if os.path.exists(newpath):
 						os.remove(newpath)
@@ -510,7 +512,7 @@ def ingest_photometry_from_inbox():
 
 				db.conn.commit()
 
-			except:
+			except: # noqa: E722, pragma: no cover
 				db.conn.rollback()
 				if newpath is not None and os.path.isdir(os.path.dirname(newpath)):
 					shutil.rmtree(os.path.dirname(newpath))
