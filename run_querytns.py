@@ -12,7 +12,6 @@ TNS bot apikey must exist in config
 import argparse
 import logging
 from tqdm import tqdm
-import requests
 import re
 import numpy as np
 from astropy.coordinates import SkyCoord
