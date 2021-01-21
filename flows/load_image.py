@@ -238,7 +238,7 @@ def load_image(FILENAME):
 			image.exptime *= int(hdr['NCOMBINE']) # EXPTIME is only for a single exposure
 
 		elif origin == 'ESO' and telescope == 'ESO-NTT' and instrument == 'SOFI':
-			image.site = api.get_site(12) # Hard-coded the siteid for NTT, ESO
+			image.site = api.get_site(12) # Hard-coded the siteid for SOFT, ESO NTT
 			image.obstime = Time(hdr['TMID'], format='mjd', scale='utc', location=image.site['EarthLocation'])
 			image.photfilter = hdr['FILTER']
 
@@ -246,7 +246,7 @@ def load_image(FILENAME):
 			image.mask |= edge_mask(image.image, value=0)
 
 		elif origin == 'ESO' and telescope == 'ESO-NTT' and instrument == 'EFOSC':
-			image.site = api.get_site(12) # Hard-coded the siteid for NTT, ESO
+			image.site = api.get_site(15) # Hard-coded the siteid for EFOSC, ESO NTT
 			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 			image.photfilter = {
