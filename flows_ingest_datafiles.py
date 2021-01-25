@@ -77,7 +77,7 @@ class CounterFilter(logging.Filter):
 		return True
 
 #--------------------------------------------------------------------------------------------------
-def create_plot(filepath):
+def create_plot(filepath, target_position=None):
 
 	output_fpath = os.path.abspath(re.sub(r'\.fits(\.gz)?$', '', filepath) + '.png')
 
@@ -86,6 +86,8 @@ def create_plot(filepath):
 	fig = plt.figure(figsize=(12,12))
 	ax = fig.add_subplot(111)
 	plot_image(img.clean, ax=ax, scale='linear', percentile=[5, 99], cbar='right')
+	if target_position is not None:
+		ax.scatter(target_position[0], target_position[1], marker='+', s=20, c='r', label='Target')
 	fig.savefig(output_fpath, bbox_inches='tight')
 	plt.close(fig)
 
@@ -137,13 +139,14 @@ def ingest_from_inbox():
 				target_dirname = target_dirname.split(os.path.sep)[0]
 
 				# Convert directory name to target
-				db.cursor.execute("SELECT targetid,target_name FROM flows.targets WHERE target_name=%s;", [target_dirname])
+				db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE target_name=%s;", [target_dirname])
 				row = db.cursor.fetchone()
 				if row is None:
 					logger.error('Could not find target: %s', target_dirname)
 					continue
 				targetid = row['targetid']
 				targetname = row['target_name']
+				target_radec = [[row['ra'], row['decl']]]
 
 				if not fpath.endswith('.gz'):
 					# Gzip the FITS file:
@@ -200,7 +203,7 @@ def ingest_from_inbox():
 
 				db.cursor.execute("SELECT fileid FROM flows.files WHERE archive=%s AND path=%s;", [archive, relpath])
 				if db.cursor.fetchone() is not None:
-					print("ALREADY DONE")
+					logger.error("ALREADY DONE")
 					continue
 
 				# Calculate filehash of the file being stored:
@@ -209,20 +212,56 @@ def ingest_from_inbox():
 				# Check that the file does not already exist:
 				db.cursor.execute("SELECT fileid FROM flows.files WHERE filehash=%s;", [filehash])
 				if db.cursor.fetchone() is not None:
-					print("ALREADY DONE: Filehash")
+					logger.error("ALREADY DONE: Filehash")
 					if uploadlogid:
 						db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: filehash' WHERE logid=%s;", [uploadlogid])
 						db.conn.commit()
 					continue
 
+				# Try to load the image using the same function as the pipeline would:
 				try:
 					img = load_image(fpath)
-				except:
+				except: # noqa: E722, pragma: no cover
 					logger.exception("Could not load FITS image")
 					continue
 
+				# Use the WCS in the file to calculate the pixel-positon of the target:
+				try:
+					target_pixels = img.wcs.all_world2pix(target_radec, 0).flatten()
+				except: # noqa: E722, pragma: no cover
+					logger.exception("Could not find target position using the WCS.")
+					continue
+
+				# Check that the position of the target actually falls within
+				# the pixels of the image:
+				if target_pixels[0] < -0.5 or target_pixels[1] < -0.5 \
+					or target_pixels[0] > img.shape[1]-0.5 or target_pixels[1] > img.shape[0]-0.5:
+					logger.error("Target position does not fall within image. Check the WCS.")
+					continue
+
+				# Check that the site was found:
 				if img.site['siteid'] is None:
 					logger.error("Unknown SITE")
+					continue
+
+				# Do a deep check to ensure that there is not already another file with the same
+				# properties (target, datatype, site, filter) taken at the same time:
+				# TODO: Look at the actual overlap with the database, instead of just overlap
+				#       with the central value. This way of doing it is more forgiving.
+				obstime = img.obstime.utc.mjd
+				db.cursor.execute("SELECT fileid FROM flows.files WHERE targetid=%s AND datatype=%s AND site=%s AND photfilter=%s AND obstime BETWEEN %s AND %s;", [
+					targetid,
+					datatype,
+					img.site['siteid'],
+					img.photfilter,
+					obstime - 0.5 * img.exptime/86400,
+					obstime + 0.5 * img.exptime/86400,
+				])
+				if db.cursor.fetchone() is not None:
+					logger.error("ALREADY DONE: Deep check")
+					if uploadlogid:
+						db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: deep check' WHERE logid=%s;", [uploadlogid])
+						db.conn.commit()
 					continue
 
 				try:
@@ -238,7 +277,7 @@ def ingest_from_inbox():
 					filesize = os.path.getsize(fpath)
 
 					if not fpath.endswith('-e00.fits'):
-						create_plot(newpath)
+						create_plot(newpath, target_position=target_pixels)
 
 					db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,1) RETURNING fileid;", {
 						'archive': archive,
@@ -248,7 +287,7 @@ def ingest_from_inbox():
 						'site': img.site['siteid'],
 						'filesize': filesize,
 						'filehash': filehash,
-						'obstime': img.obstime.mjd,
+						'obstime': obstime,
 						'photfilter': img.photfilter,
 						'exptime': img.exptime
 					})
@@ -261,7 +300,7 @@ def ingest_from_inbox():
 						db.cursor.execute("UPDATE flows.uploadlog SET fileid=%s,status='ok' WHERE logid=%s;", [fileid, uploadlogid])
 
 					db.conn.commit()
-				except:
+				except: # noqa: E722, pragma: no cover
 					db.conn.rollback()
 					if os.path.exists(newpath):
 						os.remove(newpath)
@@ -378,7 +417,7 @@ def ingest_photometry_from_inbox():
 					logger.info(newpath)
 
 					if os.path.exists(newpath):
-						print("Already exists")
+						logger.error("Already exists")
 						if uploadlogid:
 							db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: file name' WHERE logid=%s;", [uploadlogid])
 							db.conn.commit()
@@ -388,7 +427,7 @@ def ingest_photometry_from_inbox():
 
 					db.cursor.execute("SELECT fileid FROM flows.files WHERE archive=%s AND path=%s;", [archive, relpath])
 					if db.cursor.fetchone() is not None:
-						print("ALREADY DONE")
+						logger.error("ALREADY DONE")
 						continue
 
 					db.cursor.execute("SELECT * FROM flows.files WHERE fileid=%s;", [fileid_img])
@@ -510,7 +549,7 @@ def ingest_photometry_from_inbox():
 
 				db.conn.commit()
 
-			except:
+			except: # noqa: E722, pragma: no cover
 				db.conn.rollback()
 				if newpath is not None and os.path.isdir(os.path.dirname(newpath)):
 					shutil.rmtree(os.path.dirname(newpath))
