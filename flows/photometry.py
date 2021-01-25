@@ -4,12 +4,13 @@
 Flows photometry code.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 """
 
 import os
 import numpy as np
+from bottleneck import nansum, nanmedian, nanmax, allnan, replace
 import sep
-from bottleneck import nansum, nanmedian, allnan
 from timeit import default_timer
 import logging
 import warnings
@@ -135,32 +136,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Load the image from the FITS file:
 	image = load_image(filepath)
 
-	# Account for proper motion
-	mycoords = coords.SkyCoord(references['ra'], references['decl'], obstime=Time(2015.5, format='decimalyear'),
-							   pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'], distance=1 * u.kpc,
-							   radial_velocity=1000 * u.km / u.s)  # Dummy velocity and distance needed for procession calc.
-	mycoords = mycoords.apply_space_motion(image.obstime)
-	references['ra_obs'] = mycoords.ra
-	references['decl_obs'] = mycoords.dec
-
-	# Calculate pixel-coordinates of references:
-	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra_obs'], ref['decl_obs']] for ref in references]), 0)
-	references['pixel_column'] = row_col_coords[:,0]
-	references['pixel_row'] = row_col_coords[:,1]
-
-	# Calculate the targets position in the image:
-	target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
-
-	# Clean out the references:
-	hsize = 10
-	x = references['pixel_column']
-	y = references['pixel_row']
-	refs_coord = coords.SkyCoord(ra=references['ra_obs'], dec=references['decl_obs'], unit='deg', frame='icrs')
-	clean_references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
-		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
-		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
-	# 		& (references[ref_filter] < ref_mag_limit)
-
 	#==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
 	#==============================================================================================
@@ -215,7 +190,34 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
 	#==============================================================================================
 
-	logger.info("References:\n%s", clean_references)
+	# Account for proper motion:
+	# TODO: Are catalog RA-proper motions including cosdec?
+	replace(references['pm_ra'], np.NaN, 0)
+	replace(references['pm_dec'], np.NaN, 0)
+	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'],
+		pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'],
+		unit='deg', frame='icrs', obstime=Time(2015.5, format='decimalyear'))
+
+	refs_coord = refs_coord.apply_space_motion(image.obstime)
+
+	# Calculate pixel-coordinates of references:
+	row_col_coords = image.wcs.all_world2pix(np.array([[ref.ra.deg, ref.dec.deg] for ref in refs_coord]), 0)
+	references['pixel_column'] = row_col_coords[:,0]
+	references['pixel_row'] = row_col_coords[:,1]
+
+	# Calculate the targets position in the image:
+	target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
+
+	# Clean out the references:
+	hsize = 10
+	x = references['pixel_column']
+	y = references['pixel_row']
+	clean_references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
+		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
+		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+	# 		& (references[ref_filter] < ref_mag_limit)
+
+	logger.info("References:\n%s", references)
 
 	radius = 10
 	fwhm_guess = 6.0
@@ -691,7 +693,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
 	else:
 		zp_error = np.NaN
-	logger.info('Leastsquare ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp, zp_error))
+	logger.info('Leastsquare ZP = %.3f, ZP_error = %.3f', zp, zp_error)
 
 	# Determine sigma clipping sigma according to Chauvenet method
 	# But don't allow less than sigma = sigmamin, setting to 1.5 for now.
@@ -702,7 +704,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Extract zero point and error using bootstrap method
 	Nboot = 1000
-	logger.info('Running bootstrap with sigma = {0:0.2f} and n = {1:0.0f}'.format(sigChauv,Nboot))
+	logger.info('Running bootstrap with sigma = %.2f and n = %d', sigChauv, Nboot)
 	pars = bootstrap_outlier(x, y, yerr, n=Nboot, model=model, fitter=fitting.LinearLSQFitter,
 		outlier=sigma_clip, outlier_kwargs={'sigma':sigChauv}, summary='median',
 		error='bootstrap', return_vals=False)
@@ -710,13 +712,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	zp_bs = pars['intercept'] * -1.0
 	zp_error_bs = pars['intercept_error']
 
-	logger.info('Bootstrapped ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp_bs,zp_error_bs))
+	logger.info('Bootstrapped ZP = %.3f, ZP_error = %.3f', zp_bs, zp_error_bs)
 
 	# Check that difference is not large
 	zp_diff = 0.4
 	if np.abs(zp_bs - zp) >= zp_diff:
-		logger.warning("Bootstrap and weighted LSQ ZPs differ by {:0.2f}, \
-		which is more than the allowed {:0.2f} mag.".format(np.abs(zp_bs - zp), zp_diff))
+		logger.warning("Bootstrap and weighted LSQ ZPs differ by %.2f, \
+		which is more than the allowed %.2f mag.", np.abs(zp_bs - zp), zp_diff)
 
 	# Add calibrated magnitudes to the photometry table:
 	tab['mag'] = mag_inst + zp_bs
