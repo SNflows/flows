@@ -43,6 +43,7 @@ from .run_imagematch import run_imagematch
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 from .wcs import force_reject_g2d, mkposxy, clean_with_rsq_and_get_fwhm, \
 	try_astroalign, kdtree, get_new_wcs, get_clean_references
+from .coordinatematch import CoordinateMatch
 
 __version__ = get_version(pep440=False)
 
@@ -253,6 +254,26 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
 	fig.savefig(os.path.join(output_folder, 'positions_g2d.png'), bbox_inches='tight')
 	plt.close(fig)
+
+################################################################################
+
+	_xy = list(zip(objects['x'], objects['y']))
+	_rd = list(zip(references['ra_obs'].deg, references['decl_obs'].deg))
+	_xy_mag = -2.5*np.log10(objects['flux'])
+	_rd_mag = references[ref_filter]
+
+	try:
+		cm = CoordinateMatch(_xy, _rd, _xy_mag, _rd_mag)
+		_i_xy, _i_rd = list(zip(*cm()))
+	except (TimeoutError, StopIteration):
+		new_wcs = None
+	else:
+		new_wcs = fit_wcs_from_points(
+				np.array(list(zip(*_xy[np.array(i_xy)]))),
+				SkyCoord(*map(list, zip(*_rd[np.array(i_rd)])), unit='deg')
+		)
+
+################################################################################
 
 	# Sort by brightness
 	clean_references.sort('g_mag') #  Sorted by g mag
