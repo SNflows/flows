@@ -4,11 +4,12 @@
 Flows photometry code.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 """
 
 import os
 import numpy as np
-from bottleneck import nansum, nanmedian, allnan
+from bottleneck import nansum, nanmedian, nanmax, allnan, replace
 from timeit import default_timer
 import logging
 import warnings
@@ -22,6 +23,7 @@ from astropy.table import Table, vstack
 from astropy.nddata import NDData
 from astropy.modeling import models, fitting
 from astropy.wcs.utils import proj_plane_pixel_area
+from astropy.time import Time
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import DAOStarFinder, CircularAperture, CircularAnnulus, aperture_photometry
@@ -130,24 +132,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# Load the image from the FITS file:
 	image = load_image(filepath)
 
-	# Calculate pixel-coordinates of references:
-	row_col_coords = image.wcs.all_world2pix(np.array([[ref['ra'], ref['decl']] for ref in references]), 0)
-	references['pixel_column'] = row_col_coords[:,0]
-	references['pixel_row'] = row_col_coords[:,1]
-
-	# Calculate the targets position in the image:
-	target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
-
-	# Clean out the references:
-	hsize = 10
-	x = references['pixel_column']
-	y = references['pixel_row']
-	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'], unit='deg', frame='icrs')
-	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
-		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
-		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
-	# 		& (references[ref_filter] < ref_mag_limit)
-
 	#==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
 	#==============================================================================================
@@ -156,7 +140,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	image.obstime = image.obstime.tdb + ltt_bary
 
 	#==============================================================================================
-	# BACKGROUND ESITMATION
+	# BACKGROUND ESTIMATION
 	#==============================================================================================
 
 	fig, ax = plt.subplots(1, 2, figsize=(20, 18))
@@ -192,19 +176,39 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
 	#==============================================================================================
 
+	# Account for proper motion:
+	# TODO: Are catalog RA-proper motions including cosdec?
+	replace(references['pm_ra'], np.NaN, 0)
+	replace(references['pm_dec'], np.NaN, 0)
+	refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'],
+		pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'],
+		unit='deg', frame='icrs', obstime=Time(2015.5, format='decimalyear'))
+
+	refs_coord = refs_coord.apply_space_motion(image.obstime)
+
+	# Calculate pixel-coordinates of references:
+	row_col_coords = image.wcs.all_world2pix(np.array([[ref.ra.deg, ref.dec.deg] for ref in refs_coord]), 0)
+	references['pixel_column'] = row_col_coords[:,0]
+	references['pixel_row'] = row_col_coords[:,1]
+
+	# Calculate the targets position in the image:
+	target_pixel_pos = image.wcs.all_world2pix([[target['ra'], target['decl']]], 0)[0]
+
+	# Clean out the references:
+	hsize = 10
+	x = references['pixel_column']
+	y = references['pixel_row']
+	references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
+		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
+		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+	# 		& (references[ref_filter] < ref_mag_limit)
+
 	logger.info("References:\n%s", references)
 
 	radius = 10
 	fwhm_guess = 6.0
 	fwhm_min = 3.5
 	fwhm_max = 18.0
-
-	# Extract stars sub-images:
-	#stars = extract_stars(
-	#	NDData(data=image.subclean, mask=image.mask),
-	#	stars_for_epsf,
-	#	size=size
-	#)
 
 	# Set up 2D Gaussian model for fitting to reference stars:
 	g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius, x_stddev=fwhm_guess*gaussian_fwhm_to_sigma)
@@ -218,6 +222,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	gfitter = fitting.LevMarLSQFitter()
 
 	fwhms = np.full(len(references), np.NaN)
+	gauss_pos = np.full([len(references), 2], np.NaN)
+	rsqs = np.full(len(references), np.NaN)
 	for i, (x, y) in enumerate(zip(references['pixel_column'], references['pixel_row'])):
 		x = int(np.round(x))
 		y = int(np.round(y))
@@ -232,22 +238,93 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		edge[(0,-1),:] = True
 		edge[:,(0,-1)] = True
 		curr_star -= nanmedian(curr_star[edge])
-		curr_star /= np.max(curr_star)
+		curr_star /= nanmax(curr_star)
 
 		ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
 		gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
 
 		fwhms[i] = gfit.x_fwhm
+		gauss_pos[i, :] = [xmin + gfit.x_mean, ymin + gfit.y_mean]
+
+		# Calculate rsq
+		sstot = ((curr_star - curr_star.mean()) ** 2).sum()
+		sserr = (gfitter.fit_info['fvec'] ** 2).sum()
+		rsqs[i] = 1.0 - sserr/sstot
 
 	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
-	fwhm = np.mean(sigma_clip(masked_fwhms, maxiters=20, sigma=2.0))
+	masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
+
+	# Create plot of target and reference star positions from 2D Gaussian fits.
+	fig, ax = plt.subplots(1, 1, figsize=(20, 18))
+	plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
+	ax.scatter(gauss_pos[:, 0], gauss_pos[:, 1], c='r', marker='o', alpha=0.6, label='2D Gauss')
+	ax.scatter(references['pixel_column'], references['pixel_row'], c='g', marker='o', alpha=0.6, label='References')
+	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r', label='Target')
+	ax.legend()
+	fig.savefig(os.path.join(output_folder, 'positions_2dgauss.png'), bbox_inches='tight')
+	plt.close(fig)
+
+	# Use R^2 to more robustly determine initial FWHM guess.
+	# This cleaning is good when we have FEW references.
+	min_fwhm_references = 2
+	min_references = 6
+	min_references_now = min_references
+	rsq_min = 0.15
+	rsqvals = np.arange(0.95, rsq_min, -0.15)
+	fwhm_found = False
+	min_references_achieved = False
+
+	# Clean based on R^2 Value
+	while not min_references_achieved:
+		for rsqval in rsqvals:
+			mask = (masked_rsqs >= rsqval) & (masked_rsqs < 1.0)
+			nreferences = np.sum(np.isfinite(masked_fwhms[mask]))
+			if nreferences >= min_fwhm_references:
+				_fwhms_cut_ = np.mean(sigma_clip(masked_fwhms[mask], maxiters=100, sigma=2.0))
+				logger.debug('R^2 >= %.2f: %d stars with mean FWHM = %.2f',
+					rsqval, nreferences, _fwhms_cut_)
+				if not fwhm_found:
+					fwhm = _fwhms_cut_
+					fwhm_found = True
+			if nreferences >= min_references_now:
+				references = references[mask]
+				min_references_achieved = True
+				break
+
+		if min_references_achieved:
+			break
+		min_references_now -= 2
+		if fwhm_found and min_references_now < 2:
+			break
+		elif not fwhm_found:
+			raise Exception("Could not estimate FWHM")
+		logger.debug('%d, %d, #refs = %d', min_references_now, min_fwhm_references, nreferences)
+
 	logger.info("FWHM: %f", fwhm)
 	if np.isnan(fwhm):
 		raise Exception("Could not estimate FWHM")
 
+	# if minimum references not found, then take what we can get with even a weaker cut.
+	# TODO: Is this right, or should we grab rsq_min (or even weaker?)
+	min_references_now = min_references - 2
+	while not min_references_achieved:
+		mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)
+		nreferences = np.sum(np.isfinite(masked_fwhms[mask]))
+		if nreferences >= min_references_now:
+			references = references[mask]
+			min_references_achieved = True
+		rsq_min -= 0.07
+		min_references_now -= 1
+
+	# Check len of references as this is a destructive cleaning.
+	if len(references) == 2:
+		logger.warning('Only two reference stars remaining. Check WCS and image quality.')
+	elif len(references) < 2:
+		raise Exception("{0} References remaining; could not clean.".format(len(references)))
+
+	# This cleaning is good when we have MANY references.
 	# Use DAOStarFinder to search the image for stars, and only use reference-stars where a
 	# star was actually detected close to the references-star coordinate:
-	min_references = 6
 	cleanout_references = (len(references) > 6)
 	logger.debug("Number of references before cleaning: %d", len(references))
 	if cleanout_references:
@@ -575,7 +652,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		zp_error = np.sqrt( N * nansum(weights*(y - best_fit(x))**2) / nansum(weights) / (N-1) )
 	else:
 		zp_error = np.NaN
-	logger.info('Leastsquare ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp, zp_error))
+	logger.info('Leastsquare ZP = %.3f, ZP_error = %.3f', zp, zp_error)
 
 	# Determine sigma clipping sigma according to Chauvenet method
 	# But don't allow less than sigma = sigmamin, setting to 1.5 for now.
@@ -586,7 +663,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Extract zero point and error using bootstrap method
 	Nboot = 1000
-	logger.info('Running bootstrap with sigma = {0:0.2f} and n = {1:0.0f}'.format(sigChauv,Nboot))
+	logger.info('Running bootstrap with sigma = %.2f and n = %d', sigChauv, Nboot)
 	pars = bootstrap_outlier(x, y, yerr, n=Nboot, model=model, fitter=fitting.LinearLSQFitter,
 		outlier=sigma_clip, outlier_kwargs={'sigma':sigChauv}, summary='median',
 		error='bootstrap', return_vals=False)
@@ -594,13 +671,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	zp_bs = pars['intercept'] * -1.0
 	zp_error_bs = pars['intercept_error']
 
-	logger.info('Bootstrapped ZP = {0:0.3f}, ZP_error = {1:0.3f}'.format(zp_bs,zp_error_bs))
+	logger.info('Bootstrapped ZP = %.3f, ZP_error = %.3f', zp_bs, zp_error_bs)
 
 	# Check that difference is not large
 	zp_diff = 0.4
 	if np.abs(zp_bs - zp) >= zp_diff:
-		logger.warning("Bootstrap and weighted LSQ ZPs differ by {:0.2f}, \
-		which is more than the allowed {:0.2f} mag.".format(np.abs(zp_bs - zp), zp_diff))
+		logger.warning("Bootstrap and weighted LSQ ZPs differ by %.2f, \
+		which is more than the allowed %.2f mag.", np.abs(zp_bs - zp), zp_diff)
 
 	# Add calibrated magnitudes to the photometry table:
 	tab['mag'] = mag_inst + zp_bs

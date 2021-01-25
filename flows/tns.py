@@ -13,7 +13,6 @@ import logging
 import astropy.units as u
 import requests
 import json
-from collections import OrderedDict
 from bs4 import BeautifulSoup
 from .config import load_config
 

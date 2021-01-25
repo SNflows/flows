@@ -429,6 +429,6 @@ def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 				# Mark the target that the catalog has been downloaded:
 				db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE,ztf_id=%s WHERE targetid=%s;", (ztf_id, targetid))
 				db.conn.commit()
-			except:
+			except: # noqa: E722, pragma: no cover
 				db.conn.rollback()
 				raise
