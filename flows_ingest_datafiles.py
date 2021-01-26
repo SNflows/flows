@@ -86,7 +86,7 @@ def create_plot(filepath, target_position=None):
 	fig = plt.figure(figsize=(12,12))
 	ax = fig.add_subplot(111)
 	plot_image(img.clean, ax=ax, scale='linear', percentile=[5, 99], cbar='right')
-	if target_position:
+	if target_position is not None:
 		ax.scatter(target_position[0], target_position[1], marker='+', s=20, c='r', label='Target')
 	fig.savefig(output_fpath, bbox_inches='tight')
 	plt.close(fig)
@@ -203,7 +203,7 @@ def ingest_from_inbox():
 
 				db.cursor.execute("SELECT fileid FROM flows.files WHERE archive=%s AND path=%s;", [archive, relpath])
 				if db.cursor.fetchone() is not None:
-					print("ALREADY DONE")
+					logger.error("ALREADY DONE")
 					continue
 
 				# Calculate filehash of the file being stored:
@@ -212,7 +212,7 @@ def ingest_from_inbox():
 				# Check that the file does not already exist:
 				db.cursor.execute("SELECT fileid FROM flows.files WHERE filehash=%s;", [filehash])
 				if db.cursor.fetchone() is not None:
-					print("ALREADY DONE: Filehash")
+					logger.error("ALREADY DONE: Filehash")
 					if uploadlogid:
 						db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: filehash' WHERE logid=%s;", [uploadlogid])
 						db.conn.commit()
@@ -244,6 +244,26 @@ def ingest_from_inbox():
 					logger.error("Unknown SITE")
 					continue
 
+				# Do a deep check to ensure that there is not already another file with the same
+				# properties (target, datatype, site, filter) taken at the same time:
+				# TODO: Look at the actual overlap with the database, instead of just overlap
+				#       with the central value. This way of doing it is more forgiving.
+				obstime = img.obstime.utc.mjd
+				db.cursor.execute("SELECT fileid FROM flows.files WHERE targetid=%s AND datatype=%s AND site=%s AND photfilter=%s AND obstime BETWEEN %s AND %s;", [
+					targetid,
+					datatype,
+					img.site['siteid'],
+					img.photfilter,
+					obstime - 0.5 * img.exptime/86400,
+					obstime + 0.5 * img.exptime/86400,
+				])
+				if db.cursor.fetchone() is not None:
+					logger.error("ALREADY DONE: Deep check")
+					if uploadlogid:
+						db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: deep check' WHERE logid=%s;", [uploadlogid])
+						db.conn.commit()
+					continue
+
 				try:
 					# Copy the file to its new home:
 					os.makedirs(os.path.dirname(newpath), exist_ok=True)
@@ -267,7 +287,7 @@ def ingest_from_inbox():
 						'site': img.site['siteid'],
 						'filesize': filesize,
 						'filehash': filehash,
-						'obstime': img.obstime.mjd,
+						'obstime': obstime,
 						'photfilter': img.photfilter,
 						'exptime': img.exptime
 					})
@@ -397,7 +417,7 @@ def ingest_photometry_from_inbox():
 					logger.info(newpath)
 
 					if os.path.exists(newpath):
-						print("Already exists")
+						logger.error("Already exists")
 						if uploadlogid:
 							db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: file name' WHERE logid=%s;", [uploadlogid])
 							db.conn.commit()
@@ -407,7 +427,7 @@ def ingest_photometry_from_inbox():
 
 					db.cursor.execute("SELECT fileid FROM flows.files WHERE archive=%s AND path=%s;", [archive, relpath])
 					if db.cursor.fetchone() is not None:
-						print("ALREADY DONE")
+						logger.error("ALREADY DONE")
 						continue
 
 					db.cursor.execute("SELECT * FROM flows.files WHERE fileid=%s;", [fileid_img])
