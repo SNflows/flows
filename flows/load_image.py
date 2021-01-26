@@ -245,12 +245,13 @@ def load_image(FILENAME):
 			# Mask out "halo" of pixels with zero value along edge of image:
 			image.mask |= edge_mask(image.image, value=0)
 
-		elif origin == 'ESO' and telescope == 'ESO-NTT' and instrument == 'EFOSC':
+		elif telescope == 'ESO-NTT' and instrument == 'EFOSC' and (origin == 'ESO' or origin.startswith('NOAO-IRAF')):
 			image.site = api.get_site(15) # Hard-coded the siteid for EFOSC, ESO NTT
 			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 			image.photfilter = {
 				'g782': 'gp',
+				'i705': 'ip',
 				'B639': 'B',
 			}.get(hdr['FILTER'], hdr['FILTER'])
 
