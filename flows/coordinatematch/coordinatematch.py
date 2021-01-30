@@ -12,10 +12,11 @@ from .wcs import WCS
 
 class CoordinateMatch () :
 
-    def __init__(self, xy, rd, xy_mag=None, rd_mag=None,
+    def __init__(self, xy, rd, xy_order=None, rd_order=None,
             n_triangle_packages = 10,
             triangle_package_size = 10000,
-            maximum_angle_distance = 0.001
+            maximum_angle_distance = 0.001,
+            distance_factor = 1
     ):
 
         self.xy, self.rd = np.array(xy), np.array(rd)
@@ -24,13 +25,14 @@ class CoordinateMatch () :
         self._rd = rd - np.mean(rd, axis=0)
         self._rd[:,0] *= np.cos(np.deg2rad(self.rd[:,1]))
 
-        self.i_xy = np.argsort(xy_mag) if not xy_mag is None else np.arange(len(xy))
-        self.i_rd = np.argsort(rd_mag) if not rd_mag is None else np.arange(len(rd))
+        self.i_xy = xy_order if not xy_order is None else np.arange(len(xy))
+        self.i_rd = rd_order if not rd_order is None else np.arange(len(rd))
 
         self.n_triangle_packages = n_triangle_packages
         self.triangle_package_size = triangle_package_size
 
         self.maximum_angle_distance = maximum_angle_distance
+        self.distance_factor = distance_factor
 
         self.triangle_package_generator = self._sorted_triangle_packages()
 
@@ -40,7 +42,7 @@ class CoordinateMatch () :
         self.neighbours = Graph()
 
         self.normalizations = type('Normalizations', (object,), dict(
-            ra = 0.002, dec = 0.002, scale = 0.002, angle = 0.002
+            ra = 0.0001, dec = 0.0001, scale = 0.002, angle = 0.002
         ))
 
         self.bounds = type('Bounds', (object,), dict(
@@ -224,7 +226,7 @@ class CoordinateMatch () :
 
     def __call__(self,
             minimum_matches = 4,
-            distance_factor = 1,
+            ratio_superiority = 1,
             timeout = 60
     ):
 
@@ -265,13 +267,13 @@ class CoordinateMatch () :
             # get parameters of wcs solutions
 
             matrices = self._solve_for_matrices(
-                    self._xy[i_xy_triangles],
-                    self._rd[i_rd_triangles]
+                    self._xy[np.array(i_xy_triangles)],
+                    self._rd[np.array(i_rd_triangles)]
             )
 
             parameters = self._extract_parameters(
-                    self.xy[i_xy_triangles],
-                    self.rd[i_rd_triangles],
+                    self.xy[np.array(i_xy_triangles)],
+                    self.rd[np.array(i_rd_triangles)],
                     matrices
             )
 
@@ -293,7 +295,7 @@ class CoordinateMatch () :
 
             # match parameters
 
-            neighbours = KDTree(parameters).query_ball_tree(KDTree(self.parameters + parameters), r=distance_factor)
+            neighbours = KDTree(parameters).query_ball_tree(KDTree(self.parameters + parameters), r=self.distance_factor)
             neighbours = np.array([(i, j) for i, lj in enumerate(neighbours, len(self.parameters)) for j in lj])
             neighbours = list(neighbours[(np.diff(neighbours, axis=1) < 0).flatten()])
 
@@ -307,8 +309,18 @@ class CoordinateMatch () :
 
             # get largest neighborhood
 
-            l = list(max(connected_components(self.neighbours), key=len))
-            i = np.unique(np.array(self.i_xy_triangles)[l].flatten(), return_index=True)[1]
+            communities = list(connected_components(self.neighbours))
+            c1 = np.array(list(max(communities, key=len)))
+            i = np.unique(np.array(self.i_xy_triangles)[c1].flatten(), return_index=True)[1]
+
+            if ratio_superiority > 1 and len(communities) > 1:
+
+                communities.remove(set(c1))
+                c2 = np.array(list(max(communities, key=len)))
+                _i = np.unique(np.array(self.i_xy_triangles)[c2].flatten())
+
+                if len(i) / len(_i) < ratio_superiority:
+                    continue
 
             if len(i) >= minimum_matches:
                 break
@@ -317,7 +329,7 @@ class CoordinateMatch () :
 
             raise TimeoutError
 
-        i_xy = np.array(self.i_xy_triangles)[l].flatten()[i]
-        i_rd = np.array(self.i_rd_triangles)[l].flatten()[i]
+        i_xy = np.array(self.i_xy_triangles)[c1].flatten()[i]
+        i_rd = np.array(self.i_rd_triangles)[c1].flatten()[i]
 
         return list(zip(i_xy, i_rd))

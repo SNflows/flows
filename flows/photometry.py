@@ -201,6 +201,42 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	refs_coord = refs_coord.apply_space_motion(image.obstime)
 
+	# Solve for new WCS
+	cm = CoordinateMatch(
+			xy = list(zip(objects['x'], objects['y'])),
+			rd = list(zip(refs_coord.ra.deg, refs_coord.dec.deg)),
+			xy_order = np.argsort(-2.5*np.log10(objects['flux'])),
+			rd_order = np.argsort(target_coord.separation(refs_coord)),
+            maximum_angle_distance = 0.002,
+	)
+
+	try:
+		i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=10)))
+	except (TimeoutError, StopIteration):
+		logging.warning('No new WCS solution found')
+	else:
+		image.wcs = fit_wcs_from_points(
+				np.array(list(zip(*cm.xy[i_xy]))),
+				coords.SkyCoord(*map(list, zip(*cm.rd[i_rd])), unit='deg')
+		)
+
+# XXX # TESTING ################################################################
+#	import matplotlib
+#	_backend = matplotlib.get_backend()
+#	matplotlib.pyplot.switch_backend('TkAgg')
+#	matplotlib.pyplot.subplot(projection=image.wcs)
+#	matplotlib.pyplot.imshow(image.subclean, origin='lower', cmap='gray_r', clim=np.nanquantile(image.subclean[image.subclean>0], (.01, .99)))
+#	matplotlib.pyplot.scatter(*zip(*image.wcs.wcs_world2pix(cm.rd, 0)), c=[], edgecolor='C0', s=200, label='References')
+#	for i, ((_x, _y), (_r, _d)) in enumerate(zip(cm.xy[i_xy], image.wcs.wcs_world2pix(cm.rd[i_rd], 0))):
+#		matplotlib.pyplot.plot([_x, _r], [_y, _d], color='C1', marker='o', ms=9, mfc='none', mec='C1', label='Solution' if not i else None)
+#	matplotlib.pyplot.scatter(*zip(*image.wcs.wcs_world2pix([(target['ra'], target['decl'])], 0)), c=[], edgecolor='C2', s=100, label='Target')
+#	matplotlib.pyplot.xlim(0, image.subclean.shape[1])
+#	matplotlib.pyplot.ylim(0, image.subclean.shape[0])
+#	matplotlib.pyplot.legend()
+#	matplotlib.pyplot.show()
+#	matplotlib.pyplot.switch_backend(_backend)
+# XXX # TESTING ################################################################
+
 	# Calculate pixel-coordinates of references:
 	row_col_coords = image.wcs.all_world2pix(np.array([[ref.ra.deg, ref.dec.deg] for ref in refs_coord]), 0)
 	references['pixel_column'] = row_col_coords[:,0]
@@ -256,26 +292,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
 	fig.savefig(os.path.join(output_folder, 'positions_g2d.png'), bbox_inches='tight')
 	plt.close(fig)
-
-################################################################################
-
-	_xy = list(zip(objects['x'], objects['y']))
-	_rd = list(zip(references['ra_obs'].deg, references['decl_obs'].deg))
-	_xy_mag = -2.5*np.log10(objects['flux'])
-	_rd_mag = references[ref_filter]
-
-	try:
-		cm = CoordinateMatch(_xy, _rd, _xy_mag, _rd_mag)
-		_i_xy, _i_rd = list(zip(*cm()))
-	except (TimeoutError, StopIteration):
-		new_wcs = None
-	else:
-		new_wcs = fit_wcs_from_points(
-				np.array(list(zip(*_xy[np.array(i_xy)]))),
-				SkyCoord(*map(list, zip(*_rd[np.array(i_rd)])), unit='deg')
-		)
-
-################################################################################
 
 	# Sort by brightness
 	clean_references.sort('g_mag') #  Sorted by g mag
