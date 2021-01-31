@@ -51,15 +51,23 @@ class CoordinateMatch () :
         ))
 
     def set_normalizations(self, ra=None, dec=None, scale=None, angle=None):
+        '''Set normalization factors in the (ra, dec, scale, angle) space.
+
+        Defaults are:
+            ra = 0.0001 degrees
+            dec = 0.0001 degrees
+            scale = 0.002 log(arcsec/pixel)
+            angle = 0.002 radians
+        '''
 
         if not self.parameters is None:
 
             raise Exception('can\'t change normalization after matching is started')
 
-        assert ra == None or 0 < ra
-        assert dec == None or 0 < dec
-        assert scale == None or 0 < scale
-        assert angle == None or 0 < angle
+        assert ra is None or 0 < ra
+        assert dec is None or 0 < dec
+        assert scale is None or 0 < scale
+        assert angle is None or 0 < angle
 
         self.normalizations.ra = ra if not ra is None else self.normalizations.ra
         self.normalizations.dec = dec if not dec is None else self.normalizations.dec
@@ -67,6 +75,14 @@ class CoordinateMatch () :
         self.normalizations.angle = angle if not ra is None else self.normalizations.angle
 
     def set_bounds(self, x=None, y=None, ra=None, dec=None, radius=None, scale=None, angle=None):
+        '''Set bounds for what are valid results.
+
+        Set x, y, ra, dec and radius to specify that the x, y coordinates must be no
+        further that the radius [degrees] away from the ra, dec coordinates.
+        Set upper and lower bounds on the scale [log(arcsec/pixel)] and/or the angle
+        [radians] if those are known, possibly from previous observations with the
+        same system.
+        '''
 
         if not self.parameters is None:
 
@@ -78,7 +94,7 @@ class CoordinateMatch () :
             assert -180 <= dec <= 180
             assert 0 < radius
 
-            self.bounds.xy = x, y 
+            self.bounds.xy = x, y
             self.bounds.rd = ra, dec
             self.bounds.radius = radius
 
@@ -86,8 +102,8 @@ class CoordinateMatch () :
 
             raise Exception('x, y, ra, dec and radius must all be specified')
 
-        assert scale == None or 0 < scale[0] < scale[1]
-        assert angle == None or -np.pi <= angle[0] < angle[1] <= np.pi
+        assert scale is None or 0 < scale[0] < scale[1]
+        assert angle is None or -np.pi <= angle[0] < angle[1] <= np.pi
 
         self.bounds.scale = scale if not scale is None else self.bounds.scale
         self.bounds.angle = angle if not angle is None else self.bounds.angle
@@ -162,7 +178,7 @@ class CoordinateMatch () :
 
         # law of cosines
         angles  = np.power(sidelengths[:,((1,2),(0,2),(0,1))], 2).sum(axis=2)
-        angles -= np.power(sidelengths[:,(0,1,2)], 2) 
+        angles -= np.power(sidelengths[:,(0,1,2)], 2)
         angles /= 2 * sidelengths[:,((1,2),(0,2),(0,1))].prod(axis=2)
 
         return np.arccos(angles)
@@ -229,6 +245,35 @@ class CoordinateMatch () :
             ratio_superiority = 1,
             timeout = 60
     ):
+        '''Start the alogrithm.
+
+        Can be run multiple times with different arguments to relax the
+        restrictions.
+
+        Example
+        --------
+        cm = CoordinateMatch(xy, rd)
+
+        lkwargs = [{
+            minimum_matches = 20,
+            ratio_superiority = 5,
+            timeout = 10
+        },{
+            timeout = 60
+        }
+
+        for i, kwargs in enumerate(lkwargs):
+            try:
+                i_xy, i_rd = cm(**kwargs)
+            except TimeoutError:
+                continue
+            except StopIteration:
+                print('Failed, no more stars.')
+            else:
+                print('Success with kwargs[%d].' % i)
+        else:
+            print('Failed, timeout.')
+        '''
 
         self.parameters = list() if self.parameters is None else self.parameters
 

@@ -25,7 +25,7 @@ class WCS () :
     Adjust x, y offset:
     wcs.x += delta_x
     wcs.y += delta_y
-    
+
     Get scale and angle:
     print(wcs.scale, wcs.angle)
 
@@ -46,6 +46,7 @@ class WCS () :
 
     @classmethod
     def from_matrix(cls, x, y, ra, dec, matrix):
+        '''Initiate the class with a matrix.'''
 
         assert np.shape(matrix) == (2, 2), \
                 'Matrix must be 2x2'
@@ -56,6 +57,7 @@ class WCS () :
 
     @classmethod
     def from_points(cls, xy, rd):
+        '''Initiate the class with at least pixel + sky coordinates.'''
 
         assert np.shape(xy) == np.shape(rd) == (len(xy), 2) and len(xy) > 2, \
                 'Arguments must be lists of at least 3 sets of coordinates'
@@ -69,6 +71,7 @@ class WCS () :
 
     @classmethod
     def from_astropy_wcs(cls, astropy_wcs):
+        '''Initiate the class with an astropy.wcs.WCS object.'''
 
         assert type(astropy_wcs) is astropy.wcs.WCS, \
                 'Must be astropy.wcs.WCS'
@@ -79,6 +82,12 @@ class WCS () :
         return cls(x, y, ra, dec, scale, mirror, angle)
 
     def adjust_with_points(self, xy, rd):
+        '''Adjust the WCS with pixel + sky coordinates.
+
+        If one set is given the change will be a simple offset.
+        If two sets are given the offset, angle and scale will be derived.
+        And if more sets are given a completely new solution will be found.
+        '''
 
         assert np.shape(xy) == np.shape(rd) == (len(xy), 2), \
                 'Arguments must be lists of sets of coordinates'
@@ -182,9 +191,10 @@ class WCS () :
         super().__setattr__(name, value)
 
     def __call__(self, **kwargs):
+        '''Make a copy with, or a copy with changes.'''
 
         keys = ('x', 'y', 'ra', 'dec', 'scale', 'mirror', 'angle')
-        
+
         if not all(k in keys for k in kwargs):
 
             raise Exception('unknown argument(s)')
