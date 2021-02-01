@@ -263,7 +263,6 @@ def load_image(FILENAME):
 			else:
 				filters_used = []
 				for check_headers in ('ESO INS FILT1 ID', 'ESO INS FILT2 ID'):
-					print(hdr.get(check_headers))
 					if hdr.get(check_headers) and hdr.get(check_headers).strip().lower() != 'open':
 						filters_used.append(hdr.get(check_headers).strip())
 				if len(filters_used) == 1:
