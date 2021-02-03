@@ -224,9 +224,9 @@ def kdtree(source, target, fwhm=5, fwhm_max=4, min_matches=3):
 	# Return indexes of matches
 	return sources, targets, len(sources)>= min_matches
 
-def get_new_wcs(extracted_ind,extracted_stars,clean_references,ref_ind,obstime):
+def get_new_wcs(extracted_ind,extracted_stars,clean_references,ref_ind,obstime,rakey='ra_obs',deckey='decl_obs'):
 	targets = (extracted_stars[extracted_ind][:,0],extracted_stars[extracted_ind][:,1])
-	c = coords.SkyCoord(clean_references['ra_obs'][ref_ind],clean_references['decl_obs'][ref_ind],obstime=obstime)
+	c = coords.SkyCoord(clean_references[rakey][ref_ind],clean_references[deckey][ref_ind],obstime=obstime)
 	return wcs.utils.fit_wcs_from_points(targets,c)
 
 def get_clean_references(references, masked_rsqs, min_references_ideal=6,
@@ -240,7 +240,7 @@ def get_clean_references(references, masked_rsqs, min_references_ideal=6,
 	nmasked_rsqs = nmasked_rsqs[:min(min_references_ideal, len(nmasked_rsqs))]
 	if len(nmasked_rsqs>=min_references_abs):
 		return references[nmasked_rsqs]
-	if not rescue_bad: 
+	if not rescue_bad:
 		raise MinStarError('Less than {} clean stars and rescue_bad = False'.format(min_references_abs))
 	elif rescue_bad:
 		mask = (masked_rsqs >= 0.02) & (masked_rsqs < 1.0)
@@ -250,5 +250,3 @@ def get_clean_references(references, masked_rsqs, min_references_ideal=6,
 			raise MinStarError('Less than 2 clean stars.')
 		return references[nmasked_rsqs]
 	raise ValueError('input parameters were wrong, you should not reach here. Check that rescue_bad is True or False.')
-	
-		
