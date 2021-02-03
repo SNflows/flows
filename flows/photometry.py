@@ -443,7 +443,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	# 																	   rsq_min=0.15)
 
 	logger.debug("Number of references before final cleaning: %d", len(clean_references))
-	references = get_clean_references(clean_references, masked_rsqs)
+	references = get_clean_references(clean_references, masked_rsqs, rsq_ideal=0.8)
 	logger.debug("Number of references after final cleaning: %d", len(references))
 
 	# Create plot of target and reference star positions:
@@ -561,7 +561,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Let's make the final FWHM the largest one we found:
 	fwhm = np.max(fwhms)
-	iamge.fwhm = fwhm
+	image.fwhm = fwhm
 	logger.info("Final FWHM based on ePSF: %f", fwhm)
 
 	#==============================================================================================
