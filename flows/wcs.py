@@ -238,20 +238,21 @@ def get_clean_references(references, masked_rsqs, min_references_ideal=6,
 	if np.sum(np.isfinite(masked_rsqs[mask])) >= min_references_ideal:
 		if len(references[mask]) <= keep_max:
 			return references[mask]
-		else:
+		elif len(references[mask]) >= keep_max:
 			import pandas as pd # @TODO: Convert to pure numpy implementation
 			df = pd.DataFrame(masked_rsqs,columns=['rsq'])
+			masked_rsqs.mask = ~mask
 			nmasked_rsqs = df.sort_values('rsq',ascending=False).dropna().index._data
 			return references[nmasked_rsqs[:keep_max]]
 
 	# Desperate second try
 	mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)
-	masked_rsqs.mask = mask
+	masked_rsqs.mask = ~mask
 
 	# Switching to pandas for easier selection
 	import pandas as pd # @TODO: Convert to pure numpy implementation
 	df = pd.DataFrame(masked_rsqs,columns=['rsq'])
-	nmasked_rsqs = df.sort_values('rsq',ascending=False).dropna().index._data
+	nmasked_rsqs = deepcopy(df.sort_values('rsq',ascending=False).dropna().index._data)
 	nmasked_rsqs = nmasked_rsqs[:min(min_references_ideal, len(nmasked_rsqs))]
 	if len(nmasked_rsqs) >= min_references_abs:
 		return references[nmasked_rsqs]
@@ -261,7 +262,7 @@ def get_clean_references(references, masked_rsqs, min_references_ideal=6,
 	# Extremely desperate last ditch attempt i.e. "rescue bad"
 	elif rescue_bad:
 		mask = (masked_rsqs >= 0.02) & (masked_rsqs < 1.0)
-		masked_rsqs.mask = mask
+		masked_rsqs.mask = ~mask
 
 		# Switch to pandas
 		df = pd.DataFrame(masked_rsqs,columns=['rsq'])
