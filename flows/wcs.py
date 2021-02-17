@@ -242,7 +242,6 @@ def get_clean_references(references, masked_rsqs, min_references_ideal=6,
 			import pandas as pd # @TODO: Convert to pure numpy implementation
 			df = pd.DataFrame(masked_rsqs,columns=['rsq'])
 			nmasked_rsqs = df.sort_values('rsq',ascending=False).dropna().index._data
-			print(nmasked_rsqs,df,nmasked_rsqs[:keep_max],references[nmasked_rsqs[:keep_max]])
 			return references[nmasked_rsqs[:keep_max]]
 
 	# Desperate second try

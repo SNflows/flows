@@ -214,7 +214,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     )
 
     try:
-        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=100)))
+        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=10)))
     except TimeoutError:
         logging.warning('TimeoutError: No new WCS solution found')
     except StopIteration:
