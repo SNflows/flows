@@ -268,7 +268,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # This cleaning is good when we have FEW references.
     fwhm, fwhm_clean_references = clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, clean_references,
                                                               min_fwhm_references=2, min_references=6, rsq_min=0.15)
-    logging.info('Initial FWHM guess is {} pixels'.format(fwhm))
+    logger.info('Initial FWHM guess is {} pixels'.format(fwhm))
     image.fwhm = fwhm
 
     # Create plot of target and reference star positions from 2D Gaussian fits.
@@ -285,6 +285,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Final clean of wcs corrected references
     logger.debug("Number of references before final cleaning: %d", len(clean_references))
+    logger.info('masked R^2 values: {}'.format(masked_rsqs[mask]))
     references = get_clean_references(clean_references, masked_rsqs, rsq_ideal=0.8)
     logger.debug("Number of references after final cleaning: %d", len(references))
 
