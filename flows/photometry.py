@@ -285,7 +285,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Final clean of wcs corrected references
     logger.debug("Number of references before final cleaning: %d", len(clean_references))
-    logger.info('masked R^2 values: {}'.format(masked_rsqs[mask]))
+    logger.info('masked R^2 values: {}'.format(masked_rsqs[rsq_mask]))
     references = get_clean_references(clean_references, masked_rsqs, rsq_ideal=0.8)
     logger.debug("Number of references after final cleaning: %d", len(references))
 
