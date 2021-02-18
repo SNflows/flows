@@ -50,7 +50,7 @@ warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 
 
 # --------------------------------------------------------------------------------------------------
-def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fixed=False):
+def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fixed=False, timeoutpar=10):
     """
     Run photometry.
 
@@ -214,7 +214,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     )
 
     try:
-        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=10)))
+        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeoutpar)))
     except TimeoutError:
         logging.warning('TimeoutError: No new WCS solution found')
     except StopIteration:

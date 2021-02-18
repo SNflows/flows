@@ -15,7 +15,8 @@ from flows import api, photometry, load_config
 
 
 # --------------------------------------------------------------------------------------------------
-def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False, keep_diff_fixed=False):
+def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False, keep_diff_fixed=False,
+                   timeoutpar=10):
     logger = logging.getLogger('flows')
     logging.captureWarnings(True)
     logger_warn = logging.getLogger('py.warnings')
@@ -46,7 +47,8 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
         photfile = photometry(fileid=fid,
                               output_folder=output_folder,
                               attempt_imagematch=attempt_imagematch,
-                              keep_diff_fixed=keep_diff_fixed)
+                              keep_diff_fixed=keep_diff_fixed,
+                              timeoutpar=timeoutpar)
 
     except (SystemExit, KeyboardInterrupt):
         logger.error("Aborted by user or system.")
