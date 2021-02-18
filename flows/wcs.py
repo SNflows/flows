@@ -71,13 +71,12 @@ def force_reject_g2d(xarray, yarray, image, get_fwhm=True, rsq_min=0.5, radius=1
 
 	masked_xys = np.ma.masked_array(xys, ~np.isfinite(xys))
 	masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
-	mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)  # Reject Rsq<0.5
+	mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)  # Reject Rsq < rsq_min
 	masked_xys = masked_xys[mask]  # Clean extracted array.
 	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
 
 	if get_fwhm: return masked_fwhms,masked_xys,mask,masked_rsqs
 	return masked_xys,mask,masked_rsqs
-
 
 
 def clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references,
@@ -231,22 +230,46 @@ def get_new_wcs(extracted_ind,extracted_stars,clean_references,ref_ind,obstime,r
 
 def get_clean_references(references, masked_rsqs, min_references_ideal=6,
 						 min_references_abs=3, rsq_min=0.15, rsq_ideal=0.5,
+						 keep_max=100,
 						 rescue_bad: bool = True):
+
+	# Greedy first try
 	mask = (masked_rsqs >= rsq_ideal) & (masked_rsqs < 1.0)
 	if np.sum(np.isfinite(masked_rsqs[mask])) >= min_references_ideal:
-		return references[mask]
+		if len(references[mask]) <= keep_max:
+			return references[mask]
+		elif len(references[mask]) >= keep_max:
+			import pandas as pd # @TODO: Convert to pure numpy implementation
+			df = pd.DataFrame(masked_rsqs,columns=['rsq'])
+			masked_rsqs.mask = ~mask
+			nmasked_rsqs = df.sort_values('rsq',ascending=False).dropna().index._data
+			return references[nmasked_rsqs[:keep_max]]
+
+	# Desperate second try
 	mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)
-	nmasked_rsqs = np.argsort(masked_rsqs[mask])[::-1]
+	masked_rsqs.mask = ~mask
+
+	# Switching to pandas for easier selection
+	import pandas as pd # @TODO: Convert to pure numpy implementation
+	df = pd.DataFrame(masked_rsqs,columns=['rsq'])
+	nmasked_rsqs = deepcopy(df.sort_values('rsq',ascending=False).dropna().index._data)
 	nmasked_rsqs = nmasked_rsqs[:min(min_references_ideal, len(nmasked_rsqs))]
-	if len(nmasked_rsqs>=min_references_abs):
+	if len(nmasked_rsqs) >= min_references_abs:
 		return references[nmasked_rsqs]
 	if not rescue_bad:
 		raise MinStarError('Less than {} clean stars and rescue_bad = False'.format(min_references_abs))
+
+	# Extremely desperate last ditch attempt i.e. "rescue bad"
 	elif rescue_bad:
 		mask = (masked_rsqs >= 0.02) & (masked_rsqs < 1.0)
-		nmasked_rsqs = np.argsort(masked_rsqs[mask])[::-1]
+		masked_rsqs.mask = ~mask
+
+		# Switch to pandas
+		df = pd.DataFrame(masked_rsqs,columns=['rsq'])
+		nmasked_rsqs = df.sort_values('rsq',ascending=False).dropna().index._data
 		nmasked_rsqs = nmasked_rsqs[:min(min_references_ideal, len(nmasked_rsqs))]
 		if len(nmasked_rsqs) < 2 :
 			raise MinStarError('Less than 2 clean stars.')
-		return references[nmasked_rsqs]
+		return references[nmasked_rsqs] # Return if len >= 2
+	# Checks whether sensible input arrays and parameters were provided
 	raise ValueError('input parameters were wrong, you should not reach here. Check that rescue_bad is True or False.')

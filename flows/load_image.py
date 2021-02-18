@@ -134,7 +134,8 @@ def load_image(FILENAME):
 					'g SDSS': 'gp',
 					'r SDSS': 'rp',
 					'i SDSS': 'ip',
-					'u SDSS': 'up'
+					'u SDSS': 'up',
+					'z SDSS': 'zp'
 				}.get(hdr['FILTER'].replace('_', ' '), hdr['FILTER'])
 			else:
 				filters_used = []
@@ -146,7 +147,8 @@ def load_image(FILENAME):
 						'V_Bes 530_80': 'V',
 						"g'_SDSS 480_145": 'gp',
 						"r'_SDSS 618_148": 'rp',
-						"i'_SDSS 771_171": 'ip'
+						"i'_SDSS 771_171": 'ip',
+						"z'_SDSS 832_LP": 'zp'
 					}.get(filters_used[0].replace('  ', ' '), filters_used[0])
 				else:
 					raise Exception("Could not determine filter used.")
