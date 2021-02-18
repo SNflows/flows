@@ -98,6 +98,7 @@ if __name__ == '__main__':
                        help="Fix SN position during PSF photometry of difference image. \
                        Useful when difference image is noisy.",
                        action='store_true')
+    group.add_argument('--timeoutpar', type=int, default=10, help='Timeout in Seconds for WCS')
     args = parser.parse_args()
 
     # Ensure that all input has been given:
