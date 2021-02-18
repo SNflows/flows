@@ -284,10 +284,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # return references, clean_references, masked_rsqs, rsq_mask
 
     # Final clean of wcs corrected references
-    logger.debug("Number of references before final cleaning: %d", len(clean_references))
+    logger.info("Number of references before final cleaning: %d", len(clean_references))
     logger.info('masked R^2 values: {}'.format(masked_rsqs[rsq_mask]))
     references = get_clean_references(clean_references, masked_rsqs, rsq_ideal=0.8)
-    logger.debug("Number of references after final cleaning: %d", len(references))
+    logger.info("Number of references after final cleaning: %d", len(references))
 
     # Create plot of target and reference star positions:
     fig, ax = plt.subplots(1, 1, figsize=(20, 18))
@@ -308,7 +308,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     if size % 2 == 0:
         size += 1  # Make sure it's a uneven number
     size = max(size, 15)  # Never go below 15 pixels
-    hsize = (size + 10) / 2  # higher hsize than before to do more aggressive edge masking.
+    hsize = (size - 1) / 2  # higher hsize than before to do more aggressive edge masking.
 
     x = references['pixel_column']
     y = references['pixel_row']
