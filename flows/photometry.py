@@ -45,6 +45,8 @@ from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 from .wcs import force_reject_g2d, mkposxy, clean_with_rsq_and_get_fwhm, \
 	try_astroalign, kdtree, get_new_wcs, get_clean_references
 from .coordinatematch import CoordinateMatch
+from .fitting import MaskableLevMarLSQFitter
+from .fitscmd import get_fitscmd, maskstar, localseq, colorterm
 
 __version__ = get_version(pep440=False)
 
@@ -127,15 +129,20 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
 		ref_filter = 'g_mag'
 
-	references = catalog['references']
+	# Load the image from the FITS file:
+	image = load_image(filepath)
+
+	lsqhdus = get_fitscmd(image, 'localseq') # look for local sequence in fits table
+	references = catalog['references'] if not lsqhdus else localseq(lsqhdus, image.exthdu)
+
+	colorterms = get_fitscmd(image, 'colorterm')
+	references = colorterm(ref_filter, colorterms, references) if colorterms else references
+
 	references.sort(ref_filter)
 
 	# Check that there actually are reference stars in that filter:
 	if allnan(references[ref_filter]):
 		raise ValueError("No reference stars found in current photfilter.")
-
-	# Load the image from the FITS file:
-	image = load_image(filepath)
 
 	#==============================================================================================
 	# BARYCENTRIC CORRECTION OF TIME
@@ -249,10 +256,12 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	hsize = 10
 	x = references['pixel_column']
 	y = references['pixel_row']
+
 	clean_references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
 		& (x > hsize) & (x < (image.shape[1] - 1 - hsize))
 		& (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
 	# 		& (references[ref_filter] < ref_mag_limit)
+	assert len(clean_references), 'No references in field'
 
 	logger.info("References:\n%s", references)
 
@@ -262,7 +271,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	fwhm_min = 3.5
 	fwhm_max = 18.0
 
-	# Clean extracted stars
+	# Clean extracted stars (FIXME is this one necessary? it's only being used for plots)
 	masked_sep_xy,sep_mask,masked_sep_rsqs = force_reject_g2d(objects['x'], objects['y'], image, get_fwhm=False,
 					 radius=radius, fwhm_guess=fwhm_guess, rsq_min=0.3, fwhm_max=fwhm_max, fwhm_min=fwhm_min)
 
@@ -276,7 +285,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 																		   fwhm_max=fwhm_max,
 																		   fwhm_min=fwhm_min,
 																		   rsq_min=0.15)
-
 
 	# Use R^2 to more robustly determine initial FWHM guess.
 	# This cleaning is good when we have FEW references.
@@ -599,7 +607,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		group_maker=DAOGroup(fwhm),
 		bkg_estimator=SExtractorBackground(),
 		psf_model=epsf,
-		fitter=fitting.LevMarLSQFitter(),
+		fitter=MaskableLevMarLSQFitter(),
 		fitshape=size,
 		aperture_radius=fwhm
 	)
@@ -626,8 +634,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	if datafile.get('diffimg') is not None:
 
 		diffimg_path = os.path.join(datafile['archive_path'], datafile['diffimg']['path'])
-		diffimage = load_image(diffimg_path)
-		diffimage = diffimage.image
+		diffimg = load_image(diffimg_path)
+		diffimage = diffimg.image
 
 	elif attempt_imagematch and datafile.get('template') is not None:
 		# Run the template subtraction, and get back
@@ -658,11 +666,15 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 		# Run aperture photometry on subtracted image:
 		target_apphot_tbl = aperture_photometry(diffimage, [apertures, annuli], mask=image.mask, error=image.error)
 
-		# Run PSF photometry on template subtracted image:
+		# Mask stars from FITS header
+		stars = get_fitscmd(diffimg, 'maskstar')
+		masked_diffimage = maskstar(diffimage, image.wcs, stars, image.fwhm)
+
+        # Run PSF photometry on template subtracted image:
 		target_psfphot_tbl = photometry(
-			diffimage,
+			diffimage if masked_diffimage is None else masked_diffimage,
 			init_guesses=Table(target_pixel_pos, names=['x_0', 'y_0'])
-		)
+        )
 
 		# Combine the output tables from the target and the reference stars into one:
 		apphot_tbl = vstack([target_apphot_tbl, apphot_tbl], join_type='exact')
@@ -670,13 +682,17 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Build results table:
 	tab = references.copy()
-	tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
+	extkeys = {'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'B_mag', 'V_mag', 'H_mag','J_mag','K_mag', 'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'}
+
+	row = {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]}
+	row.update([(k, np.NaN) for k in extkeys & set(tab.keys())])
+	tab.insert_row(0, row)
+
 	if diffimage is not None:
-		tab.insert_row(0, {'starid': -1, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0], 'pixel_row': target_pixel_pos[1]})
-	indx_main_target = (tab['starid'] <= 0)
-	for key in ('pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'B_mag', 'V_mag', 'H_mag','J_mag','K_mag', 'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'):
-		for i in np.where(indx_main_target)[0]: # No idea why this is needed, but giving a boolean array as slice doesn't work
-			tab[i][key] = np.NaN
+		row['starid'] = -1
+		tab.insert_row(0, row)
+
+	indx_target = tab['starid'] <= 0
 
 	# Subtract background estimated from annuli:
 	flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area) * apertures.area
@@ -693,7 +709,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 	tab['pixel_row_psf_fit_error'] = psfphot_tbl['y_0_unc']
 
 	# Check that we got valid photometry:
-	if np.any(~np.isfinite(tab[indx_main_target]['flux_psf'])) or np.any(~np.isfinite(tab[indx_main_target]['flux_psf_error'])):
+	if np.any(~np.isfinite(tab[indx_target]['flux_psf'])) or np.any(~np.isfinite(tab[indx_target]['flux_psf_error'])):
 		raise Exception("Target magnitude is undefined.")
 
 	#==============================================================================================
@@ -710,7 +726,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True):
 
 	# Mask out things that should not be used in calibration:
 	use_for_calibration = np.ones_like(mag_catalog, dtype='bool')
-	use_for_calibration[indx_main_target] = False # Do not use target for calibration
+	use_for_calibration[indx_target] = False # Do not use target for calibration
 	use_for_calibration[~np.isfinite(mag_inst) | ~np.isfinite(mag_catalog)] = False
 
 	# Just creating some short-hands:
