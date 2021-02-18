@@ -351,7 +351,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     epsf = EPSFBuilder(
         oversampling=1.0,
         maxiters=500,
-        fitter=EPSFFitter(fit_boxsize=np.round(2 * fwhm, 0).astype(int)),
+        fitter=EPSFFitter(fit_boxsize=np.round(2 * fwhm, 0)),
         progress_bar=True,
         recentering_func=centroid_com
     )(stars)[0]
