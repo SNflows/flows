@@ -141,7 +141,8 @@ if __name__ == '__main__':
                                                output_folder_root=output_folder_root,
                                                attempt_imagematch=not args.no_imagematch,
                                                autoupload=args.autoupload,
-                                               keep_diff_fixed=args.fixposdiff)
+                                               keep_diff_fixed=args.fixposdiff,
+                                               timeoutpar=args.timeoutpar)
 
     if threads > 1:
         # Disable printing info messages from the parent function.
