@@ -76,6 +76,7 @@ def load_image(FILENAME):
 
 	# get image and wcs solution
 	with fits.open(FILENAME, mode='readonly') as hdul:
+
 		hdr = hdul[0].header
 		origin = hdr.get('ORIGIN')
 		telescope = hdr.get('TELESCOP')
@@ -83,6 +84,9 @@ def load_image(FILENAME):
 
 		image.image = np.asarray(hdul[0].data)
 		image.shape = image.image.shape
+
+		image.head = hdr
+		image.exthdu = [hdu.copy() for hdu in hdul[1:]]
 
 		if origin == 'LCOGT':
 			image.mask = np.asarray(hdul['BPM'].data, dtype='bool')
@@ -218,7 +222,7 @@ def load_image(FILENAME):
 				'i': 'ip',
 			}.get(hdr['FILTER'], hdr['FILTER'])
 
-		elif telescope == 'DUP' and hdr.get('SITENAME') == 'LCO':
+		elif telescope == 'DUP' and hdr.get('SITENAME') == 'LCO' and instrument == 'Direct/SITe2K-1':
 			image.site = api.get_site(14) # Hard-coded the siteid for Du Pont, Las Campanas Observatory
 			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
 			image.photfilter = {
@@ -226,6 +230,15 @@ def load_image(FILENAME):
 				'g': 'gp',
 				'r': 'rp',
 				'i': 'ip',
+			}.get(hdr['FILTER'], hdr['FILTER'])
+
+		elif telescope == 'DUP' and instrument == 'RetroCam':
+			image.site = api.get_site(16) # Hard-coded the siteid for Du Pont, Las Campanas Observatory
+			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = {
+				'Yc': 'Y',
+				'Hc': 'H',
+				'Jo': 'J',
 			}.get(hdr['FILTER'], hdr['FILTER'])
 
 		elif telescope == 'Baade' and hdr.get('SITENAME') == 'LCO' and instrument == 'FourStar':
@@ -237,21 +250,43 @@ def load_image(FILENAME):
 			}.get(hdr['FILTER'], hdr['FILTER'])
 			image.exptime *= int(hdr['NCOMBINE']) # EXPTIME is only for a single exposure
 
-		elif origin == 'ESO' and telescope == 'ESO-NTT' and instrument == 'SOFI':
+		elif instrument == 'SOFI' and telescope in ('ESO-NTT', 'other') and (origin == 'ESO' or origin.startswith('NOAO-IRAF')):
 			image.site = api.get_site(12) # Hard-coded the siteid for SOFT, ESO NTT
-			image.obstime = Time(hdr['TMID'], format='mjd', scale='utc', location=image.site['EarthLocation'])
-			image.photfilter = hdr['FILTER']
+			if 'TMID' in hdr:
+				image.obstime = Time(hdr['TMID'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+			else:
+				image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+				image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
+
+			# Photometric filter:
+			photfilter_translate = {
+				'Ks': 'K'
+			}
+			if 'FILTER' in hdr:
+				image.photfilter = photfilter_translate.get(hdr['FILTER'], hdr['FILTER'])
+			else:
+				filters_used = []
+				for check_headers in ('ESO INS FILT1 ID', 'ESO INS FILT2 ID'):
+					if hdr.get(check_headers) and hdr.get(check_headers).strip().lower() != 'open':
+						filters_used.append(hdr.get(check_headers).strip())
+				if len(filters_used) == 1:
+					image.photfilter = photfilter_translate.get(filters_used[0], filters_used[0])
+				else:
+					raise Exception("Could not determine filter used.")
 
 			# Mask out "halo" of pixels with zero value along edge of image:
 			image.mask |= edge_mask(image.image, value=0)
 
-		elif origin == 'ESO' and telescope == 'ESO-NTT' and instrument == 'EFOSC':
+		elif telescope == 'ESO-NTT' and instrument == 'EFOSC' and (origin == 'ESO' or origin.startswith('NOAO-IRAF')):
 			image.site = api.get_site(15) # Hard-coded the siteid for EFOSC, ESO NTT
 			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 			image.photfilter = {
 				'g782': 'gp',
+				'r784': 'rp',
+				'i705': 'ip',
 				'B639': 'B',
+				'V641': 'V'
 			}.get(hdr['FILTER'], hdr['FILTER'])
 
 		elif telescope == 'SAI-2.5' and instrument == 'ASTRONIRCAM':

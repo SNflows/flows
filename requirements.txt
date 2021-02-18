@@ -9,8 +9,8 @@ matplotlib == 3.3.1
 mplcursors == 0.3
 seaborn
 requests
-astropy < 4.0
-photutils < 0.7
+astropy >=4.2
+photutils > 1.0
 PyYAML
 psycopg2-binary
 jplephem
@@ -20,3 +20,8 @@ tqdm
 pytz
 beautifulsoup4
 git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
+pandas
+sep
+astroalign > 2.3
+networkx
+flask

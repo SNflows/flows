@@ -8,6 +8,7 @@ https://alerceapi.readthedocs.io/
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
+import numpy as np
 import astropy.units as u
 from astropy.coordinates import Angle
 from astropy.table import Table
@@ -89,17 +90,25 @@ def download_ztf_photometry(targetid):
 	# Create Astropy table, cut out the needed columns
 	# and rename columns to something better for what we are doing:
 	tab = Table(data=jsn['result']['detections'])
-	tab = tab[['fid','mjd','magpsf_corr','sigmapsf_corr']]
+	tab = tab[['fid', 'mjd', 'magpsf_corr', 'sigmapsf_corr']]
 	tab.rename_column('fid', 'photfilter')
+	tab.rename_column('mjd', 'time')
 	tab.rename_column('magpsf_corr', 'mag')
 	tab.rename_column('sigmapsf_corr', 'mag_err')
+
+	# Remove bad values of time and magnitude:
+	tab['time'] = np.asarray(tab['time'], dtype='float64')
+	tab['mag'] = np.asarray(tab['mag'], dtype='float64')
+	tab['mag_err'] = np.asarray(tab['mag_err'], dtype='float64')
+	indx = np.isfinite(tab['time']) & np.isfinite(tab['mag']) & np.isfinite(tab['mag_err'])
+	tab = tab[indx]
 
 	# Replace photometric filter numbers with keywords used in Flows:
 	photfilter_dict = {1: 'gp', 2: 'rp', 3: 'ip'}
 	tab['photfilter'] = [photfilter_dict[fid] for fid in tab['photfilter']]
 
-	# Sort the table on photfilter and mjd:
-	tab.sort(['photfilter', 'mjd'])
+	# Sort the table on photfilter and time:
+	tab.sort(['photfilter', 'time'])
 
 	# Add meta information to table header:
 	tab.meta['target_name'] = target_name
