@@ -206,3 +206,9 @@ class WCS () :
             obj.__setattr__(k, v)
 
         return obj
+
+    def __repr__(self):
+
+        ra, dec = self.astropy_wcs.wcs_pix2world([(0, 0)], 0)[0]
+
+        return f'WCS(0, 0, {ra:.4f}, {dec:.4f}, {self.scale:.2f}, {self.mirror}, {self.angle:.2f})'

@@ -42,8 +42,7 @@ from .load_image import load_image
 from .run_imagematch import run_imagematch
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 from .wcs import force_reject_g2d, clean_with_rsq_and_get_fwhm, get_clean_references
-from .coordinatematch import CoordinateMatch
-from .fitting import MaskableLevMarLSQFitter
+from .coordinatematch import CoordinateMatch, WCS
 from .fitscmd import get_fitscmd, maskstar, localseq, colorterm
 
 __version__ = get_version(pep440=False)
@@ -207,29 +206,38 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'],
                                  pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'],
                                  unit='deg', frame='icrs', obstime=Time(2015.5, format='decimalyear'))
-
     refs_coord = refs_coord.apply_space_motion(image.obstime)
+
+    head_wcs = str(WCS.from_astropy_wcs(image.wcs))
+    logging.debug('Head WCS: %s', head_wcs)
+    references.meta['head_wcs'] = head_wcs
 
     # Solve for new WCS
     cm = CoordinateMatch(
-        xy=list(zip(objects['x'], objects['y'])),
-        rd=list(zip(refs_coord.ra.deg, refs_coord.dec.deg)),
-        xy_order=np.argsort(-2.5 * np.log10(objects['flux'])),
-        rd_order=np.argsort(target_coord.separation(refs_coord)),
-        maximum_angle_distance=0.002,
+        xy = list(zip(objects['x'], objects['y'])),
+        rd = list(zip(refs_coord.ra.deg, refs_coord.dec.deg)),
+        xy_order = np.argsort(-2.5 * np.log10(objects['flux'])),
+        rd_order = np.argsort(target_coord.separation(refs_coord)),
+        xy_nmax = 200, rd_nmax = 200,
+        maximum_angle_distance = 0.002,
     )
 
     try:
-        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeoutpar)))
+        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=float('inf'))))
     except TimeoutError:
         logging.warning('TimeoutError: No new WCS solution found')
     except StopIteration:
         logging.warning('StopIterationError: No new WCS solution found')
     else:
+        logging.info('Found new WCS')
         image.wcs = fit_wcs_from_points(
             np.array(list(zip(*cm.xy[i_xy]))),
             coords.SkyCoord(*map(list, zip(*cm.rd[i_rd])), unit='deg')
         )
+
+    used_wcs = str(WCS.from_astropy_wcs(image.wcs))
+    logging.debug('Used WCS: %s', used_wcs)
+    references.meta['used_wcs'] = used_wcs
 
     # Calculate pixel-coordinates of references:
     row_col_coords = image.wcs.all_world2pix(np.array([[ref.ra.deg, ref.dec.deg] for ref in refs_coord]), 0)
@@ -449,7 +457,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         group_maker=DAOGroup(fwhm),
         bkg_estimator=SExtractorBackground(),
         psf_model=epsf,
-        fitter=MaskableLevMarLSQFitter(),
+        fitter=fitting.LevMarLSQFitter(),
         fitshape=size,
         aperture_radius=fwhm
     )
@@ -662,6 +670,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # ==============================================================================================
     # SAVE PHOTOMETRY
     # ==============================================================================================
+
+    # rename x, y columns to pixel_colum, pixel_row
+    #tab.rename_columns(('x', 'y'), ('pixel_column', 'pixel_row'))
 
     # Descriptions of columns:
     tab['flux_aperture'].unit = u.count / u.second
