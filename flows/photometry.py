@@ -187,6 +187,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Use sep to for soure extraction
     image.sepdata = image.image.byteswap().newbyteorder()
+    #image.setpdate = np.asrray(image.image
     image.sepbkg = sep.Background(image.sepdata, mask=image.mask)
     image.sepsub = image.sepdata - image.sepbkg
     logger.debug('sub: {} bkg_rms: {} mask: {}'.format(np.shape(image.sepsub), np.shape(image.sepbkg.globalrms),
@@ -208,7 +209,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     refs_coord = refs_coord.apply_space_motion(image.obstime)
 
     head_wcs = str(WCS.from_astropy_wcs(image.wcs))
-    logging.debug('Head WCS: %s', head_wcs)
+    logger.debug('Head WCS: %s', head_wcs)
     references.meta['head_wcs'] = head_wcs
 
     # Solve for new WCS
@@ -224,18 +225,18 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     try:
         i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=float('inf'))))
     except TimeoutError:
-        logging.warning('TimeoutError: No new WCS solution found')
+        logger.warning('TimeoutError: No new WCS solution found')
     except StopIteration:
-        logging.warning('StopIterationError: No new WCS solution found')
+        logger.warning('StopIterationError: No new WCS solution found')
     else:
-        logging.info('Found new WCS')
+        logger.info('Found new WCS')
         image.wcs = fit_wcs_from_points(
             np.array(list(zip(*cm.xy[i_xy]))),
             coords.SkyCoord(*map(list, zip(*cm.rd[i_rd])), unit='deg')
         )
 
     used_wcs = str(WCS.from_astropy_wcs(image.wcs))
-    logging.debug('Used WCS: %s', used_wcs)
+    logger.debug('Used WCS: %s', used_wcs)
     references.meta['used_wcs'] = used_wcs
 
     # Calculate pixel-coordinates of references:
@@ -363,9 +364,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Build the ePSF:
     epsf = EPSFBuilder(
-        oversampling=1.0,
+        oversampling=1,
         maxiters=500,
-        fitter=EPSFFitter(fit_boxsize=np.round(2 * fwhm, 0)),
+        fitter=EPSFFitter(fit_boxsize=np.round(2 * fwhm, 0).astype(int)),
         progress_bar=True,
     )(stars)[0]
 
@@ -453,7 +454,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # Create photometry object:
     photometry_obj = BasicPSFPhotometry(
         group_maker=DAOGroup(fwhm),
-        bkg_estimator=SExtractorBackground(),
+        bkg_estimator=MedianBackground(),
         psf_model=epsf,
         fitter=fitting.LevMarLSQFitter(),
         fitshape=size,
