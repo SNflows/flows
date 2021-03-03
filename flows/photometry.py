@@ -186,7 +186,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     image.error = calc_total_error(image.clean, bkg.background_rms, 1.0)
 
     # Use sep to for soure extraction
-    image.sepdata = image.image.byteswap().newbyteorder()
+    image.sepdata = np.asarray(image.image)
     #image.setpdate = np.asrray(image.image
     image.sepbkg = sep.Background(image.sepdata, mask=image.mask)
     image.sepsub = image.sepdata - image.sepbkg
