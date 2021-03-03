@@ -42,12 +42,12 @@ from .load_image import load_image
 from .run_imagematch import run_imagematch
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 from .wcs import force_reject_g2d, clean_with_rsq_and_get_fwhm, get_clean_references
-from .coordinatematch import CoordinateMatch
+from .coordinatematch import CoordinateMatch, WCS
+from .fitscmd import get_fitscmd, maskstar, localseq, colorterm
 
 __version__ = get_version(pep440=False)
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
-
 
 # --------------------------------------------------------------------------------------------------
 def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fixed=False, timeoutpar=10):
@@ -111,7 +111,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # TODO: Download datafile using API to local drive:
     # TODO: Is this a security concern?
     # if archive_local:
-    # api.download_datafile(datafile, archive_local)
+    #     api.download_datafile(datafile, archive_local)
 
     # Translate photometric filter into table column:
     ref_filter = {
@@ -131,15 +131,20 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
         ref_filter = 'g_mag'
 
-    references = catalog['references']
+    # Load the image from the FITS file:
+    image = load_image(filepath)
+
+    lsqhdus = get_fitscmd(image, 'localseq') # look for local sequence in fits table
+    references = catalog['references'] if not lsqhdus else localseq(lsqhdus, image.exthdu)
+
+    colorterms = get_fitscmd(image, 'colorterm')
+    references = colorterm(ref_filter, colorterms, references) if colorterms else references
+
     references.sort(ref_filter)
 
     # Check that there actually are reference stars in that filter:
     if allnan(references[ref_filter]):
         raise ValueError("No reference stars found in current photfilter.")
-
-    # Load the image from the FITS file:
-    image = load_image(filepath)
 
     # ==============================================================================================
     # BARYCENTRIC CORRECTION OF TIME
@@ -201,29 +206,38 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'],
                                  pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'],
                                  unit='deg', frame='icrs', obstime=Time(2015.5, format='decimalyear'))
-
     refs_coord = refs_coord.apply_space_motion(image.obstime)
+
+    head_wcs = str(WCS.from_astropy_wcs(image.wcs))
+    logging.debug('Head WCS: %s', head_wcs)
+    references.meta['head_wcs'] = head_wcs
 
     # Solve for new WCS
     cm = CoordinateMatch(
-        xy=list(zip(objects['x'], objects['y'])),
-        rd=list(zip(refs_coord.ra.deg, refs_coord.dec.deg)),
-        xy_order=np.argsort(-2.5 * np.log10(objects['flux'])),
-        rd_order=np.argsort(target_coord.separation(refs_coord)),
-        maximum_angle_distance=0.002,
+        xy = list(zip(objects['x'], objects['y'])),
+        rd = list(zip(refs_coord.ra.deg, refs_coord.dec.deg)),
+        xy_order = np.argsort(-2.5 * np.log10(objects['flux'])),
+        rd_order = np.argsort(target_coord.separation(refs_coord)),
+        xy_nmax = 200, rd_nmax = 200,
+        maximum_angle_distance = 0.002,
     )
 
     try:
-        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeoutpar)))
+        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=float('inf'))))
     except TimeoutError:
         logging.warning('TimeoutError: No new WCS solution found')
     except StopIteration:
         logging.warning('StopIterationError: No new WCS solution found')
     else:
+        logging.info('Found new WCS')
         image.wcs = fit_wcs_from_points(
             np.array(list(zip(*cm.xy[i_xy]))),
             coords.SkyCoord(*map(list, zip(*cm.rd[i_rd])), unit='deg')
         )
+
+    used_wcs = str(WCS.from_astropy_wcs(image.wcs))
+    logging.debug('Used WCS: %s', used_wcs)
+    references.meta['used_wcs'] = used_wcs
 
     # Calculate pixel-coordinates of references:
     row_col_coords = image.wcs.all_world2pix(np.array([[ref.ra.deg, ref.dec.deg] for ref in refs_coord]), 0)
@@ -241,6 +255,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
                                   & (x > hsize) & (x < (image.shape[1] - 1 - hsize))
                                   & (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
     # 		& (references[ref_filter] < ref_mag_limit)
+    assert len(clean_references), 'No references in field'
 
     # @TODO: These need to be based on the instrument!
     radius = 10
@@ -469,8 +484,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     if datafile.get('diffimg') is not None:
 
         diffimg_path = os.path.join(datafile['archive_path'], datafile['diffimg']['path'])
-        diffimage = load_image(diffimg_path)
-        diffimage = diffimage.image
+        diffimg = load_image(diffimg_path)
+        diffimage = diffimg.image
 
     elif attempt_imagematch and datafile.get('template') is not None:
         # Run the template subtraction, and get back
@@ -516,9 +531,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
                 aperture_radius=fwhm
             )
 
+        # Mask stars from FITS header
+        stars = get_fitscmd(diffimg, 'maskstar')
+        masked_diffimage = maskstar(diffimage, image.wcs, stars, image.fwhm)
+
         # Run PSF photometry on template subtracted image:
         target_psfphot_tbl = photometry_obj(
-            diffimage,
+            diffimage if masked_diffimage is None else masked_diffimage,
             init_guesses=Table(target_pixel_pos, names=['x_0', 'y_0'])
         )
 
@@ -532,20 +551,19 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Build results table:
     tab = references.copy()
-    tab.insert_row(0, {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0],
-                       'pixel_row': target_pixel_pos[1]})
+    extkeys = {'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'B_mag', 'V_mag', 'H_mag', 'J_mag', 'K_mag',
+        'u_mag', 'g_mag', 'r_mag', 'i_mag', 'z_mag'}
+
+    row = {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0],
+        'pixel_row': target_pixel_pos[1]}
+    row.update([(k, np.NaN) for k in extkeys & set(tab.keys())])
+    tab.insert_row(0, row)
+
     if diffimage is not None:
-        tab.insert_row(0,
-                       {'starid': -1, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0],
-                        'pixel_row': target_pixel_pos[1]})
-    indx_main_target = (tab['starid'] <= 0)
-    for key in (
-            'pm_ra', 'pm_dec', 'gaia_mag', 'gaia_bp_mag', 'gaia_rp_mag', 'B_mag', 'V_mag', 'H_mag', 'J_mag', 'K_mag',
-            'u_mag',
-            'g_mag', 'r_mag', 'i_mag', 'z_mag'):
-        for i in np.where(indx_main_target)[0]:
-            # No idea why this is needed, but giving a boolean array as slice doesn't work
-            tab[i][key] = np.NaN
+        row['starid'] = -1
+        tab.insert_row(0, row)
+
+    indx_main_target = tab['starid'] <= 0
 
     # Subtract background estimated from annuli:
     flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area) * apertures.area
@@ -652,6 +670,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # ==============================================================================================
     # SAVE PHOTOMETRY
     # ==============================================================================================
+
+    # rename x, y columns to pixel_colum, pixel_row
+    #tab.rename_columns(('x', 'y'), ('pixel_column', 'pixel_row'))
 
     # Descriptions of columns:
     tab['flux_aperture'].unit = u.count / u.second

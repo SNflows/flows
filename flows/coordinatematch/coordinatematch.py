@@ -12,7 +12,9 @@ from .wcs import WCS
 
 class CoordinateMatch () :
 
-    def __init__(self, xy, rd, xy_order=None, rd_order=None,
+    def __init__(self, xy, rd,
+            xy_order=None, rd_order=None,
+            xy_nmax=None, rd_nmax=None,
             n_triangle_packages = 10,
             triangle_package_size = 10000,
             maximum_angle_distance = 0.001,
@@ -25,8 +27,10 @@ class CoordinateMatch () :
         self._rd = rd - np.mean(rd, axis=0)
         self._rd[:,0] *= np.cos(np.deg2rad(self.rd[:,1]))
 
-        self.i_xy = xy_order if not xy_order is None else np.arange(len(xy))
-        self.i_rd = rd_order if not rd_order is None else np.arange(len(rd))
+        xy_n, rd_n = min(xy_nmax, len(xy)), min(rd_nmax, len(rd))
+
+        self.i_xy = xy_order[:xy_n] if not xy_order is None else np.arange(xy_n)
+        self.i_rd = rd_order[:rd_n] if not rd_order is None else np.arange(rd_n)
 
         self.n_triangle_packages = n_triangle_packages
         self.triangle_package_size = triangle_package_size

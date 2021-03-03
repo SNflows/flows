@@ -25,3 +25,4 @@ pandas
 sep
 astroalign > 2.3
 networkx
+flask
