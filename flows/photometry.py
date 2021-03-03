@@ -30,7 +30,6 @@ from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.psf import EPSFBuilder, EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
 from photutils import Background2D, SExtractorBackground, MedianBackground
 from photutils.utils import calc_total_error
-from photutils.centroids import centroid_com
 
 from scipy.interpolate import UnivariateSpline
 
@@ -368,7 +367,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         maxiters=500,
         fitter=EPSFFitter(fit_boxsize=np.round(2 * fwhm, 0)),
         progress_bar=True,
-        recentering_func=centroid_com
     )(stars)[0]
 
     logger.info('Successfully built PSF model')
