@@ -304,7 +304,7 @@ def load_image(FILENAME):
 			raise Exception("Could not determine origin of image")
 
 	# Create masked version of image:
-	image.image[image.mask] = 0.0
+	image.image[image.mask] = np.nan
 	image.clean = np.ma.masked_array(image.image, image.mask)
 
 	return image
