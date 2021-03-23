@@ -1,5 +1,6 @@
 flows/config.ini
 flows/casjobs/CasJobs.config
+web/static/js9
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

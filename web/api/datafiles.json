@@ -1,0 +1,15 @@
+{
+    "2019yvr": [
+        {
+            "fileid": 441,
+            "targetid": 2,
+            "target_name": "2019yvr",
+            "photfilter": "ip",
+            "path": "2019yvr/SN2019yvr_i01_NOT_ALFOSC_20200104.fits.gz",
+            "diffimg" : {
+                "fileid" : 627,
+                "path" : "2019yvr/subtracted/SN2019yvr_i01_NOT_ALFOSC_20200104diff.fits.gz"
+            }
+        }
+    ]
+}

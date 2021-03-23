@@ -16,11 +16,14 @@ def get_site(siteid):
 
 	# Get API token from config file:
 	config = load_config()
+	address = config.get('api', 'address', fallback=None)
 	token = config.get('api', 'token', fallback=None)
+	if address is None:
+		raise Exception("No API catalog address has been defined")
 	if token is None:
 		raise Exception("No API token has been defined")
 
-	r = requests.get('https://flows.phys.au.dk/api/sites.php',
+	r = requests.get('%s/sites.php' % address,
 		params={'siteid': siteid},
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
@@ -37,11 +40,14 @@ def get_all_sites():
 
 	# Get API token from config file:
 	config = load_config()
+	address = config.get('api', 'address', fallback=None)
 	token = config.get('api', 'token', fallback=None)
+	if address is None:
+		raise Exception("No API catalog address has been defined")
 	if token is None:
 		raise Exception("No API token has been defined")
 
-	r = requests.get('https://flows.phys.au.dk/api/sites.php',
+	r = requests.get('%s/sites.php' % address,
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
 	jsn = r.json()

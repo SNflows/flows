@@ -1,0 +1,152 @@
+{% extends 'index.html' %}
+
+{% block head %}
+<style>
+.js9 {
+    background-color: #d5d5d5; height: 688px;
+}
+.container {
+    position: fixed; top: 0px; left: 0px; z-index: 1000; background-color: rgba(0,0,0,.85); width: 100%; height: 100%; visibility: hidden;
+}
+.center {
+    color: white; font-size: 12px; width: 80%; height: 80%; overflow: scroll; text-align: left; margin: 0; position: absolute; top: 50%; left: 50%; -ms-transform: translate(-50%, -50%); transform: translate(-50%, -50%);
+}
+#img {
+    position: absolute; left: 50%; top: 50%; -ms-transform: translate(-50%, -50%); transform: translate(-50%, -50%); max-width: 90%; max-height: 90%;
+}
+.thumb {
+    position: absolute; left: 0px; top: 50%; -ms-transform: translateY(-50%); transform: translateY(-50%); width: 250px;
+}
+.thumbPanel {
+    position: absolute; right: 0px; top: 0px; height: 100%; width: 270px; overflow-y: scroll; text-align: center; background-color: black;
+}
+.thumbContainer {
+    position: relative; width: 250px; height: 250px; background-color: white; margin: auto; margin-top: 10px; cursor: pointer;
+}
+</style>
+
+<link type="text/css" rel="stylesheet" href="{{ url_for('static', filename='js9/js9support.css') }}">
+<link type="text/css" rel="stylesheet" href="{{ url_for('static', filename='js9/js9.css') }}">
+<script type="text/javascript" src="{{ url_for('static', filename='js9/js9prefs.js') }}"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='js9/js9support.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='js9/js9.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='js9/js9plugins.js') }}"></script>
+
+<script>
+function Quartile(data, q) {
+    var data = Array.from(data).sort((a, b) => a - b);
+    var pos = ((data.length) - 1) * q;
+    var base = Math.floor(pos);
+    var rest = pos - base;
+    if ( (data[base+1] !== undefined) ) {
+        return data[base] + rest * (data[base+1] - data[base]);
+    } else {
+        return data[base];
+    }
+}
+
+function loadFits(f) {
+    JS9.Load(f, {
+        colormap: 'viridis',
+        onload: function(im){
+            JS9.AddRegions('circle', {
+                wcs: '{{ photometry[0]['ra'] }} {{ photometry[0]['decl'] }}',
+                color: 'red',
+            });
+            scalemin = Quartile(im.raw.data, .0025);
+            scalemax = Quartile(im.raw.data, .9975);
+            JS9.SetScale('linear', scalemin, scalemax);
+            JS9.SetPan({ wcs: '{{ photometry[0]['ra'] }} {{ photometry[0]['decl'] }}' });
+        },
+    });
+}
+
+function toggleFits(obj) {
+    if (obj.innerHTML != "Original") {
+        loadFits('{{ fileid }}.fits?subtracted');
+        obj.innerHTML = "Original";
+    } else {
+        loadFits('{{ fileid }}.fits');
+        obj.innerHTML = "Subtracted";
+    }
+}
+
+$(document).on('JS9:ready', function(){
+    JS9.globalOpts.resize = false;
+    loadFits('{{ fileid }}.fits');
+    $(JS9ColorbarContainer).css("background-color", "#d5d5d5");
+    $(JS9ColorbarTextCanvas).css("background-color", "#d5d5d5");
+
+    $("div.phot").hover(function(){
+        $(this).css('background-color', 'silver');
+    }, function(){
+        $(this).css('background-color', '#d5d5d5');
+    });
+    $("div.phot").click(function(){
+        var ra  = $(this).children()[1].innerText;
+        var dec = $(this).children()[2].innerText;
+        JS9.SetPan({ wcs: ra + ' ' + dec });
+        $('html, body').animate({
+            scrollTop: 0
+        }, 1000);
+    });
+});
+</script>
+{% endblock %}
+
+{% block title %}
+<span style="cursor: pointer;" onclick="window.location.href='/';">flows.localweb</span> /
+<span style="cursor: pointer;" onclick="window.location.href='/{{ target['target_name'] }}';">{{ target['target_name'] }}</span> /
+<span>{{ fileid }}</span>
+
+<div id="log" class="container" onclick="$(this).css('visibility', 'hidden')">
+<div class="center"><pre>{{ log }}</pre></div>
+</div>
+
+<div id="imgs" class="container">
+<div class="center" style="width: 100%; height: 100%; overflow: auto;" onclick="$('#imgs').css('visibility', 'hidden')"><img id="img" /></div>
+<div class="thumbPanel">
+{% for img in images %}
+<div class="thumbContainer" onclick="$('#img').attr('src', this.childNodes[0].src)"><img class="thumb" src="data:image/png;base64, {{ img }}" /></div>
+{% endfor %}
+</div>
+</div>
+{% endblock %}
+
+{% block body %}
+<div class="js9">
+<div class="JS9Menubar" data-width="1200px"></div>
+<div class="JS9" id="JS9" data-width="1200px" data-height="600px"></div>
+<div style="height: 2px;"></div>
+<div class="JS9Colorbar" data-width="1200px"></div>
+</div>
+
+<div style="height: 20px; position: relative;">
+<div style="position: absolute; top: -686px; right: 6px;">
+<button class="JS9Button" onclick="$('#log').css('visibility', 'visible')">Log</button>
+<button class="JS9Button" onclick="$('#imgs').css('visibility', 'visible')">Images</button>
+<button class="JS9Button" onclick="toggleFits(this)">Subtracted</button>
+</div>
+</div>
+
+<div style="width: 100%; background-color: #d5d5d5; font-weight: bold; font-size: 16px; padding: 5px 0px; display: flex; border-bottom: solid 1px black;">
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 10px; margin-left: 20px; overflow: hidden;">Star ID</div></div>
+<div style="width: 15%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Right Ascension</div></div>
+<div style="width: 15%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Declination</div></div>
+<div style="width: 10%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Distance</div></div>
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Magnitude</div></div>
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Error</div></div>
+</div>
+
+{% for phot in photometry %}
+<div id="photid_{{ phot['starid'] }}" class="phot" style="width: 100%; background-color: #d5d5d5; padding: 1px 0px; display: flex; border-bottom: solid 1px white; cursor: pointer;">
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; margin-left: 25px; overflow: hidden;">{{ phot['starid'] }}</div></div>
+<div style="width: 15%; margin: auto 0px;"><div class="ra"  style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ phot['ra'] }}</div></div>
+<div style="width: 15%; margin: auto 0px;"><div class="dec" style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ phot['decl'] }}</div></div>
+<div style="width: 10%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ phot['distance'] }}</div></div>
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ phot['mag'] }}</div></div>
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ phot['mag_error'] }}</div></div>
+</div>
+{% endfor %}
+
+{% endblock %}
