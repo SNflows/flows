@@ -1,9 +1,6 @@
-#import sys
 import time
 
 import numpy as np
-
-#from scipy.ndimage import gaussian_filter
 
 #from scipy.spatial import cKDTree
 from scipy.interpolate import griddata
@@ -45,76 +42,7 @@ class EPSFBuilder(photutils.psf.EPSFBuilder):
 
         return star_data - epsf._data
 
-#    def _resample_residuals(self, stars, epsf):
-#
-#        residuals = super()._resample_residuals(stars, epsf)
-#
-#        import matplotlib.pyplot as plt
-#
-#        if epsf.data.any():
-#
-#            #i = np.isfinite(residuals).sum(axis=0, dtype=bool)
-#            #data = epsf.data - gaussian_filter(epsf.data, sigma=1)
-#            #factor = np.nanstd(data) / np.std(np.nanmedian(residuals[:,i], axis=0))
-#            #residuals *= min(max(factor, 0.1), 1.0)
-#
-#            data = np.nanmedian(residuals, axis=0)
-#            self._.set_data(data)
-#            self._.set_clim([np.nanmin(data), np.nanmax(data)])
-#            self._.cb.draw_all()
-#
-#        else:
-#
-#            data = np.nanmedian(residuals, axis=0)
-#            self._ = plt.imshow(data)
-#            self._.set_clim([np.nanmin(data), np.nanmax(data)])
-#            self._.cb = plt.gcf().colorbar(self._)
-#            plt.show(block=False)
-#
-#        plt.gcf().canvas.draw()
-#        time.sleep(1)
-#
-#        return residuals
-
-#    def _recenter_epsf(self, epsf, *args, **kwargs):
-#
-#        if not hasattr(self, 'dx_total'):
-#
-#            self.dx_total = []
-#            self.dy_total = []
-#
-#        def profile(frame, event, arg):
-#
-#            global x, y, xcenter, ycenter
-#
-#            if event == "return" and frame.f_code.co_name == '_recenter_epsf':
-#
-#                x, xcenter = frame.f_locals['x'], frame.f_locals['xcenter']
-#                y, ycenter = frame.f_locals['y'], frame.f_locals['ycenter']
-#
-#                self.dx_total.append(frame.f_locals['dx_total'])
-#                self.dy_total.append(frame.f_locals['dy_total'])
-#
-#            return profile
-#
-#        sys.setprofile(profile)
-#        super()._recenter_epsf(epsf, *args, **kwargs)
-#        sys.setprofile(None)
-#
-#        dx_total = np.mean(self.dx_total[-2:], axis=0)
-#        dy_total = np.mean(self.dy_total[-2:], axis=0)
-#
-#        epsf_data = epsf.evaluate(x=x, y=y, flux=1.0,
-#                                  x_0=xcenter - .5*dx_total,
-#                                  y_0=ycenter - .5*dy_total)
-#
-#        return epsf_data
-
     def __call__(self, *args, **kwargs):
-
-        #import matplotlib
-        #_backend = matplotlib.get_backend()
-        #matplotlib.pyplot.switch_backend('TkAgg')
 
         t0 = time.time()
 
@@ -125,7 +53,5 @@ class EPSFBuilder(photutils.psf.EPSFBuilder):
             max_iters = self.maxiters,
             time = time.time() - t0,
         )
-
-        #matplotlib.pyplot.switch_backend(_backend)
 
         return epsf, stars

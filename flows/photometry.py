@@ -15,7 +15,7 @@ from timeit import default_timer
 import logging
 import warnings
 
-from astropy.utils.exceptions import AstropyDeprecationWarning, AstropyUserWarning
+from astropy.utils.exceptions import AstropyDeprecationWarning, AstropyUserWarning, ErfaWarning
 import astropy.units as u
 import astropy.coordinates as coords
 from astropy.stats import sigma_clip, SigmaClip
@@ -42,7 +42,6 @@ from .run_imagematch import run_imagematch
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
 from .wcs import force_reject_g2d, clean_with_rsq_and_get_fwhm, get_clean_references
 from .coordinatematch import CoordinateMatch, WCS
-from .fitscmd import get_fitscmd, maskstar, localseq, colorterm
 from .epsfbuilder import EPSFBuilder, gaussian_kernel
 
 __version__ = get_version(pep440=False)
@@ -133,14 +132,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         ref_filter = 'g_mag'
 
     # Load the image from the FITS file:
+    logger.info("Load image '%s'", filepath)
     image = load_image(filepath)
 
-    lsqhdus = get_fitscmd(image, 'localseq') # look for local sequence in fits table
-    references = catalog['references'] if not lsqhdus else localseq(lsqhdus, image.exthdu)
-
-    colorterms = get_fitscmd(image, 'colorterm')
-    references = colorterm(ref_filter, colorterms, references) if colorterms else references
-
+    references = catalog['references']
     references.sort(ref_filter)
 
     # Check that there actually are reference stars in that filter:
@@ -203,7 +198,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'],
                                  pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'],
                                  unit='deg', frame='icrs', obstime=Time(2015.5, format='decimalyear'))
-    refs_coord = refs_coord.apply_space_motion(image.obstime)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ErfaWarning)
+        refs_coord = refs_coord.apply_space_motion(image.obstime)
 
     # @TODO: These need to be based on the instrument!
     radius = 10
@@ -215,23 +213,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     masked_sep_xy, sep_mask, masked_sep_rsqs = force_reject_g2d(objects['x'], objects['y'], image, get_fwhm=False,
                                                                 radius=radius, fwhm_guess=fwhm_guess, rsq_min=0.3,
                                                                 fwhm_max=fwhm_max, fwhm_min=fwhm_min)
-
-    # XXX
-#    try:
-#        _references = catalog['references']
-#        _references.sort(ref_filter)
-#        replace(_references['pm_ra'], np.NaN, 0)
-#        replace(_references['pm_dec'], np.NaN, 0)
-#        _refs_coord = coords.SkyCoord(ra=_references['ra'], dec=_references['decl'],
-#                                     pm_ra_cosdec=_references['pm_ra'], pm_dec=_references['pm_dec'],
-#                                     unit='deg', frame='icrs', obstime=Time(2015.5, format='decimalyear'))
-#        _refs_coord = _refs_coord.apply_space_motion(image.obstime)
-#        if allnan(_references[ref_filter]):
-#            raise ValueError("No _reference stars found in current photfilter.")
-#    except Exception as e:
-#        logging.warning(e)
-#        _refs_coord = refs_coord
-    # XXX
 
     head_wcs = str(WCS.from_astropy_wcs(image.wcs))
     logger.debug('Head WCS: %s', head_wcs)
@@ -335,13 +316,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     size = max(size, 15)  # Never go below 15 pixels
 
     # Extract stars sub-images:
-    xy = [tuple(masked_ref_xys[clean_references['starid'] == ref['starid']].data[0]) for ref in references] # FIXME !!!
+    xy = [tuple(masked_ref_xys[clean_references['starid'] == ref['starid']].data[0]) for ref in references] # FIXME
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', AstropyUserWarning)
         stars = extract_stars(
-            NDData(data=image.subclean, mask=image.mask),
+            NDData(data=image.subclean.data, mask=image.mask),
             Table(np.array(xy), names=('x', 'y')),
-            size = size + 6#2*size+1 # +6 for edge buffer
+            size = size + 6 # +6 for edge buffer
         )
 
     # Store which stars were used in ePSF in the table:
@@ -360,7 +341,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
                 ax[i].axis('off')
             else:
                 offset_axes = stars[imgnr].bbox.ixmin, stars[imgnr].bbox.iymin
-                plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis')#, offset_axes=offset_axes)
+                plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis')#, offset_axes=offset_axes) FIXME (no x-ticks)
             imgnr += 1
 
         fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k + 1)), bbox_inches='tight')
@@ -502,12 +483,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         apertures = CircularAperture(target_pixel_pos, r=fwhm)
         annuli = CircularAnnulus(target_pixel_pos, r_in=1.5 * fwhm, r_out=2.5 * fwhm)
 
-        # XXX
-#        stars = get_fitscmd(diffimg, 'maskstar')
-#        masked_diffimage = maskstar(diffimage, image.wcs, stars, image.fwhm)
-#        _img = masked_diffimage.data * ~masked_diffimage.mask
-        # XXX
-
         # Create two plots of the difference image:
         fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
         plot_image(diffimage, ax=ax, cbar='right', title=target_name)
@@ -538,13 +513,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
                 aperture_radius=fwhm
             )
 
-        # Mask stars from FITS header
-        stars = get_fitscmd(diffimg, 'maskstar')
-        masked_diffimage = maskstar(diffimage, image.wcs, stars, image.fwhm)
-
         # Run PSF photometry on template subtracted image:
         target_psfphot_tbl = photometry_obj(
-            diffimage if masked_diffimage is None else masked_diffimage,
+            diffimage,
             init_guesses=Table(target_pixel_pos, names=['x_0', 'y_0'])
         )
 
