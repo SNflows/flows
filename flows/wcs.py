@@ -72,7 +72,12 @@ def force_reject_g2d(xarray, yarray, image, get_fwhm=True, rsq_min=0.5, radius=1
 	masked_xys = np.ma.masked_array(xys, ~np.isfinite(xys))
 	masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
 	mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)  # Reject Rsq < rsq_min
-	masked_xys = masked_xys[mask]  # Clean extracted array.
+    # changed
+    #masked_xys = masked_xys[mask] # Clean extracted array.
+    # to
+	masked_xys.mask[~mask] = True
+    # don't know if it breaks anything, but it doesn't make sence if
+    # len(masked_xys) != len(masked_rsqs) FIXME
 	masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
 
 	if get_fwhm: return masked_fwhms,masked_xys,mask,masked_rsqs

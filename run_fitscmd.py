@@ -38,6 +38,8 @@ def _get():
 
     with fits.open(args.fitsfile) as hdul:
 
+        print('# %s' % args.fitsfile)
+
         if not '' in hdul[0].header:
             return
 

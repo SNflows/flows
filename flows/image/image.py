@@ -69,6 +69,11 @@ class Image:
 
     def add_mask(self, mask):
 
+        assert callable(mask) or np.shape(mask) = self._data.shape
+
+        if not callable(mask):
+            mask = lambda img: mask
+
         i = max(self._lmasks.keys()) + 1 if len(self._lmasks) else 0
         self._lmasks[i] = mask
 

@@ -82,7 +82,7 @@ def load_image(FILENAME):
 		telescope = hdr.get('TELESCOP')
 		instrument = hdr.get('INSTRUME')
 
-		image.image = np.asarray(hdul[0].data)
+		image.image = np.asarray(hdul[0].data, dtype=np.float64)
 		image.shape = image.image.shape
 
 		image.head = hdr
@@ -111,7 +111,8 @@ def load_image(FILENAME):
 			image.site = site_keywords.get(hdr['SITE'], None)
 
 			observatory = coords.EarthLocation.from_geodetic(lat=hdr['LATITUDE'], lon=hdr['LONGITUD'], height=hdr['HEIGHT'])
-			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=observatory)
+			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=observatory)
+			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 
 			image.photfilter = hdr['FILTER']
 
@@ -300,11 +301,19 @@ def load_image(FILENAME):
 			}.get(hdr['FILTER'], hdr['FILTER'])
 			image.exptime = float(hdr['FULL_EXP'])
 
+		elif instrument == 'OMEGACAM' and (origin == 'ESO' or origin.startswith('NOAO-IRAF')):
+			image.site = api.get_site(18) # Hard-coded the siteid for ESO VLT Survey telescope
+			image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
+			image.photfilter = {
+				'i_SDSS': 'ip'
+			}.get(hdr['ESO INS FILT1 NAME'], hdr['ESO INS FILT1 NAME'])
+
 		else:
 			raise Exception("Could not determine origin of image")
 
 	# Create masked version of image:
-	image.image[image.mask] = np.NaN
+	#image.image[image.mask] = np.NaN
 	image.clean = np.ma.masked_array(image.image, image.mask)
 
 	return image

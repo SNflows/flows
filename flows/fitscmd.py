@@ -7,17 +7,17 @@ from astropy.table import Table
 
 COMMANDS = {
     'maskstar': ( # mask star for galaxy subtracted psf photometry
-        '(\d+(?:\.\d*)?),\s?([+-]?\d+(?:\.\d*)?)', # parse
+        r'(\d+(?:\.\d*)?),\s?([+-]?\d+(?:\.\d*)?)', # parse
         lambda ra, dec: (float(ra), float(dec)), # convert
         lambda ra, dec, hdul: 0 <= ra < 360 and -90 <= dec <= 90 # validate
     ),
     'localseq': ( # specifiy hdu name with custom local sequence
-        '(.+)', # parse
+        r'(.+)', # parse
         lambda lsqhdu: (lsqhdu.upper(),), # convert
         lambda lsqhdu, hdul: lsqhdu in [hdu.name for hdu in hdul], # validate
     ),
     'colorterm': ( # color term for moving references to another system
-        '([+-]?\d+(?:\.\d*)?)\s?\((.+)-(.+)\)', # parse
+        r'\\?([+-]?\d+(?:\.\d*)?)\s?\((.+)-(.+)\)', # parse
         lambda cterm, A_mag, B_mag: (float(cterm), A_mag, B_mag), # convert
         lambda cterm, A_mag, B_mag, hdul: True, # validate
     )
@@ -31,11 +31,11 @@ def maskstar(data, wcs, stars, fwhm):
     data = data.copy()
     if not hasattr(data, 'mask'):
         data = np.ma.array(data, mask=np.zeros_like(data))
-    
+
     X, Y = np.meshgrid(*map(np.arange, data.shape[::-1]))
 
     for x, y in wcs.all_world2pix(stars, 0):
-        i = np.where(((X-x)**2 + (Y-y)**2 < fwhm**2))
+        i = np.where(((X-x)**2 + (Y-y)**2 < (1.5*fwhm)**2))
         data.mask[i] = True
 
     return data
@@ -64,6 +64,7 @@ def colorterm(ref_filter, colorterms, references):
         return
 
     colorterm, A_mag, B_mag = colorterms[-1]
+    A_mag, B_mag = A_mag + '_mag', B_mag + '_mag' # XXX remove after 2016adj
 
     if not {A_mag, B_mag} <= set(references.colnames):
         missing = ', '.join({A_mag, B_mag} - set(references.colnames))

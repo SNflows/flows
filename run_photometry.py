@@ -20,7 +20,7 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
     logger = logging.getLogger('flows')
     logging.captureWarnings(True)
     logger_warn = logging.getLogger('py.warnings')
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
 
     datafile = api.get_datafile(fid)
     target_name = datafile['target_name']
@@ -118,12 +118,13 @@ if __name__ == '__main__':
         threads = multiprocessing.cpu_count()
 
     # Setup logging:
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
     console = logging.StreamHandler()
     console.setFormatter(formatter)
     logger = logging.getLogger('flows')
     if not logger.hasHandlers():
         logger.addHandler(console)
+    logger.propagate = False
     logger.setLevel(logging_level)
 
     if args.fileid is not None:

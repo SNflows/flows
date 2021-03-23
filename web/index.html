@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+
+<style>
+html, body {
+    margin: auto;
+    height: 100%;
+}
+body {
+    overflow-y: scroll;
+    font-size: 14px;
+    font-family: monospace;
+    background-color: gray;
+}
+.main {
+    margin: 0px auto;
+    width: 1200px;
+    height: 100%;
+    background-color: white;
+}
+.title {
+    font-size: 36px;
+    text-align: center;
+}
+div.title {
+    padding: 30px 60px;
+}
+input.title {
+    width: 200px;
+}
+
+</style>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+
+<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+
+{% block head %}
+
+<script>
+$(document).ready(function() {
+    $("div.target").hover(function(){
+        $(this).css('background-color', 'silver');
+    }, function(){
+        $(this).css('background-color', '#d5d5d5');
+    });
+    $("div.target").click(function(){
+        window.location.href = '/' + $(this).attr("id").slice(7)
+    });
+});
+</script>
+
+{% endblock %}
+
+<title>flows.localweb</title>
+</head>
+<body>
+
+<div class="main">
+
+<div class="title">
+{% block title %}
+<span style="cursor: pointer;" onclick="window.location.href='/';">flows.localweb</span>
+{% endblock %}
+</div>
+
+{% block body %}
+
+<div style="width: 100%; background-color: #d5d5d5; font-weight: bold; font-size: 16px; padding: 5px 0px; display: flex; border-bottom: solid 1px black;">
+<div style="width: 10%; margin: auto 0px;"><div style="margin: auto 10px; margin-left: 20px; overflow: hidden;">Target</div></div>
+<div style="width: 10%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Target ID</div></div>
+<div style="width: 15%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Right Ascension</div></div>
+<div style="width: 15%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Declination</div></div>
+<div style="width: 10%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Redshift</div></div>
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Host galaxy</div></div>
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 10px; overflow: hidden;">Inserted</div></div>
+</div>
+
+{% for target in targets %}
+<div id="target_{{ target['target_name'] }}"{% if target['local'] %} class="target"{% endif %} style="width: 100%; background-color: #d5d5d5; padding: 1px 0px; display: flex; border-bottom: solid 1px white;{% if target['local'] %} cursor: pointer;{% else %} color: #b00000;{% endif %}">
+<div style="width: 10%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; margin-left: 25px; overflow: hidden;">{{ target['target_name'] }}</div></div>
+<div style="width: 10%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ target['targetid'] }}</div></div>
+<div style="width: 15%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ target['ra'] }}</div></div>
+<div style="width: 15%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ target['decl'] }}</div></div>
+<div style="width: 10%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ target['redshift'] }}</div></div>
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ target['host_galaxy'] }}</div></div>
+<div style="width: 20%; margin: auto 0px;"><div style="margin: auto 15px; white-space: nowrap; overflow: hidden;">{{ target['inserted'] }}</div></div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+<div style="height: 20px; background-color: white;"></div>
+
+</div>
+
+</body>
+</html>
