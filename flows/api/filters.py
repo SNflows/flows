@@ -22,7 +22,6 @@ def get_filters():
 	r = requests.get('https://flows.phys.au.dk/api/filters.php',
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
-	print(r.text)
 	jsn = r.json()
 
 	# Add units:

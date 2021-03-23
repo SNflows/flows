@@ -30,7 +30,6 @@ from photutils import CircularAperture, CircularAnnulus, aperture_photometry
 from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
 from photutils import Background2D, SExtractorBackground, MedianBackground
 from photutils.utils import calc_total_error
-from photutils.centroids import centroid_com
 
 from scipy.interpolate import UnivariateSpline
 
@@ -235,7 +234,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # XXX
 
     head_wcs = str(WCS.from_astropy_wcs(image.wcs))
-    logging.debug('Head WCS: %s', head_wcs)
+    logger.debug('Head WCS: %s', head_wcs)
     references.meta['head_wcs'] = head_wcs
 
     # Solve for new WCS
@@ -262,7 +261,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         )
 
     used_wcs = str(WCS.from_astropy_wcs(image.wcs))
-    logging.debug('Used WCS: %s', used_wcs)
+    logger.debug('Used WCS: %s', used_wcs)
     references.meta['used_wcs'] = used_wcs
 
     # Calculate pixel-coordinates of references:
@@ -457,7 +456,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # Create photometry object:
     photometry_obj = BasicPSFPhotometry(
         group_maker=DAOGroup(fwhm),
-        bkg_estimator=SExtractorBackground(),
+        bkg_estimator=MedianBackground(),
         psf_model=epsf,
         fitter=fitting.LevMarLSQFitter(),
         fitshape=size,
