@@ -103,7 +103,7 @@ def photometry(target):
     if not (target := get_target_by_name(target)):
         return ''
     output = load_config().get('photometry', 'output', fallback='')
-    fileids = get_datafiles(target['targetid'])
+    fileids = get_datafiles(target['targetid'], "all")
     photometry = dict()
     for fileid in os.listdir(f'{output}/%s' % target['target_name']):
         if not int(fileid) in fileids:
