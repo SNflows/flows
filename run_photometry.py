@@ -86,6 +86,7 @@ if __name__ == '__main__':
     group.add_argument('--fileid', help="Process this file ID. Overrides all other filters.", type=int, default=None)
     group.add_argument('--targetid', help="Only process files from this target.", type=int, default=None)
     group.add_argument('--filter', type=str, default=None, choices=['missing', 'all', 'error'])
+    group.add_argument('--targetids', help="run all target ids", type=int, nargs='+', default=[None])
 
     group = parser.add_argument_group('Processing details')
     group.add_argument('--threads', type=int, default=1, help="Number of parallel threads to use.")
@@ -130,6 +131,9 @@ if __name__ == '__main__':
     if args.fileid is not None:
         # Run the specified fileid:
         fileids = [args.fileid]
+    elif args.targetids[0] is not None:
+        # Run the specified targetids
+        fileids = args.targetids
     else:
         # Ask the API for a list of fileids which are yet to be processed:
         fileids = api.get_datafiles(targetid=args.targetid, filt=args.filter)
