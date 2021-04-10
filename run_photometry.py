@@ -103,7 +103,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Ensure that all input has been given:
-    if not args.fileid and not args.targetid and args.filter is None:
+    if not args.fileid and not args.targetid and args.filter is None and args.targetids[0] is None:
         parser.error("Please select either a specific FILEID .")
 
     # Set logging level:
