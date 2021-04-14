@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+WCS tools
+
+.. codeauthor:: Simon Holmbo <simonholmbo@phys.au.dk>
+"""
 from copy import deepcopy
 
 import numpy as np
@@ -6,15 +12,16 @@ import astropy.wcs
 from scipy.optimize import minimize
 from scipy.spatial.transform import Rotation
 
-class WCS () :
+
+class WCS2():
     '''Manipulate WCS solution.
 
     Initialize
     ----------
-    wcs = WCS(x, y, ra, dec, scale, mirror, angle)
-    wcs = WCS.from_matrix(x, y, ra, dec, matrix)
-    wcs = WCS.from_points(list(zip(x, y)), list(zip(ra, dec)))
-    wcs = WCS.from_astropy_wcs(astropy.wcs.WCS())
+    wcs = WCS2(x, y, ra, dec, scale, mirror, angle)
+    wcs = WCS2.from_matrix(x, y, ra, dec, matrix)
+    wcs = WCS2.from_points(list(zip(x, y)), list(zip(ra, dec)))
+    wcs = WCS2.from_astropy_wcs(astropy.wcs.WCS())
 
     ra, dec and angle should be in degrees
     scale should be in arcsec/pixel
@@ -30,12 +37,11 @@ class WCS () :
     print(wcs.scale, wcs.angle)
 
     Change an astropy.wcs.WCS (wcs) angle
-    wcs = WCS(wcs)(angle=new_angle).astropy_wcs
+    wcs = WCS2(wcs)(angle=new_angle).astropy_wcs
 
     Adjust solution with points
     wcs.adjust_with_points(list(zip(x, y)), list(zip(ra, dec)))
     '''
-
     def __init__(self, x, y, ra, dec, scale, mirror, angle):
 
         self.x, self.y = x, y
@@ -77,7 +83,8 @@ class WCS () :
                 'Must be astropy.wcs.WCS'
 
         (x, y), (ra, dec) = astropy_wcs.wcs.crpix, astropy_wcs.wcs.crval
-        scale, mirror, angle = cls._decompose_matrix(astropy_wcs.pixel_scale_matrix)
+        scale, mirror, angle = cls._decompose_matrix(
+            astropy_wcs.pixel_scale_matrix)
 
         return cls(x, y, ra, dec, scale, mirror, angle)
 
@@ -98,20 +105,26 @@ class WCS () :
         self.ra, self.dec = rd.mean(axis=0)
 
         A, b = xy - xy.mean(axis=0), rd - rd.mean(axis=0)
-        b[:,0] *= np.cos(np.deg2rad(rd[:,1]))
+        b[:, 0] *= np.cos(np.deg2rad(rd[:, 1]))
 
         if len(xy) == 2:
 
             M = np.diag([[-1, 1][self.mirror], 1])
-            R = lambda t: np.array([[np.cos(t), -np.sin(t)], [np.sin(t), np.cos(t)]])
 
-            chi2 = lambda x: np.power(A.dot(x[1]/60/60*R(x[0]).dot(M).T) - b, 2).sum()
+            def R(t):
+                return np.array([[np.cos(t), -np.sin(t)],
+                                 [np.sin(t), np.cos(t)]])
+
+            def chi2(x):
+                return np.power(
+                    A.dot(x[1] / 60 / 60 * R(x[0]).dot(M).T) - b, 2).sum()
             self.angle, self.scale = minimize(chi2, [self.angle, self.scale]).x
 
         elif len(xy) > 2:
 
             matrix = np.linalg.lstsq(A, b, rcond=None)[0].T
-            self.scale, self.mirror, self.angle = self._decompose_matrix(matrix)
+            self.scale, self.mirror, self.angle = self._decompose_matrix(
+                matrix)
 
     @property
     def matrix(self):
@@ -120,10 +133,8 @@ class WCS () :
         mirror = np.diag([[-1, 1][self.mirror], 1])
         angle = np.deg2rad(self.angle)
 
-        matrix = np.array([
-                [np.cos(angle), -np.sin(angle)],
-                [np.sin(angle),  np.cos(angle)]
-        ])
+        matrix = np.array([[np.cos(angle), -np.sin(angle)],
+                           [np.sin(angle), np.cos(angle)]])
 
         return scale * matrix @ mirror
 
@@ -143,7 +154,7 @@ class WCS () :
         (x, y), (ra, dec) = xy.mean(axis=0), rd.mean(axis=0)
 
         A, b = xy - xy.mean(axis=0), rd - rd.mean(axis=0)
-        b[:,0] *= np.cos(np.deg2rad(rd[:,1]))
+        b[:, 0] *= np.cos(np.deg2rad(rd[:, 1]))
 
         matrix = np.linalg.lstsq(A, b, rcond=None)[0].T
 
@@ -155,13 +166,16 @@ class WCS () :
         scale = np.sqrt(np.power(matrix, 2).sum() / 2) * 60 * 60
 
         if np.argmax(np.power(matrix[0], 2)):
-            mirror = True if np.sign(matrix[0,1]) != np.sign(matrix[1,0]) else False 
+            mirror = True if np.sign(matrix[0, 1]) != np.sign(
+                matrix[1, 0]) else False
         else:
-            mirror = True if np.sign(matrix[0,0]) == np.sign(matrix[1,1]) else False
+            mirror = True if np.sign(matrix[0, 0]) == np.sign(
+                matrix[1, 1]) else False
 
         matrix = matrix if mirror else matrix.dot(np.diag([-1, 1]))
 
-        matrix3d = np.eye(3); matrix3d[:2,:2] = matrix / (scale / 60 / 60)
+        matrix3d = np.eye(3)
+        matrix3d[:2, :2] = matrix / (scale / 60 / 60)
         angle = Rotation.from_matrix(matrix3d).as_euler('xyz', degrees=True)[2]
 
         return scale, mirror, angle
@@ -211,4 +225,4 @@ class WCS () :
 
         ra, dec = self.astropy_wcs.wcs_pix2world([(0, 0)], 0)[0]
 
-        return f'WCS(0, 0, {ra:.4f}, {dec:.4f}, {self.scale:.2f}, {self.mirror}, {self.angle:.2f})'
+        return f'WCS2(0, 0, {ra:.4f}, {dec:.4f}, {self.scale:.2f}, {self.mirror}, {self.angle:.2f})'

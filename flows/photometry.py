@@ -26,30 +26,35 @@ from astropy.wcs.utils import proj_plane_pixel_area, fit_wcs_from_points
 from astropy.time import Time
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry
-from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars
-from photutils import Background2D, SExtractorBackground, MedianBackground
-from photutils.utils import calc_total_error
+from photutils import CircularAperture, CircularAnnulus, aperture_photometry # noqa
+from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars # noqa
+from photutils import Background2D, SExtractorBackground, MedianBackground # noqa
+from photutils.utils import calc_total_error # noqa
 
-from scipy.interpolate import UnivariateSpline
+from scipy.interpolate import UnivariateSpline # noqa
 
-from . import api
-from .config import load_config
-from .plots import plt, plot_image
-from .version import get_version
-from .load_image import load_image
-from .run_imagematch import run_imagematch
-from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet
-from .wcs import force_reject_g2d, clean_with_rsq_and_get_fwhm, get_clean_references
-from .coordinatematch import CoordinateMatch, WCS
-from .epsfbuilder import EPSFBuilder, gaussian_kernel
+from . import api # noqa
+from .config import load_config # noqa
+from .plots import plt, plot_image # noqa
+from .version import get_version # noqa
+from .load_image import load_image # noqa
+from .run_imagematch import run_imagematch # noqa
+from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet # noqa
+from .wcs import force_reject_g2d, clean_with_rsq_and_get_fwhm, get_clean_references # noqa
+from .coordinatematch import CoordinateMatch, WCS2 # noqa
+from .epsfbuilder import EPSFBuilder # noqa
 
 __version__ = get_version(pep440=False)
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 
+
 # --------------------------------------------------------------------------------------------------
-def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fixed=False, timeoutpar=10):
+def photometry(fileid,
+               output_folder=None,
+               attempt_imagematch=True,
+               keep_diff_fixed=False,
+               timeoutpar=10):
     """
     Run photometry.
 
@@ -95,12 +100,16 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # TODO: Include proper-motion to the time of observation
     catalog = api.get_catalog(targetid, output='table')
     target = catalog['target'][0]
-    target_coord = coords.SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
+    target_coord = coords.SkyCoord(ra=target['ra'],
+                                   dec=target['decl'],
+                                   unit='deg',
+                                   frame='icrs')
 
     # Folder to save output:
     if output_folder is None:
         output_folder_root = config.get('photometry', 'output', fallback='.')
-        output_folder = os.path.join(output_folder_root, target_name, '%05d' % fileid)
+        output_folder = os.path.join(output_folder_root, target_name,
+                                     '%05d' % fileid)
     logger.info("Placing output in '%s'", output_folder)
     os.makedirs(output_folder, exist_ok=True)
 
@@ -128,7 +137,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     }.get(photfilter, None)
 
     if ref_filter is None:
-        logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
+        logger.warning(
+            "Could not find filter '%s' in catalogs. Using default gp filter.",
+            photfilter)
         ref_filter = 'g_mag'
 
     # Load the image from the FITS file:
@@ -155,16 +166,22 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     fig, ax = plt.subplots(1, 2, figsize=(20, 18))
     plot_image(image.clean, ax=ax[0], scale='log', cbar='right', title='Image')
-    plot_image(image.mask, ax=ax[1], scale='linear', cbar='right', title='Mask')
-    fig.savefig(os.path.join(output_folder, 'original.png'), bbox_inches='tight')
+    plot_image(image.mask,
+               ax=ax[1],
+               scale='linear',
+               cbar='right',
+               title='Mask')
+    fig.savefig(os.path.join(output_folder, 'original.png'),
+                bbox_inches='tight')
     plt.close(fig)
 
     # Estimate image background:
     # Not using image.clean here, since we are redefining the mask anyway
-    background = Background2D(image.clean, (128, 128), filter_size=(5, 5),
-                       sigma_clip=SigmaClip(sigma=3.0),
-                       bkg_estimator=SExtractorBackground(),
-                       exclude_percentile=50.0)
+    background = Background2D(image.clean, (128, 128),
+                              filter_size=(5, 5),
+                              sigma_clip=SigmaClip(sigma=3.0),
+                              bkg_estimator=SExtractorBackground(),
+                              exclude_percentile=50.0)
 
     # Create background-subtracted image:
     image.subclean = image.clean - background.background
@@ -172,9 +189,16 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # Plot background estimation:
     fig, ax = plt.subplots(1, 3, figsize=(20, 6))
     plot_image(image.clean, ax=ax[0], scale='log', title='Original')
-    plot_image(background.background, ax=ax[1], scale='log', title='Background')
-    plot_image(image.subclean, ax=ax[2], scale='log', title='Background subtracted')
-    fig.savefig(os.path.join(output_folder, 'background.png'), bbox_inches='tight')
+    plot_image(background.background,
+               ax=ax[1],
+               scale='log',
+               title='Background')
+    plot_image(image.subclean,
+               ax=ax[2],
+               scale='log',
+               title='Background subtracted')
+    fig.savefig(os.path.join(output_folder, 'background.png'),
+                bbox_inches='tight')
     plt.close(fig)
 
     # TODO: Is this correct?!
@@ -182,10 +206,15 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Use sep to for soure extraction
     sep_background = sep.Background(image.clean.data, mask=image.mask)
-    logger.debug('sub: {} bkg_rms: {} mask: {}'.format(image.shape, np.shape(sep_background.globalrms),
-                                                       image.shape))
-    objects = sep.extract(image.clean.data - sep_background, thresh=5., err=sep_background.globalrms,
-                          mask=image.mask, deblend_cont=0.1, minarea=9, clean_param=2.0)
+    msg = 'sub: {} bkg_rms: {} mask: {}'.format(image.shape, np.shape(sep_background.globalrms), image.shape)
+    logger.debug(msg)
+    objects = sep.extract(image.clean.data - sep_background,
+                          thresh=5.,
+                          err=sep_background.globalrms,
+                          mask=image.mask,
+                          deblend_cont=0.1,
+                          minarea=9,
+                          clean_param=2.0)
 
     # ==============================================================================================
     # DETECTION OF STARS AND MATCHING WITH CATALOG
@@ -195,9 +224,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # TODO: Are catalog RA-proper motions including cosdec?
     replace(references['pm_ra'], np.NaN, 0)
     replace(references['pm_dec'], np.NaN, 0)
-    refs_coord = coords.SkyCoord(ra=references['ra'], dec=references['decl'],
-                                 pm_ra_cosdec=references['pm_ra'], pm_dec=references['pm_dec'],
-                                 unit='deg', frame='icrs', obstime=Time(2015.5, format='decimalyear'))
+    refs_coord = coords.SkyCoord(ra=references['ra'],
+                                 dec=references['decl'],
+                                 pm_ra_cosdec=references['pm_ra'],
+                                 pm_dec=references['pm_dec'],
+                                 unit='deg',
+                                 frame='icrs',
+                                 obstime=Time(2015.5, format='decimalyear'))
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", ErfaWarning)
@@ -210,22 +243,32 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     fwhm_max = 18.0
 
     # Clean extracted stars
-    masked_sep_xy, sep_mask, masked_sep_rsqs = force_reject_g2d(objects['x'], objects['y'], image, get_fwhm=False,
-                                                                radius=radius, fwhm_guess=fwhm_guess, rsq_min=0.3,
-                                                                fwhm_max=fwhm_max, fwhm_min=fwhm_min)
+    masked_sep_xy, sep_mask, masked_sep_rsqs = force_reject_g2d(
+        objects['x'],
+        objects['y'],
+        image,
+        get_fwhm=False,
+        radius=radius,
+        fwhm_guess=fwhm_guess,
+        rsq_min=0.3,
+        fwhm_max=fwhm_max,
+        fwhm_min=fwhm_min)
 
-    head_wcs = str(WCS.from_astropy_wcs(image.wcs))
+    head_wcs = str(WCS2.from_astropy_wcs(image.wcs))
     logger.debug('Head WCS: %s', head_wcs)
     references.meta['head_wcs'] = head_wcs
 
     # Solve for new WCS
     cm = CoordinateMatch(
-        xy = list(masked_sep_xy[sep_mask]),
-        rd = list(zip(refs_coord.ra.deg, refs_coord.dec.deg)),
-        xy_order = np.argsort(np.power(masked_sep_xy[sep_mask] - np.array(image.shape[::-1])/2, 2).sum(axis=1)),
-        rd_order = np.argsort(target_coord.separation(refs_coord)),
-        xy_nmax = 100, rd_nmax = 100,
-        maximum_angle_distance = 0.002,
+        xy=list(masked_sep_xy[sep_mask]),
+        rd=list(zip(refs_coord.ra.deg, refs_coord.dec.deg)),
+        xy_order=np.argsort(
+            np.power(masked_sep_xy[sep_mask] - np.array(image.shape[::-1]) / 2,
+                     2).sum(axis=1)),
+        rd_order=np.argsort(target_coord.separation(refs_coord)),
+        xy_nmax=100,
+        rd_nmax=100,
+        maximum_angle_distance=0.002,
     )
 
     try:
@@ -238,53 +281,81 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         logger.info('Found new WCS')
         image.wcs = fit_wcs_from_points(
             np.array(list(zip(*cm.xy[i_xy]))),
-            coords.SkyCoord(*map(list, zip(*cm.rd[i_rd])), unit='deg')
-        )
+            coords.SkyCoord(*map(list, zip(*cm.rd[i_rd])), unit='deg'))
 
-    used_wcs = str(WCS.from_astropy_wcs(image.wcs))
+    used_wcs = str(WCS2.from_astropy_wcs(image.wcs))
     logger.debug('Used WCS: %s', used_wcs)
     references.meta['used_wcs'] = used_wcs
 
     # Calculate pixel-coordinates of references:
-    xy = image.wcs.all_world2pix(list(zip(refs_coord.ra.deg, refs_coord.dec.deg)), 0)
-    references['pixel_column'], references['pixel_row'] = x, y = list(map(np.array, zip(*xy)))
+    xy = image.wcs.all_world2pix(
+        list(zip(refs_coord.ra.deg, refs_coord.dec.deg)), 0)
+    references['pixel_column'], references['pixel_row'] = x, y = list(
+        map(np.array, zip(*xy)))
 
     # Clean out the references:
     hsize = 10
-    clean_references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit)
-                                  & (x > hsize) & (x < (image.shape[1] - 1 - hsize))
-                                  & (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+    clean_references = references[
+        (target_coord.separation(refs_coord) > ref_target_dist_limit)
+        & (x > hsize) & (x < (image.shape[1] - 1 - hsize))
+        & (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
     # 		& (references[ref_filter] < ref_mag_limit)
     assert len(clean_references), 'No clean references in field'
 
     # Calculate the targets position in the image:
-    target_pixel_pos = image.wcs.all_world2pix([(target['ra'], target['decl'])], 0)[0]
+    target_pixel_pos = image.wcs.all_world2pix(
+        [(target['ra'], target['decl'])], 0)[0]
 
     # Clean reference star locations
-    masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(clean_references['pixel_column'],
-                                                                           clean_references['pixel_row'],
-                                                                           image,
-                                                                           get_fwhm=True,
-                                                                           radius=radius,
-                                                                           fwhm_guess=fwhm_guess,
-                                                                           fwhm_max=fwhm_max,
-                                                                           fwhm_min=fwhm_min,
-                                                                           rsq_min=0.15)
+    masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(
+        clean_references['pixel_column'],
+        clean_references['pixel_row'],
+        image,
+        get_fwhm=True,
+        radius=radius,
+        fwhm_guess=fwhm_guess,
+        fwhm_max=fwhm_max,
+        fwhm_min=fwhm_min,
+        rsq_min=0.15)
 
     # Use R^2 to more robustly determine initial FWHM guess.
     # This cleaning is good when we have FEW references.
-    fwhm, fwhm_clean_references = clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, clean_references,
-                                                              min_fwhm_references=2, min_references=6, rsq_min=0.15)
-    logger.info('Initial FWHM guess is {} pixels'.format(fwhm))
+    fwhm, fwhm_clean_references = clean_with_rsq_and_get_fwhm(
+        masked_fwhms,
+        masked_rsqs,
+        clean_references,
+        min_fwhm_references=2,
+        min_references=6,
+        rsq_min=0.15)
+    msg = 'Initial FWHM guess is {} pixels'.format(fwhm)
+    logger.info(msg)
     image.fwhm = fwhm
 
     # Create plot of target and reference star positions from 2D Gaussian fits.
     fig, ax = plt.subplots(1, 1, figsize=(20, 18))
-    plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
-    ax.scatter(fwhm_clean_references['pixel_column'], fwhm_clean_references['pixel_row'], c='r', marker='o', alpha=0.3)
-    ax.scatter(masked_sep_xy[:, 0], masked_sep_xy[:, 1], marker='s', alpha=1.0, edgecolors='green', facecolors='none')
-    ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
-    fig.savefig(os.path.join(output_folder, 'positions_g2d.png'), bbox_inches='tight')
+    plot_image(image.subclean,
+               ax=ax,
+               scale='log',
+               cbar='right',
+               title=target_name)
+    ax.scatter(fwhm_clean_references['pixel_column'],
+               fwhm_clean_references['pixel_row'],
+               c='r',
+               marker='o',
+               alpha=0.3)
+    ax.scatter(masked_sep_xy[:, 0],
+               masked_sep_xy[:, 1],
+               marker='s',
+               alpha=1.0,
+               edgecolors='green',
+               facecolors='none')
+    ax.scatter(target_pixel_pos[0],
+               target_pixel_pos[1],
+               marker='+',
+               s=20,
+               c='r')
+    fig.savefig(os.path.join(output_folder, 'positions_g2d.png'),
+                bbox_inches='tight')
     plt.close(fig)
 
     # Uncomment For Debugging
@@ -292,17 +363,39 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Final clean of wcs corrected references
     logger.info("Number of references before final cleaning: %d", len(clean_references))
-    logger.debug('masked R^2 values: {}'.format(masked_rsqs[rsq_mask]))
-    references = get_clean_references(clean_references, masked_rsqs, rsq_ideal=0.8)
-    logger.info("Number of references after final cleaning: %d", len(references))
+    msg = 'masked R^2 values: {}'.format(masked_rsqs[rsq_mask])
+    logger.debug(msg)
+    references = get_clean_references(clean_references,
+                                      masked_rsqs,
+                                      rsq_ideal=0.8)
+    logger.info("Number of references after final cleaning: %d",
+                len(references))
 
     # Create plot of target and reference star positions:
     fig, ax = plt.subplots(1, 1, figsize=(20, 18))
-    plot_image(image.subclean, ax=ax, scale='log', cbar='right', title=target_name)
-    ax.scatter(references['pixel_column'], references['pixel_row'], c='r', marker='o', alpha=0.6)
-    ax.scatter(masked_sep_xy[:, 0], masked_sep_xy[:, 1], marker='s', alpha=0.6, edgecolors='green', facecolors='none')
-    ax.scatter(target_pixel_pos[0], target_pixel_pos[1], marker='+', s=20, c='r')
-    fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
+    plot_image(image.subclean,
+               ax=ax,
+               scale='log',
+               cbar='right',
+               title=target_name)
+    ax.scatter(references['pixel_column'],
+               references['pixel_row'],
+               c='r',
+               marker='o',
+               alpha=0.6)
+    ax.scatter(masked_sep_xy[:, 0],
+               masked_sep_xy[:, 1],
+               marker='s',
+               alpha=0.6,
+               edgecolors='green',
+               facecolors='none')
+    ax.scatter(target_pixel_pos[0],
+               target_pixel_pos[1],
+               marker='+',
+               s=20,
+               c='r')
+    fig.savefig(os.path.join(output_folder, 'positions.png'),
+                bbox_inches='tight')
     plt.close(fig)
 
     # ==============================================================================================
@@ -312,7 +405,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # Make cutouts of stars using extract_stars:
     # Scales with FWHM
     size = int(np.round(29 * fwhm / 6))
-    size += 0 if size % 2 else 1 # Make sure it's a uneven number
+    size += 0 if size % 2 else 1  # Make sure it's a uneven number
     size = max(size, 15)  # Never go below 15 pixels
 
     # Extract stars sub-images:
@@ -322,41 +415,47 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         stars = extract_stars(
             NDData(data=image.subclean.data, mask=image.mask),
             Table(np.array(xy), names=('x', 'y')),
-            size = size + 6 # +6 for edge buffer
+            size=size + 6  # +6 for edge buffer
         )
 
     # Store which stars were used in ePSF in the table:
     references['used_for_epsf'] = False
-    references['used_for_epsf'][[star.id_label-1 for star in stars]] = True
+    references['used_for_epsf'][[star.id_label - 1 for star in stars]] = True
     logger.info("Number of stars used for ePSF: %d", len(stars))
 
     # Plot the stars being used for ePSF:
     imgnr = 0
     nrows, ncols = 5, 5
     for k in range(int(np.ceil(len(stars) / (nrows * ncols)))):
-        fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, 20), squeeze=True)
+        fig, ax = plt.subplots(nrows=nrows,
+                               ncols=ncols,
+                               figsize=(20, 20),
+                               squeeze=True)
         ax = ax.ravel()
         for i in range(nrows * ncols):
             if imgnr > len(stars) - 1:
                 ax[i].axis('off')
             else:
-                offset_axes = stars[imgnr].bbox.ixmin, stars[imgnr].bbox.iymin
-                plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis')#, offset_axes=offset_axes) FIXME (no x-ticks)
+                #offset_axes = stars[imgnr].bbox.ixmin, stars[imgnr].bbox.iymin
+                plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis') # , offset_axes=offset_axes) FIXME (no x-ticks)
             imgnr += 1
 
-        fig.savefig(os.path.join(output_folder, 'epsf_stars%02d.png' % (k + 1)), bbox_inches='tight')
+        fig.savefig(os.path.join(output_folder,
+                                 'epsf_stars%02d.png' % (k + 1)),
+                    bbox_inches='tight')
         plt.close(fig)
 
     # Build the ePSF:
     epsf, stars = EPSFBuilder(
-        oversampling = 1,
-        shape = 1 * size,
-        fitter = EPSFFitter(fit_boxsize=max(np.round(1.5*fwhm).astype(int), 5)),
-        recentering_boxsize = max(np.round(2*fwhm).astype(int), 5),
-        norm_radius = max(fwhm, 5),
-        maxiters = 100,
+        oversampling=1,
+        shape=1 * size,
+        fitter=EPSFFitter(fit_boxsize=max(np.round(1.5 * fwhm).astype(int), 5)),
+        recentering_boxsize=max(np.round(2 * fwhm).astype(int), 5),
+        norm_radius=max(fwhm, 5),
+        maxiters=100,
     )(stars)
-    logger.info('Built PSF model ({n_iter}/{max_iters}) in {time:.1f}s'.format(**epsf.fit_info))
+    msg = 'Built PSF model ({n_iter}/{max_iters}) in {time:.1f}s'.format(**epsf.fit_info)
+    logger.info(msg)
 
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 15))
     plot_image(epsf.data, ax=ax1, cmap='viridis')
@@ -372,7 +471,11 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
         # Run a spline through the points, but subtract half of the peak value, and find the roots:
         # We have to use a cubic spline, since roots() is not supported for other splines
         # for some reason
-        profile_intp = UnivariateSpline(np.arange(0, len(profile)), profile - poffset, k=3, s=0, ext=3)
+        profile_intp = UnivariateSpline(np.arange(0, len(profile)),
+                                        profile - poffset,
+                                        k=3,
+                                        s=0,
+                                        ext=3)
         lr = profile_intp.roots()
 
         # Plot the profile and spline:
@@ -411,7 +514,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # COORDINATES TO DO PHOTOMETRY AT
     # ==============================================================================================
 
-    coordinates = np.array([[ref['pixel_column'], ref['pixel_row']] for ref in references])
+    coordinates = np.array([[ref['pixel_column'], ref['pixel_row']]
+                            for ref in references])
 
     # Add the main target position as the first entry for doing photometry directly in the
     # science image:
@@ -425,7 +529,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     apertures = CircularAperture(coordinates, r=fwhm)
     annuli = CircularAnnulus(coordinates, r_in=1.5 * fwhm, r_out=2.5 * fwhm)
 
-    apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli], mask=image.mask, error=image.error)
+    apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli],
+                                     mask=image.mask,
+                                     error=image.error)
 
     logger.info('Aperture Photometry Success')
     logger.debug("Aperture Photometry Table:\n%s", apphot_tbl)
@@ -435,19 +541,16 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # ==============================================================================================
 
     # Create photometry object:
-    photometry_obj = BasicPSFPhotometry(
-        group_maker=DAOGroup(fwhm),
-        bkg_estimator=MedianBackground(),
-        psf_model=epsf,
-        fitter=fitting.LevMarLSQFitter(),
-        fitshape=size,
-        aperture_radius=fwhm
-    )
+    photometry_obj = BasicPSFPhotometry(group_maker=DAOGroup(fwhm),
+                                        bkg_estimator=MedianBackground(),
+                                        psf_model=epsf,
+                                        fitter=fitting.LevMarLSQFitter(),
+                                        fitshape=size,
+                                        aperture_radius=fwhm)
 
-    psfphot_tbl = photometry_obj(
-        image=image.subclean,
-        init_guesses=Table(coordinates, names=['x_0', 'y_0'])
-    )
+    psfphot_tbl = photometry_obj(image=image.subclean,
+                                 init_guesses=Table(coordinates,
+                                                    names=['x_0', 'y_0']))
 
     logger.info('PSF Photometry Success')
     logger.debug("PSF Photometry Table:\n%s", psfphot_tbl)
@@ -465,14 +568,19 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     diffimage = None
     if datafile.get('diffimg') is not None:
 
-        diffimg_path = os.path.join(datafile['archive_path'], datafile['diffimg']['path'])
+        diffimg_path = os.path.join(datafile['archive_path'],
+                                    datafile['diffimg']['path'])
         diffimg = load_image(diffimg_path)
         diffimage = diffimg.image
 
     elif attempt_imagematch and datafile.get('template') is not None:
         # Run the template subtraction, and get back
         # the science image where the template has been subtracted:
-        diffimage = run_imagematch(datafile, target, star_coord=coordinates, fwhm=fwhm, pixel_scale=pixel_scale)
+        diffimage = run_imagematch(datafile,
+                                   target,
+                                   star_coord=coordinates,
+                                   fwhm=fwhm,
+                                   pixel_scale=pixel_scale)
 
     # We have a diff image, so let's do photometry of the target using this:
     if diffimage is not None:
@@ -481,22 +589,31 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
         # Create apertures around the target:
         apertures = CircularAperture(target_pixel_pos, r=fwhm)
-        annuli = CircularAnnulus(target_pixel_pos, r_in=1.5 * fwhm, r_out=2.5 * fwhm)
+        annuli = CircularAnnulus(target_pixel_pos,
+                                 r_in=1.5 * fwhm,
+                                 r_out=2.5 * fwhm)
 
         # Create two plots of the difference image:
         fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
         plot_image(diffimage, ax=ax, cbar='right', title=target_name)
-        ax.plot(target_pixel_pos[0], target_pixel_pos[1], marker='+', color='r')
-        fig.savefig(os.path.join(output_folder, 'diffimg.png'), bbox_inches='tight')
+        ax.plot(target_pixel_pos[0],
+                target_pixel_pos[1],
+                marker='+',
+                color='r')
+        fig.savefig(os.path.join(output_folder, 'diffimg.png'),
+                    bbox_inches='tight')
         apertures.plot(color='r')
         annuli.plot(color='k')
         ax.set_xlim(target_pixel_pos[0] - 50, target_pixel_pos[0] + 50)
         ax.set_ylim(target_pixel_pos[1] - 50, target_pixel_pos[1] + 50)
-        fig.savefig(os.path.join(output_folder, 'diffimg_zoom.png'), bbox_inches='tight')
+        fig.savefig(os.path.join(output_folder, 'diffimg_zoom.png'),
+                    bbox_inches='tight')
         plt.close(fig)
 
         # Run aperture photometry on subtracted image:
-        target_apphot_tbl = aperture_photometry(diffimage, [apertures, annuli], mask=image.mask, error=image.error)
+        target_apphot_tbl = aperture_photometry(diffimage, [apertures, annuli],
+                                                mask=image.mask,
+                                                error=image.error)
 
         # Make target only photometry object if keep_diff_fixed = True
         if keep_diff_fixed:
@@ -510,14 +627,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
                 psf_model=epsf,
                 fitter=fitting.LevMarLSQFitter(),
                 fitshape=size,
-                aperture_radius=fwhm
-            )
+                aperture_radius=fwhm)
 
         # Run PSF photometry on template subtracted image:
-        target_psfphot_tbl = photometry_obj(
-            diffimage,
-            init_guesses=Table(target_pixel_pos, names=['x_0', 'y_0'])
-        )
+        target_psfphot_tbl = photometry_obj(diffimage,
+                                            init_guesses=Table(
+                                                target_pixel_pos,
+                                                names=['x_0', 'y_0']))
 
         if keep_diff_fixed:  # Need to adjust table columns if x_0 and y_0 were fixed
             target_psfphot_tbl['x_0_unc'] = 0.0
@@ -525,14 +641,21 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
         # Combine the output tables from the target and the reference stars into one:
         apphot_tbl = vstack([target_apphot_tbl, apphot_tbl], join_type='exact')
-        psfphot_tbl = vstack([target_psfphot_tbl, psfphot_tbl], join_type='exact')
+        psfphot_tbl = vstack([target_psfphot_tbl, psfphot_tbl],
+                             join_type='exact')
 
     # Build results table:
     tab = references.copy()
 
-    row = {'starid': 0, 'ra': target['ra'], 'decl': target['decl'], 'pixel_column': target_pixel_pos[0],
-        'pixel_row': target_pixel_pos[1]}
-    row.update([(k, np.NaN) for k in set(tab.keys()) - set(row) - {'gaia_variability'}])
+    row = {
+        'starid': 0,
+        'ra': target['ra'],
+        'decl': target['decl'],
+        'pixel_column': target_pixel_pos[0],
+        'pixel_row': target_pixel_pos[1]
+    }
+    row.update([(k, np.NaN)
+                for k in set(tab.keys()) - set(row) - {'gaia_variability'}])
     tab.insert_row(0, row)
 
     if diffimage is not None:
@@ -542,9 +665,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     indx_main_target = tab['starid'] <= 0
 
     # Subtract background estimated from annuli:
-    flux_aperture = apphot_tbl['aperture_sum_0'] - (apphot_tbl['aperture_sum_1'] / annuli.area) * apertures.area
-    flux_aperture_error = np.sqrt(
-        apphot_tbl['aperture_sum_err_0'] ** 2 + (apphot_tbl['aperture_sum_err_1'] / annuli.area * apertures.area) ** 2)
+    flux_aperture = apphot_tbl['aperture_sum_0'] - (
+        apphot_tbl['aperture_sum_1'] / annuli.area) * apertures.area
+    flux_aperture_error = np.sqrt(apphot_tbl['aperture_sum_err_0']**2 + (apphot_tbl['aperture_sum_err_1'] / annuli.area * apertures.area)**2)
 
     # Add table columns with results:
     tab['flux_aperture'] = flux_aperture / image.exptime
@@ -575,20 +698,24 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Mask out things that should not be used in calibration:
     use_for_calibration = np.ones_like(mag_catalog, dtype='bool')
-    use_for_calibration[indx_main_target] = False  # Do not use target for calibration
-    use_for_calibration[~np.isfinite(mag_inst) | ~np.isfinite(mag_catalog)] = False
+    use_for_calibration[
+        indx_main_target] = False  # Do not use target for calibration
+    use_for_calibration[~np.isfinite(mag_inst)
+                        | ~np.isfinite(mag_catalog)] = False
 
     # Just creating some short-hands:
     x = mag_catalog[use_for_calibration]
     y = mag_inst[use_for_calibration]
     yerr = mag_inst_err[use_for_calibration]
-    weights = 1.0 / yerr ** 2
+    weights = 1.0 / yerr**2
 
     assert any(use_for_calibration), "No calibration stars"
 
     # Fit linear function with fixed slope, using sigma-clipping:
     model = models.Linear1D(slope=1, fixed={'slope': True})
-    fitter = fitting.FittingWithOutlierRemoval(fitting.LinearLSQFitter(), sigma_clip, sigma=3.0)
+    fitter = fitting.FittingWithOutlierRemoval(fitting.LinearLSQFitter(),
+                                               sigma_clip,
+                                               sigma=3.0)
     best_fit, sigma_clipped = fitter(model, x, y, weights=weights)
 
     # Extract zero-point and estimate its error using a single weighted fit:
@@ -598,7 +725,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     weights[sigma_clipped] = 0  # Trick to make following expression simpler
     n_weights = len(weights.nonzero()[0])
     if n_weights > 1:
-        zp_error = np.sqrt(n_weights * nansum(weights * (y - best_fit(x)) ** 2) / nansum(weights) / (n_weights - 1))
+        zp_error = np.sqrt(n_weights * nansum(weights * (y - best_fit(x))**2) / nansum(weights) / (n_weights - 1))
     else:
         zp_error = np.NaN
     logger.info('Leastsquare ZP = %.3f, ZP_error = %.3f', zp, zp_error)
@@ -612,10 +739,19 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Extract zero point and error using bootstrap method
     nboot = 1000
-    logger.info('Running bootstrap with sigma = %.2f and n = %d', sig_chauv, nboot)
-    pars = bootstrap_outlier(x, y, yerr, n=nboot, model=model, fitter=fitting.LinearLSQFitter,
-                             outlier=sigma_clip, outlier_kwargs={'sigma': sig_chauv}, summary='median',
-                             error='bootstrap', return_vals=False)
+    logger.info('Running bootstrap with sigma = %.2f and n = %d', sig_chauv,
+                nboot)
+    pars = bootstrap_outlier(x,
+                             y,
+                             yerr,
+                             n=nboot,
+                             model=model,
+                             fitter=fitting.LinearLSQFitter,
+                             outlier=sigma_clip,
+                             outlier_kwargs={'sigma': sig_chauv},
+                             summary='median',
+                             error='bootstrap',
+                             return_vals=False)
 
     zp_bs = pars['intercept'] * -1.0
     zp_error_bs = pars['intercept_error']
@@ -625,12 +761,13 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # Check that difference is not large
     zp_diff = 0.4
     if np.abs(zp_bs - zp) >= zp_diff:
-        logger.warning("Bootstrap and weighted LSQ ZPs differ by %.2f, \
+        logger.warning(
+            "Bootstrap and weighted LSQ ZPs differ by %.2f, \
         which is more than the allowed %.2f mag.", np.abs(zp_bs - zp), zp_diff)
 
     # Add calibrated magnitudes to the photometry table:
     tab['mag'] = mag_inst + zp_bs
-    tab['mag_error'] = np.sqrt(mag_inst_err ** 2 + zp_error_bs ** 2)
+    tab['mag_error'] = np.sqrt(mag_inst_err**2 + zp_error_bs**2)
 
     fig, ax = plt.subplots(1, 1)
     ax.errorbar(x, y, yerr=yerr, fmt='k.')
@@ -638,7 +775,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     ax.plot(x, best_fit(x), color='g', linewidth=3)
     ax.set_xlabel('Catalog magnitude')
     ax.set_ylabel('Instrumental magnitude')
-    fig.savefig(os.path.join(output_folder, 'calibration.png'), bbox_inches='tight')
+    fig.savefig(os.path.join(output_folder, 'calibration.png'),
+                bbox_inches='tight')
     plt.close(fig)
 
     # Check that we got valid photometry:
@@ -667,8 +805,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # Meta-data:
     tab.meta['version'] = __version__
     tab.meta['fileid'] = fileid
-    tab.meta['template'] = None if datafile.get('template') is None else datafile['template']['fileid']
-    tab.meta['diffimg'] = None if datafile.get('diffimg') is None else datafile['diffimg']['fileid']
+    tab.meta['template'] = None if datafile.get(
+        'template') is None else datafile['template']['fileid']
+    tab.meta['diffimg'] = None if datafile.get(
+        'diffimg') is None else datafile['diffimg']['fileid']
     tab.meta['photfilter'] = photfilter
     tab.meta['fwhm'] = fwhm * u.pixel
     tab.meta['pixel_scale'] = pixel_scale * u.arcsec / u.pixel
@@ -683,7 +823,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     photometry_output = os.path.join(output_folder, 'photometry.ecsv')
 
     # Write the final table to file:
-    tab.write(photometry_output, format='ascii.ecsv', delimiter=',', overwrite=True)
+    tab.write(photometry_output,
+              format='ascii.ecsv',
+              delimiter=',',
+              overwrite=True)
 
     toc = default_timer()
 
