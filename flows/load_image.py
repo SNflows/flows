@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Flows photometry code.
@@ -304,6 +304,12 @@ def load_image(FILENAME):
 			image.photfilter = {
 				'i_SDSS': 'ip'
 			}.get(hdr['ESO INS FILT1 NAME'], hdr['ESO INS FILT1 NAME'])
+
+		elif instrument == 'ANDICAM-CCD' and hdr.get('OBSERVAT') == 'CTIO':
+			image.site = api.get_site(20) # Hard-coded the siteid for ANDICAM at Cerro Tololo Interamerican Observatory (CTIO)
+			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
+			image.photfilter = hdr['CCDFLTID']
 
 		else:
 			raise Exception("Could not determine origin of image")
