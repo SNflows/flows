@@ -22,7 +22,7 @@ def get_target(target):
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 
 	r = requests.get('https://flows.phys.au.dk/api/targets.php',
 		params={'target': target},
@@ -45,7 +45,7 @@ def get_targets():
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 
 	r = requests.get('https://flows.phys.au.dk/api/targets.php',
 		headers={'Authorization': 'Bearer ' + token})
@@ -127,7 +127,7 @@ def add_target(name, coord, redshift=None, redshift_error=None, discovery_date=N
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 
 	# Gather parameters to be sent to API:
 	params = {

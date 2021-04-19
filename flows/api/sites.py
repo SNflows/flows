@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 
@@ -18,7 +19,7 @@ def get_site(siteid):
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 
 	r = requests.get('https://flows.phys.au.dk/api/sites.php',
 		params={'siteid': siteid},
@@ -39,7 +40,7 @@ def get_all_sites():
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 
 	r = requests.get('https://flows.phys.au.dk/api/sites.php',
 		headers={'Authorization': 'Bearer ' + token})

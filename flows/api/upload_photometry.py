@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Upload photometry results to Flows server.
@@ -43,7 +43,7 @@ def upload_photometry(fileid, delete_completed=False):
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 	photdir_root = config.get('photometry', 'output', fallback='.')
 	photdir = os.path.join(photdir_root, datafile['target_name'], '{0:05d}'.format(fileid))
 
@@ -91,7 +91,7 @@ def upload_photometry(fileid, delete_completed=False):
 		# Check the returned data from the API:
 		if r.text.strip() != 'OK':
 			logger.error(r.text)
-			raise Exception("An error occurred while uploading photometry: " + r.text)
+			raise RuntimeError("An error occurred while uploading photometry: " + r.text)
 		r.raise_for_status()
 
 	finally:

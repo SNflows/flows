@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 
@@ -34,7 +35,7 @@ def set_photometry_status(fileid, status):
 	# Get API token from config file:
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 
 	# Send HTTP request to FLOWS server:
 	r = requests.get('https://flows.phys.au.dk/api/set_photometry_status.php',
@@ -44,6 +45,6 @@ def set_photometry_status(fileid, status):
 	res = r.text.strip()
 
 	if res != 'OK':
-		raise Exception(res)
+		raise RuntimeError(res)
 
 	return True
