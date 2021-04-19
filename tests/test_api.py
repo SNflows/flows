@@ -8,7 +8,8 @@ Test API calls.
 
 import pytest
 from astropy.coordinates import EarthLocation
-import conftest
+from astropy.table import Table
+import conftest # noqa: F401
 from flows import api
 
 #--------------------------------------------------------------------------------------------------
@@ -85,6 +86,26 @@ def test_api_get_sites(SETUP_CONFIG):
 	print(tab)
 	assert isinstance(tab, dict)
 	assert tab == site0
+
+#--------------------------------------------------------------------------------------------------
+def test_api_get_catalog(SETUP_CONFIG):
+
+	cat = api.get_catalog(2, output='table')
+	print(cat)
+
+	assert isinstance(cat, dict)
+
+	target = cat['target']
+	assert isinstance(target, Table)
+	assert len(target) == 1
+	assert target['targetid'] == 2
+	assert target['target_name'] == '2019yvr'
+
+	ref = cat['references']
+	assert isinstance(ref, Table)
+
+	avoid = cat['avoid']
+	assert isinstance(avoid, Table)
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':

@@ -10,7 +10,7 @@ import pytest
 import numpy as np
 from astropy.table import Table
 from astropy.coordinates import SkyCoord
-import conftest
+import conftest # noqa: F401
 from flows import ztf
 
 #--------------------------------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 
@@ -17,7 +18,7 @@ def get_datafile(fileid):
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 
 	r = requests.get('https://flows.phys.au.dk/api/datafiles.php',
 		params={'fileid': fileid},
@@ -58,7 +59,7 @@ def get_datafiles(targetid=None, filt=None):
 	config = load_config()
 	token = config.get('api', 'token', fallback=None)
 	if token is None:
-		raise Exception("No API token has been defined")
+		raise RuntimeError("No API token has been defined")
 
 	params = {}
 	if targetid is not None:
