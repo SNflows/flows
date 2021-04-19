@@ -36,7 +36,7 @@ def test_ztf_id():
 
 #--------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize('targetid', [2, 865])
-def test_ztf_photometry(targetid):
+def test_ztf_photometry(SETUP_CONFIG, targetid):
 
 	tab = ztf.download_ztf_photometry(targetid)
 	print(tab)
