@@ -57,7 +57,8 @@ def main():
 		targets = [api.get_target(args.target)]
 
 	# Colors used for the different filters in plots:
-	colors = {'rp': 'tab:red', 'gp': 'tab:green'}
+	# I know purple is in the wrong end of the scale, but not much I can do
+	colors = {'gp': 'tab:green', 'rp': 'tab:red', 'ip': 'tab:purple'}
 
 	# Loop through targets:
 	for tgt in targets:
