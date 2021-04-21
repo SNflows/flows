@@ -134,7 +134,7 @@ if __name__ == '__main__':
     elif args.targetids[0] is not None:
         # Run the specified targetids
         fileids2d = [api.get_datafiles(targetid=tar, filt=args.filter) for tar in args.targetids]
-        fileids = [item for sublist in fileids2d for item in sublist]  #get flat list
+        fileids = [item for sublist in fileids2d for item in sublist]  # get flat list
     else:
         # Ask the API for a list of fileids which are yet to be processed:
         fileids = api.get_datafiles(targetid=args.targetid, filt=args.filter)
