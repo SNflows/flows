@@ -82,11 +82,10 @@ def load_image(FILENAME):
 		telescope = hdr.get('TELESCOP')
 		instrument = hdr.get('INSTRUME')
 
-		image.image = np.asarray(hdul[0].data, dtype=np.float64)
+		image.image = np.asarray(hdul[0].data, dtype='float64')
 		image.shape = image.image.shape
 
-		image.head = hdr
-		image.exthdu = [hdu.copy() for hdu in hdul[1:]]
+		image.header = hdr
 
 		if origin == 'LCOGT':
 			image.mask = np.asarray(hdul['BPM'].data, dtype='bool')
@@ -313,7 +312,7 @@ def load_image(FILENAME):
 			raise Exception("Could not determine origin of image")
 
 	# Create masked version of image:
-	#image.image[image.mask] = np.NaN
+	image.image[image.mask] = np.NaN
 	image.clean = np.ma.masked_array(image.image, image.mask)
 
 	return image

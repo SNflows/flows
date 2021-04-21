@@ -1,2 +1,1 @@
-from .epsfbuilder import EPSFBuilder
-from .gaussian_kernel import gaussian_kernel
+from .epsfbuilder import EPSFBuilder # noqa: F401

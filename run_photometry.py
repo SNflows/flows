@@ -16,7 +16,7 @@ from flows import api, photometry, load_config
 
 # --------------------------------------------------------------------------------------------------
 def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False, keep_diff_fixed=False,
-                   timeoutpar=10):
+                   timeoutpar='None'):
     logger = logging.getLogger('flows')
     logging.captureWarnings(True)
     logger_warn = logging.getLogger('py.warnings')
@@ -99,7 +99,7 @@ if __name__ == '__main__':
                        help="Fix SN position during PSF photometry of difference image. \
                        Useful when difference image is noisy.",
                        action='store_true')
-    group.add_argument('--timeoutpar', type=int, default=10, help='Timeout in Seconds for WCS')
+    group.add_argument('--timeoutpar', type=int, default='None', help="Timeout in Seconds for WCS")
     args = parser.parse_args()
 
     # Ensure that all input has been given:

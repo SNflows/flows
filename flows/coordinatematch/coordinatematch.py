@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+Match two sets of coordinates
+
+.. codeauthor:: Simon Holmbo <simonholmbo@phys.au.dk>
+"""
 import time
 
 from itertools import count, islice, chain, product, zip_longest
@@ -8,29 +14,34 @@ from astropy.coordinates.angle_utilities import angular_separation
 from scipy.spatial import cKDTree as KDTree
 from networkx import Graph, connected_components
 
-from .wcs import WCS
+from .wcs import WCS2
 
-class CoordinateMatch () :
 
-    def __init__(self, xy, rd,
-            xy_order=None, rd_order=None,
-            xy_nmax=None, rd_nmax=None,
-            n_triangle_packages = 10,
-            triangle_package_size = 10000,
-            maximum_angle_distance = 0.001,
-            distance_factor = 1
-    ):
+class CoordinateMatch():
+    def __init__(self,
+                 xy,
+                 rd,
+                 xy_order=None,
+                 rd_order=None,
+                 xy_nmax=None,
+                 rd_nmax=None,
+                 n_triangle_packages=10,
+                 triangle_package_size=10000,
+                 maximum_angle_distance=0.001,
+                 distance_factor=1):
 
         self.xy, self.rd = np.array(xy), np.array(rd)
 
         self._xy = xy - np.mean(xy, axis=0)
         self._rd = rd - np.mean(rd, axis=0)
-        self._rd[:,0] *= np.cos(np.deg2rad(self.rd[:,1]))
+        self._rd[:, 0] *= np.cos(np.deg2rad(self.rd[:, 1]))
 
         xy_n, rd_n = min(xy_nmax, len(xy)), min(rd_nmax, len(rd))
 
-        self.i_xy = xy_order[:xy_n] if not xy_order is None else np.arange(xy_n)
-        self.i_rd = rd_order[:rd_n] if not rd_order is None else np.arange(rd_n)
+        self.i_xy = xy_order[:xy_n] if xy_order is not None else np.arange(
+            xy_n)
+        self.i_rd = rd_order[:rd_n] if rd_order is not None else np.arange(
+            rd_n)
 
         self.n_triangle_packages = n_triangle_packages
         self.triangle_package_size = triangle_package_size
@@ -45,14 +56,17 @@ class CoordinateMatch () :
         self.parameters = None
         self.neighbours = Graph()
 
-        self.normalizations = type('Normalizations', (object,), dict(
-            ra = 0.0001, dec = 0.0001, scale = 0.002, angle = 0.002
-        ))
+        self.normalizations = type(
+            'Normalizations', (object, ),
+            dict(ra=0.0001, dec=0.0001, scale=0.002, angle=0.002))
 
-        self.bounds = type('Bounds', (object,), dict(
-            xy = self.xy.mean(axis=0), rd = None, radius = None,
-            scale = None, angle = None
-        ))
+        self.bounds = type(
+            'Bounds', (object, ),
+            dict(xy=self.xy.mean(axis=0),
+                 rd=None,
+                 radius=None,
+                 scale=None,
+                 angle=None))
 
     def set_normalizations(self, ra=None, dec=None, scale=None, angle=None):
         '''Set normalization factors in the (ra, dec, scale, angle) space.
@@ -64,21 +78,29 @@ class CoordinateMatch () :
             angle = 0.002 radians
         '''
 
-        if not self.parameters is None:
+        if self.parameters is not None:
 
-            raise Exception('can\'t change normalization after matching is started')
+            raise Exception(
+                'can\'t change normalization after matching is started')
 
         assert ra is None or 0 < ra
         assert dec is None or 0 < dec
         assert scale is None or 0 < scale
         assert angle is None or 0 < angle
 
-        self.normalizations.ra = ra if not ra is None else self.normalizations.ra
-        self.normalizations.dec = dec if not dec is None else self.normalizations.dec
-        self.normalizations.scale = scale if not scale is None else self.normalizations.scale
-        self.normalizations.angle = angle if not ra is None else self.normalizations.angle
+        self.normalizations.ra = ra if ra is not None else self.normalizations.ra
+        self.normalizations.dec = dec if dec is not None else self.normalizations.dec
+        self.normalizations.scale = scale if scale is not None else self.normalizations.scale
+        self.normalizations.angle = angle if ra is not None else self.normalizations.angle
 
-    def set_bounds(self, x=None, y=None, ra=None, dec=None, radius=None, scale=None, angle=None):
+    def set_bounds(self,
+                   x=None,
+                   y=None,
+                   ra=None,
+                   dec=None,
+                   radius=None,
+                   scale=None,
+                   angle=None):
         '''Set bounds for what are valid results.
 
         Set x, y, ra, dec and radius to specify that the x, y coordinates must be no
@@ -88,7 +110,7 @@ class CoordinateMatch () :
         same system.
         '''
 
-        if not self.parameters is None:
+        if self.parameters is not None:
 
             raise Exception('can\'t change bounds after matching is started')
 
@@ -109,8 +131,8 @@ class CoordinateMatch () :
         assert scale is None or 0 < scale[0] < scale[1]
         assert angle is None or -np.pi <= angle[0] < angle[1] <= np.pi
 
-        self.bounds.scale = scale if not scale is None else self.bounds.scale
-        self.bounds.angle = angle if not angle is None else self.bounds.angle
+        self.bounds.scale = scale if scale is not None else self.bounds.scale
+        self.bounds.angle = angle if angle is not None else self.bounds.angle
 
     def _sorted_triangles(self, pool):
 
@@ -125,7 +147,8 @@ class CoordinateMatch () :
         i_p = np.argsort(np.arange(len(p)))
         i_q = np.argsort(np.arange(len(q)))
 
-        for _i_p, _i_q in sorted(product(i_p, i_q), key=lambda idxs: sum(idxs)):
+        for _i_p, _i_q in sorted(product(i_p, i_q),
+                                 key=lambda idxs: sum(idxs)):
 
             yield p[_i_p], q[_i_q]
 
@@ -134,23 +157,23 @@ class CoordinateMatch () :
         i_xy_triangle_generator = self._sorted_triangles(self.i_xy)
         i_rd_triangle_generator = self._sorted_triangles(self.i_rd)
 
-        i_xy_triangle_slice_generator = (
-                tuple(islice(i_xy_triangle_generator, self.triangle_package_size))
-                for _ in count()
-        )
-        i_rd_triangle_slice_generator = (
-                list(islice(i_rd_triangle_generator, self.triangle_package_size))
-                for _ in count()
-        )
+        i_xy_triangle_slice_generator = (tuple(
+            islice(i_xy_triangle_generator, self.triangle_package_size)) for _ in count())
+        i_rd_triangle_slice_generator = (list(
+            islice(i_rd_triangle_generator, self.triangle_package_size)) for _ in count())
 
         for n in count(step=self.n_triangle_packages):
 
-            i_xy_triangle_slice = tuple(filter(None,
-                    islice(i_xy_triangle_slice_generator, self.n_triangle_packages)
-            ))
-            i_rd_triangle_slice = tuple(filter(None,
-                    islice(i_rd_triangle_slice_generator, self.n_triangle_packages)
-            ))
+            i_xy_triangle_slice = tuple(
+                filter(
+                    None,
+                    islice(i_xy_triangle_slice_generator,
+                           self.n_triangle_packages)))
+            i_rd_triangle_slice = tuple(
+                filter(
+                    None,
+                    islice(i_rd_triangle_slice_generator,
+                           self.n_triangle_packages)))
 
             if not len(i_xy_triangle_slice) and not len(i_rd_triangle_slice):
                 return
@@ -158,32 +181,32 @@ class CoordinateMatch () :
             i_xy_triangle_generator2 = self._sorted_triangles(self.i_xy)
             i_rd_triangle_generator2 = self._sorted_triangles(self.i_rd)
 
-            i_xy_triangle_cum = filter(None, (
-                    tuple(islice(i_xy_triangle_generator2, self.triangle_package_size))
-                    for _ in range(n)
-            ))
-            i_rd_triangle_cum = filter(None, (
-                    tuple(islice(i_rd_triangle_generator2, self.triangle_package_size))
-                    for _ in range(n)
-            ))
+            i_xy_triangle_cum = filter(None, (tuple(
+                islice(i_xy_triangle_generator2, self.triangle_package_size)) for _ in range(n)))
+            i_rd_triangle_cum = filter(None, (tuple(
+                islice(i_rd_triangle_generator2, self.triangle_package_size)) for _ in range(n)))
 
             for i_xy_triangles, i_rd_triangles in chain(
-                    filter(None, chain(*zip_longest( # alternating chain
+                    filter(
+                        None,
+                        chain(*zip_longest(  # alternating chain
                             product(i_xy_triangle_slice, i_rd_triangle_cum),
-                            product(i_xy_triangle_cum, i_rd_triangle_slice)
-                    ))),
-                    self._sorted_product_pairs(i_xy_triangle_slice, i_rd_triangle_slice)
-            ):
+                            product(i_xy_triangle_cum, i_rd_triangle_slice)))),
+                    self._sorted_product_pairs(i_xy_triangle_slice,
+                                               i_rd_triangle_slice)):
                 yield np.array(i_xy_triangles), np.array(i_rd_triangles)
 
     def _get_triangle_angles(self, triangles):
 
-        sidelengths = np.sqrt(np.power(triangles[:,(1,0,0)] - triangles[:,(2,2,1)], 2).sum(axis=2))
+        sidelengths = np.sqrt(
+            np.power(triangles[:, (1, 0, 0)] - triangles[:, (2, 2, 1)],
+                     2).sum(axis=2))
 
         # law of cosines
-        angles  = np.power(sidelengths[:,((1,2),(0,2),(0,1))], 2).sum(axis=2)
-        angles -= np.power(sidelengths[:,(0,1,2)], 2)
-        angles /= 2 * sidelengths[:,((1,2),(0,2),(0,1))].prod(axis=2)
+        angles = np.power(sidelengths[:, ((1, 2), (0, 2), (0, 1))],
+                          2).sum(axis=2)
+        angles -= np.power(sidelengths[:, (0, 1, 2)], 2)
+        angles /= 2 * sidelengths[:, ((1, 2), (0, 2), (0, 1))].prod(axis=2)
 
         return np.arccos(angles)
 
@@ -191,10 +214,12 @@ class CoordinateMatch () :
 
         n = len(xy_triangles)
 
-        A = xy_triangles - np.mean(xy_triangles, axis=1).reshape(n,1,2)
-        b = rd_triangles - np.mean(rd_triangles, axis=1).reshape(n,1,2)
+        A = xy_triangles - np.mean(xy_triangles, axis=1).reshape(n, 1, 2)
+        b = rd_triangles - np.mean(rd_triangles, axis=1).reshape(n, 1, 2)
 
-        matrices = [np.linalg.lstsq(Ai, bi, rcond=None)[0].T for Ai, bi in zip(A, b)]
+        matrices = [
+            np.linalg.lstsq(Ai, bi, rcond=None)[0].T for Ai, bi in zip(A, b)
+        ]
 
         return np.array(matrices)
 
@@ -202,21 +227,18 @@ class CoordinateMatch () :
 
         parameters = []
 
-        for xy_com, rd_com, matrix in zip( # com -> center-of-mass
-                xy_triangles.mean(axis=1),
-                rd_triangles.mean(axis=1),
-                matrices
-        ):
+        for xy_com, rd_com, matrix in zip(  # com -> center-of-mass
+                xy_triangles.mean(axis=1), rd_triangles.mean(axis=1),
+                matrices):
 
-                cos_dec = np.cos(np.deg2rad(rd_com[1]))
-                coordinates = (self.bounds.xy - xy_com).dot(matrix)
-                coordinates = coordinates / np.array([cos_dec, 1]) + rd_com
+            cos_dec = np.cos(np.deg2rad(rd_com[1]))
+            coordinates = (self.bounds.xy - xy_com).dot(matrix)
+            coordinates = coordinates / np.array([cos_dec, 1]) + rd_com
 
-                wcs = WCS.from_matrix(*xy_com, *rd_com, matrix)
+            wcs = WCS2.from_matrix(*xy_com, *rd_com, matrix)
 
-                parameters.append(
-                    (*coordinates, np.log(wcs.scale), np.deg2rad(wcs.angle))
-                )
+            parameters.append(
+                (*coordinates, np.log(wcs.scale), np.deg2rad(wcs.angle)))
 
         return parameters
 
@@ -225,30 +247,26 @@ class CoordinateMatch () :
         i = np.ones(len(parameters), dtype=bool)
         parameters = np.array(parameters)
 
-        if not self.bounds.radius is None:
+        if self.bounds.radius is not None:
 
             i *= angular_separation(
-                    *np.deg2rad(self.bounds.rd),
-                    *zip(*np.deg2rad(parameters[:,(0,1)]))
-            ) <= np.deg2rad(self.bounds.radius)
+                *np.deg2rad(self.bounds.rd),
+                *zip(*np.deg2rad(parameters[:, (0, 1)]))) <= np.deg2rad(
+                    self.bounds.radius)
 
-        if not self.bounds.scale is None:
+        if self.bounds.scale is not None:
 
-            i *= self.bounds.scale[0] <= parameters[:,2]
-            i *= parameters[:,2] <= self.bounds.scale[1]
+            i *= self.bounds.scale[0] <= parameters[:, 2]
+            i *= parameters[:, 2] <= self.bounds.scale[1]
 
-        if not self.bounds.angle is None:
+        if self.bounds.angle is not None:
 
-            i *= self.bounds.angle[0] <= parameters[:,3]
-            i *= parameters[:,3] <= self.bounds.angle[1]
+            i *= self.bounds.angle[0] <= parameters[:, 3]
+            i *= parameters[:, 3] <= self.bounds.angle[1]
 
         return i
 
-    def __call__(self,
-            minimum_matches = 4,
-            ratio_superiority = 1,
-            timeout = 60
-    ):
+    def __call__(self, minimum_matches=4, ratio_superiority=1, timeout=60):
         '''Start the alogrithm.
 
         Can be run multiple times with different arguments to relax the
@@ -279,7 +297,8 @@ class CoordinateMatch () :
             print('Failed, timeout.')
         '''
 
-        self.parameters = list() if self.parameters is None else self.parameters
+        self.parameters = list(
+        ) if self.parameters is None else self.parameters
 
         t0 = time.time()
 
@@ -287,7 +306,8 @@ class CoordinateMatch () :
 
             # get triangles and derive angles
 
-            i_xy_triangles, i_rd_triangles = next(self.triangle_package_generator)
+            i_xy_triangles, i_rd_triangles = next(
+                self.triangle_package_generator)
 
             xy_angles = self._get_triangle_angles(self._xy[i_xy_triangles])
             rd_angles = self._get_triangle_angles(self._rd[i_rd_triangles])
@@ -304,27 +324,27 @@ class CoordinateMatch () :
 
             # match triangles
 
-            matches = KDTree(xy_angles).query_ball_tree(KDTree(rd_angles), r=self.maximum_angle_distance)
-            matches = np.array([(_i_xy, _i_rd) for _i_xy, _li_rd in enumerate(matches) for _i_rd in _li_rd])
+            matches = KDTree(xy_angles).query_ball_tree(
+                KDTree(rd_angles), r=self.maximum_angle_distance)
+            matches = np.array([(_i_xy, _i_rd)
+                                for _i_xy, _li_rd in enumerate(matches)
+                                for _i_rd in _li_rd])
 
             if not len(matches):
                 continue
 
-            i_xy_triangles = list(i_xy_triangles[matches[:,0]])
-            i_rd_triangles = list(i_rd_triangles[matches[:,1]])
+            i_xy_triangles = list(i_xy_triangles[matches[:, 0]])
+            i_rd_triangles = list(i_rd_triangles[matches[:, 1]])
 
             # get parameters of wcs solutions
 
             matrices = self._solve_for_matrices(
-                    self._xy[np.array(i_xy_triangles)],
-                    self._rd[np.array(i_rd_triangles)]
-            )
+                self._xy[np.array(i_xy_triangles)],
+                self._rd[np.array(i_rd_triangles)])
 
             parameters = self._extract_parameters(
-                    self.xy[np.array(i_xy_triangles)],
-                    self.rd[np.array(i_rd_triangles)],
-                    matrices
-            )
+                self.xy[np.array(i_xy_triangles)],
+                self.rd[np.array(i_rd_triangles)], matrices)
 
             # apply bounds if any
 
@@ -338,15 +358,23 @@ class CoordinateMatch () :
 
             # normalize parameters
 
-            normalization = [getattr(self.normalizations, v) for v in ('ra', 'dec', 'scale', 'angle')]
-            normalization[0] *= np.cos(np.deg2rad(self.rd[:,1].mean(axis=0)))
+            normalization = [
+                getattr(self.normalizations, v)
+                for v in ('ra', 'dec', 'scale', 'angle')
+            ]
+            normalization[0] *= np.cos(np.deg2rad(self.rd[:, 1].mean(axis=0)))
             parameters = list(parameters / np.array(normalization))
 
             # match parameters
 
-            neighbours = KDTree(parameters).query_ball_tree(KDTree(self.parameters + parameters), r=self.distance_factor)
-            neighbours = np.array([(i, j) for i, lj in enumerate(neighbours, len(self.parameters)) for j in lj])
-            neighbours = list(neighbours[(np.diff(neighbours, axis=1) < 0).flatten()])
+            neighbours = KDTree(parameters).query_ball_tree(
+                KDTree(self.parameters + parameters), r=self.distance_factor)
+            neighbours = np.array([
+                (i, j) for i, lj in enumerate(neighbours, len(self.parameters))
+                for j in lj
+            ])
+            neighbours = list(
+                neighbours[(np.diff(neighbours, axis=1) < 0).flatten()])
 
             if not len(neighbours):
                 continue
@@ -360,7 +388,8 @@ class CoordinateMatch () :
 
             communities = list(connected_components(self.neighbours))
             c1 = np.array(list(max(communities, key=len)))
-            i = np.unique(np.array(self.i_xy_triangles)[c1].flatten(), return_index=True)[1]
+            i = np.unique(np.array(self.i_xy_triangles)[c1].flatten(),
+                          return_index=True)[1]
 
             if ratio_superiority > 1 and len(communities) > 1:
 

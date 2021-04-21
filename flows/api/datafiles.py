@@ -15,14 +15,11 @@ def get_datafile(fileid):
 
 	# Get API token from config file:
 	config = load_config()
-	address = config.get('api', 'address', fallback=None)
 	token = config.get('api', 'token', fallback=None)
-	if address is None:
-		raise Exception("No API catalog address has been defined")
 	if token is None:
 		raise Exception("No API token has been defined")
 
-	r = requests.get('%s/datafiles.php' % address,
+	r = requests.get('https://flows.phys.au.dk/api/datafiles.php',
 		params={'fileid': fileid},
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
@@ -59,10 +56,7 @@ def get_datafiles(targetid=None, filt=None):
 
 	# Get API token from config file:
 	config = load_config()
-	address = config.get('api', 'address', fallback=None)
 	token = config.get('api', 'token', fallback=None)
-	if address is None:
-		raise Exception("No API catalog address has been defined")
 	if token is None:
 		raise Exception("No API token has been defined")
 
@@ -71,7 +65,7 @@ def get_datafiles(targetid=None, filt=None):
 		params['targetid'] = targetid
 	params['filter'] = filt
 
-	r = requests.get('%s/datafiles.php' % address,
+	r = requests.get('https://flows.phys.au.dk/api/datafiles.php',
 		params=params,
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
