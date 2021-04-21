@@ -10,7 +10,7 @@ mplcursors == 0.3
 seaborn
 pandas
 requests
-astropy >= 4.1
+astropy == 4.1
 photutils >= 1.0.2
 PyYAML
 psycopg2-binary
