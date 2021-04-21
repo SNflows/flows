@@ -271,7 +271,7 @@ def photometry(fileid,
     )
 
     # Set timeout par to infinity unless specified.
-    if timeoutpar == 'None': timeoutpar=float('inf')
+    if timeoutpar == 'None': timeoutpar = float('inf')
     try:
         i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeoutpar)))
     except TimeoutError:
