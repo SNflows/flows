@@ -48,13 +48,17 @@ def main():
 
 	# Check that output directory exists:
 	if not os.path.isdir(output_dir):
-		parser.error("Output directory does not exist: '%s'" % output_dir) # noqa: G002
+		parser.error(f"Output directory does not exist: '{output_dir}'") # noqa: G004
 
 	# Use API to get list of targets to process:
 	if args.target is None:
 		targets = api.get_targets()
 	else:
 		targets = [api.get_target(args.target)]
+
+	# Colors used for the different filters in plots:
+	# I know purple is in the wrong end of the scale, but not much I can do
+	colors = {'gp': 'tab:green', 'rp': 'tab:red', 'ip': 'tab:purple'}
 
 	# Loop through targets:
 	for tgt in targets:
@@ -67,12 +71,12 @@ def main():
 		# Download ZTF photometry as Astropy Table:
 		tab = ztf.download_ztf_photometry(tgt['targetid'])
 		logger.debug("ZTF Photometry:\n%s", tab)
-		if tab is None:
+		if tab is None or len(tab) == 0:
 			continue
 
 		# Write table to file:
 		target_name = tab.meta['target_name']
-		tab.write(os.path.join(output_dir, '{0:s}-ztf.ecsv'.format(target_name)),
+		tab.write(os.path.join(output_dir, f'{target_name:s}-ztf.ecsv'),
 			format='ascii.ecsv', delimiter=',')
 
 		# Find time of maxmimum and 14 days from that:
@@ -85,16 +89,17 @@ def main():
 		ax.axvline(maximum_mjd, ls='--', c='k', lw=0.5, label='Maximum')
 		ax.axvline(fortnight_mjd, ls='--', c='0.5', lw=0.5, label='+14 days')
 		for fid in np.unique(tab['photfilter']):
+			col = colors[fid]
 			band = tab[tab['photfilter'] == fid]
 			ax.errorbar(band['time'], band['mag'], band['mag_err'],
-				ls='-', lw=0.5, marker='.', label=fid)
+				color=col, ls='-', lw=0.5, marker='.', label=fid)
 
 		ax.invert_yaxis()
 		ax.set_title(target_name)
 		ax.set_xlabel('Time (MJD)')
 		ax.set_ylabel('Magnitude')
 		ax.legend()
-		fig.savefig(os.path.join(output_dir, '{0:s}-ztf.png'.format(target_name)), format='png', bbox_inches='tight')
+		fig.savefig(os.path.join(output_dir, f'{target_name:s}-ztf.png'), format='png', bbox_inches='tight')
 		plt.close(fig)
 
 #--------------------------------------------------------------------------------------------------

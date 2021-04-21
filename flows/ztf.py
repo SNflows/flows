@@ -101,11 +101,11 @@ def download_ztf_photometry(targetid):
 	# Create Astropy table, cut out the needed columns
 	# and rename columns to something better for what we are doing:
 	tab = Table(data=jsn)
-	tab = tab[['fid', 'mjd', 'magpsf_corr', 'sigmapsf_corr']]
+	tab = tab[['fid', 'mjd', 'magpsf', 'sigmapsf']]
 	tab.rename_column('fid', 'photfilter')
 	tab.rename_column('mjd', 'time')
-	tab.rename_column('magpsf_corr', 'mag')
-	tab.rename_column('sigmapsf_corr', 'mag_err')
+	tab.rename_column('magpsf', 'mag')
+	tab.rename_column('sigmapsf', 'mag_err')
 
 	# Remove bad values of time and magnitude:
 	tab['time'] = np.asarray(tab['time'], dtype='float64')
