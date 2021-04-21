@@ -5,14 +5,9 @@ Photutils hack for EPSF building
 .. codeauthor:: Simon Holmbo <simonholmbo@phys.au.dk>
 """
 import time
-
 import numpy as np
-
-#from scipy.spatial import cKDTree
 from scipy.interpolate import griddata
-
 import photutils.psf
-
 
 class EPSFBuilder(photutils.psf.EPSFBuilder):
     def _create_initial_epsf(self, stars):

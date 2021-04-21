@@ -1,1 +1,1 @@
-from .epsfbuilder import EPSFBuilder # noqa
+from .epsfbuilder import EPSFBuilder # noqa: F401

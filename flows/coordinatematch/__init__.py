@@ -1,2 +1,2 @@
-from .coordinatematch import CoordinateMatch # noqa
-from .wcs import WCS2 # noqa
+from .coordinatematch import CoordinateMatch # noqa: F401
+from .wcs import WCS2 # noqa: F401
