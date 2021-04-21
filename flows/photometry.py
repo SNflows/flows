@@ -5,6 +5,7 @@ Flows photometry code.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
+.. codeauthor:: Simon Holmbo <sholmbo@phys.au.dk>
 """
 import os
 import numpy as np
@@ -270,9 +271,9 @@ def photometry(fileid,
     )
 
     # Set timeout par to infinity unless specified.
-    if timeoutpar=='None': timeoutpar=float('inf')
+    if timeoutpar == 'None': timeoutpar=float('inf')
     try:
-        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeoutpar))
+        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeoutpar)))
     except TimeoutError:
         logger.warning('TimeoutError: No new WCS solution found')
     except StopIteration:
