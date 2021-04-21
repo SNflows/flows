@@ -85,8 +85,7 @@ def load_image(FILENAME):
 		image.image = np.asarray(hdul[0].data, dtype='float64')
 		image.shape = image.image.shape
 
-		image.head = hdr
-		image.exthdu = [hdu.copy() for hdu in hdul[1:]]
+		image.header = hdr
 
 		if origin == 'LCOGT':
 			image.mask = np.asarray(hdul['BPM'].data, dtype='bool')

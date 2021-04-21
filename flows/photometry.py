@@ -6,7 +6,6 @@ Flows photometry code.
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 """
-
 import os
 import numpy as np
 from bottleneck import nansum, allnan, replace
@@ -14,7 +13,6 @@ import sep
 from timeit import default_timer
 import logging
 import warnings
-
 from astropy.utils.exceptions import AstropyDeprecationWarning, AstropyUserWarning, ErfaWarning
 import astropy.units as u
 import astropy.coordinates as coords
@@ -26,23 +24,23 @@ from astropy.wcs.utils import proj_plane_pixel_area, fit_wcs_from_points
 from astropy.time import Time
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry # noqa
-from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars # noqa
-from photutils import Background2D, SExtractorBackground, MedianBackground # noqa
-from photutils.utils import calc_total_error # noqa
+from photutils import CircularAperture, CircularAnnulus, aperture_photometry # noqa: E402
+from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars # noqa: E402
+from photutils import Background2D, SExtractorBackground, MedianBackground # noqa: E402
+from photutils.utils import calc_total_error # noqa: E402
 
-from scipy.interpolate import UnivariateSpline # noqa
+from scipy.interpolate import UnivariateSpline # noqa: E402
 
-from . import api # noqa
-from .config import load_config # noqa
-from .plots import plt, plot_image # noqa
-from .version import get_version # noqa
-from .load_image import load_image # noqa
-from .run_imagematch import run_imagematch # noqa
-from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet # noqa
-from .wcs import force_reject_g2d, clean_with_rsq_and_get_fwhm, get_clean_references # noqa
-from .coordinatematch import CoordinateMatch, WCS2 # noqa
-from .epsfbuilder import EPSFBuilder # noqa
+from . import api # noqa: E402
+from .config import load_config # noqa: E402
+from .plots import plt, plot_image # noqa: E402
+from .version import get_version # noqa: E402
+from .load_image import load_image # noqa: E402
+from .run_imagematch import run_imagematch # noqa: E402
+from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet # noqa: E402
+from .wcs import force_reject_g2d, clean_with_rsq_and_get_fwhm, get_clean_references # noqa: E402
+from .coordinatematch import CoordinateMatch, WCS2 # noqa: E402
+from .epsfbuilder import EPSFBuilder # noqa: E402
 
 __version__ = get_version(pep440=False)
 
@@ -54,7 +52,7 @@ def photometry(fileid,
                output_folder=None,
                attempt_imagematch=True,
                keep_diff_fixed=False,
-               timeoutpar=10):
+               timeoutpar='None'):
     """
     Run photometry.
 
@@ -271,8 +269,10 @@ def photometry(fileid,
         maximum_angle_distance=0.002,
     )
 
+    # Set timeout par to infinity unless specified.
+    if timeoutpar=='None': timeoutpar=float('inf')
     try:
-        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=float('inf'))))
+        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeoutpar))
     except TimeoutError:
         logger.warning('TimeoutError: No new WCS solution found')
     except StopIteration:
