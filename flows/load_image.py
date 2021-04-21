@@ -128,9 +128,11 @@ def load_image(FILENAME):
 				image.photfilter = {
 					'B Bes': 'B',
 					'V Bes': 'V',
+					'R Bes': 'R',
 					'g SDSS': 'gp',
 					'r SDSS': 'rp',
 					'i SDSS': 'ip',
+					'i int': 'ip', # Interference filter
 					'u SDSS': 'up',
 					'z SDSS': 'zp'
 				}.get(hdr['FILTER'].replace('_', ' '), hdr['FILTER'])
@@ -142,9 +144,11 @@ def load_image(FILENAME):
 				if len(filters_used) == 1:
 					image.photfilter = {
 						'V_Bes 530_80': 'V',
+						'R_Bes 650_130': 'R',
 						"g'_SDSS 480_145": 'gp',
 						"r'_SDSS 618_148": 'rp',
 						"i'_SDSS 771_171": 'ip',
+						'i_int 797_157': 'ip', # Interference filter
 						"z'_SDSS 832_LP": 'zp'
 					}.get(filters_used[0].replace('  ', ' '), filters_used[0])
 				else:
