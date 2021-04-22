@@ -13,7 +13,8 @@ from scipy.spatial.transform import Rotation
 
 #--------------------------------------------------------------------------------------------------
 class WCS2():
-	"""Manipulate WCS solution.
+	"""
+	Manipulate WCS solution.
 
 	Initialize
 	----------
@@ -41,8 +42,9 @@ class WCS2():
 	Adjust solution with points
 	wcs.adjust_with_points(list(zip(x, y)), list(zip(ra, dec)))
 	"""
-	def __init__(self, x, y, ra, dec, scale, mirror, angle):
 
+	#----------------------------------------------------------------------------------------------
+	def __init__(self, x, y, ra, dec, scale, mirror, angle):
 		self.x, self.y = x, y
 		self.ra, self.dec = ra, dec
 		self.scale = scale

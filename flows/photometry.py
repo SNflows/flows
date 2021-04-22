@@ -45,11 +45,9 @@ from .epsfbuilder import FlowsEPSFBuilder # noqa: E402
 
 __version__ = get_version(pep440=False)
 
-warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
-
 #--------------------------------------------------------------------------------------------------
 def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fixed=False,
-	timeoutpar='None'):
+	cm_timeout=None):
 	"""
 	Run photometry.
 
@@ -63,6 +61,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 			calculating the flux for the difference image. Setting to true can help if diff
 			image has non-source flux in the region around the SN. This will also force
 			using Median background instead of Sextractor for the diff image PSF photometry.
+		cm_timeout (float, optional): Timeout in seconds for the :class:`CoordinateMatch` algorithm.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
@@ -267,9 +266,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 	)
 
 	# Set timeout par to infinity unless specified.
-	if timeoutpar == 'None': timeoutpar = float('inf')
+	if cm_timeout is None:
+		cm_timeout = float('inf')
 	try:
-		i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeoutpar)))
+		i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=cm_timeout)))
 	except TimeoutError:
 		logger.warning('TimeoutError: No new WCS solution found')
 	except StopIteration:

@@ -14,8 +14,8 @@ import multiprocessing
 from flows import api, photometry, load_config
 
 # --------------------------------------------------------------------------------------------------
-def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False, keep_diff_fixed=False,
-				   timeoutpar='None'):
+def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False,
+	keep_diff_fixed=False, cm_timeout=None):
 	logger = logging.getLogger('flows')
 	logging.captureWarnings(True)
 	logger_warn = logging.getLogger('py.warnings')
@@ -48,7 +48,7 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 			output_folder=output_folder,
 			attempt_imagematch=attempt_imagematch,
 			keep_diff_fixed=keep_diff_fixed,
-			timeoutpar=timeoutpar)
+			cm_timeout=cm_timeout)
 
 	except (SystemExit, KeyboardInterrupt):
 		logger.error("Aborted by user or system.")
@@ -97,7 +97,7 @@ def main():
 					   help="Fix SN position during PSF photometry of difference image. \
 					   Useful when difference image is noisy.",
 					   action='store_true')
-	group.add_argument('--timeoutpar', type=int, default='None', help="Timeout in Seconds for WCS")
+	group.add_argument('--wcstimeout', type=int, default=None, help="Timeout in Seconds for WCS.")
 	args = parser.parse_args()
 
 	# Ensure that all input has been given:
@@ -143,7 +143,7 @@ def main():
 		attempt_imagematch=not args.no_imagematch,
 		autoupload=args.autoupload,
 		keep_diff_fixed=args.fixposdiff,
-		timeoutpar=args.timeoutpar)
+		cm_timeout=args.wcstimeout)
 
 	if threads > 1:
 		# Disable printing info messages from the parent function.
