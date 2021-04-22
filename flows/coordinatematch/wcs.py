@@ -187,26 +187,21 @@ class WCS2():
 
 	#----------------------------------------------------------------------------------------------
 	def __setattr__(self, name, value):
-		"""
-		FIXME: raise ValueError instead of "assert"
-		"""
+
 		if name == 'ra' and (value < 0 or value >= 360):
 			raise ValueError("0 <= R.A. < 360")
 
-		elif name == 'dec':
+		elif name == 'dec' and (value < -180 or value > 180):
+			raise ValueError("-180 <= Dec. <= 180")
 
-			assert -180 <= value <= 180, '-180 <= Dec. <= 180'
-
-		elif name == 'scale':
-
-			assert value > 0, 'Scale > 0'
+		elif name == 'scale' and scale <= 0:
+			raise ValueError("Scale > 0")
 
 		elif name == 'mirror' and not isinstance(value, bool):
 			raise ValueError('mirror must be boolean')
 
-		elif name == 'angle':
-
-			assert -180 < value <= 180, '-180 < Angle <= 180'
+		elif name == 'angle' and (value <= -180 or value > 180):
+			raise ValueError("-180 < Angle <= 180")
 
 		super().__setattr__(name, value)
 
