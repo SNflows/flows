@@ -1,2 +1,6 @@
-from .coordinatematch import CoordinateMatch # noqa: F401
-from .wcs import WCS2 # noqa: F401
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# flake8: noqa
+
+from .coordinatematch import CoordinateMatch
+from .wcs import WCS2
