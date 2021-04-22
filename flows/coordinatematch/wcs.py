@@ -196,7 +196,7 @@ class WCS2():
 		elif name == 'dec' and (value < -180 or value > 180):
 			raise ValueError("-180 <= Dec. <= 180")
 
-		elif name == 'scale' and scale <= 0:
+		elif name == 'scale' and value <= 0:
 			raise ValueError("Scale > 0")
 
 		elif name == 'mirror' and not isinstance(value, bool):
