@@ -7,6 +7,7 @@ Test API calls.
 """
 
 import pytest
+import numpy as np
 from astropy.coordinates import EarthLocation
 from astropy.table import Table
 import conftest # noqa: F401
@@ -106,6 +107,38 @@ def test_api_get_catalog(SETUP_CONFIG):
 
 	avoid = cat['avoid']
 	assert isinstance(avoid, Table)
+
+#--------------------------------------------------------------------------------------------------
+def test_api_get_lightcurve(SETUP_CONFIG):
+
+	tab = api.get_lightcurve(2)
+	print(tab)
+
+	assert isinstance(tab, Table)
+	assert len(tab) > 0
+	assert 'time' in tab.colnames
+	assert 'mag_raw' in tab.colnames
+
+#--------------------------------------------------------------------------------------------------
+def test_api_get_photometry(SETUP_CONFIG):
+
+	tab = api.get_photometry(499)
+	print(tab)
+
+	# Basic tests of table:
+	assert isinstance(tab, Table)
+	assert len(tab) > 0
+	assert 'starid' in tab.colnames
+	assert 'ra' in tab.colnames
+	assert 'decl' in tab.colnames
+	assert 'mag' in tab.colnames
+	assert 'mag_error' in tab.colnames
+	assert np.sum(tab['starid'] == 0) == 1, "There should be one starid=0"
+
+	# Meta-information:
+	assert tab.meta['targetid'] == 2
+	assert tab.meta['fileid'] == 179
+	assert tab.meta['photfilter'] == 'B'
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':

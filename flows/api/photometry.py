@@ -10,12 +10,56 @@ import logging
 import os
 import zipfile
 import requests
+import tempfile
 import shutil
 import glob
 from tqdm import tqdm
+from astropy.table import Table
 from .. import api
 from ..config import load_config
 from ..utilities import get_filehash
+
+#--------------------------------------------------------------------------------------------------
+def get_photometry(photid):
+	"""
+	Retrieve lightcurve from Flows server.
+
+	Parameters:
+		photid (int): Target to download lightcurve for.
+
+	Returns:
+		:class:`astropy.table.Table`: Table containing photometry.
+
+	TODO:
+		- Enable caching of files.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+
+	# Get API token from config file:
+	config = load_config()
+	token = config.get('api', 'token', fallback=None)
+	if token is None:
+		raise RuntimeError("No API token has been defined")
+
+	# Send query to the Flows API:
+	params = {'fileid': photid}
+	r = requests.get('https://flows.phys.au.dk/api/download_photometry.php',
+		params=params,
+		headers={'Authorization': 'Bearer ' + token})
+	r.raise_for_status()
+
+	# Create tempory directory and save the file into there,
+	# then open the file as a Table:
+	with tempfile.TemporaryDirectory() as tmpdir:
+		tmpfile = os.path.join(tmpdir, f'photometry-{photid:d}.ecsv')
+		with open(tmpfile, 'w') as fid:
+			fid.write(r.text)
+
+		tab = Table.read(tmpfile, format='ascii.ecsv')
+
+	return tab
+
 
 #--------------------------------------------------------------------------------------------------
 def upload_photometry(fileid, delete_completed=False):
