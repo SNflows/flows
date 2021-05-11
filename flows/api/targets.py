@@ -154,6 +154,6 @@ def add_target(name, coord, redshift=None, redshift_error=None, discovery_date=N
 
 	# Check for errors:
 	if jsn['errors'] is not None:
-		raise ValueError("%s" % jsn['errors'])
+		raise RuntimeError(f"Adding target '{name}' resulted in an error: {jsn['errors']}")
 
 	return int(jsn['targetid'])
