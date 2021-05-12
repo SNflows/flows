@@ -8,7 +8,7 @@ https://alerceapi.readthedocs.io/
 
 import argparse
 import logging
-import os.path
+import os
 import numpy as np
 from flows import ztf, api, load_config
 from flows.plots import plt
@@ -19,8 +19,8 @@ def main():
 	parser = argparse.ArgumentParser(description='Download ZTF photometry.')
 	parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
 	parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
-	parser.add_argument('-t', '--target', type=str, help='Target to download ZTF photometry for.', nargs='?', default=None)
-	parser.add_argument('-o', '--output', type=str, help='Directory to save output to.', nargs='?', default=None)
+	parser.add_argument('-t', '--target', type=str, default=None, help='Target to download ZTF photometry for.')
+	parser.add_argument('-o', '--output', type=str, default=None, help='Directory to save output to.')
 	args = parser.parse_args()
 
 	# Set logging level:
@@ -63,21 +63,33 @@ def main():
 	# Loop through targets:
 	for tgt in targets:
 		logger.debug("Target: %s", tgt)
+		target_name = tgt['target_name']
+
+		# Paths to the files to be updated:
+		ztf_lightcurve_path = os.path.join(output_dir, f'{target_name:s}-ztf.ecsv')
+		ztf_plot_path = os.path.join(output_dir, f'{target_name:s}-ztf.png')
 
 		# If there is no ZTF id, there is no need to try:
+		# If an old file exists then delete it.
 		if tgt['ztf_id'] is None:
+			if os.path.isfile(ztf_lightcurve_path):
+				os.remove(ztf_lightcurve_path)
+			if os.path.isfile(ztf_plot_path):
+				os.remove(ztf_plot_path)
 			continue
 
 		# Download ZTF photometry as Astropy Table:
 		tab = ztf.download_ztf_photometry(tgt['targetid'])
 		logger.debug("ZTF Photometry:\n%s", tab)
 		if tab is None or len(tab) == 0:
+			if os.path.isfile(ztf_lightcurve_path):
+				os.remove(ztf_lightcurve_path)
+			if os.path.isfile(ztf_plot_path):
+				os.remove(ztf_plot_path)
 			continue
 
 		# Write table to file:
-		target_name = tab.meta['target_name']
-		tab.write(os.path.join(output_dir, f'{target_name:s}-ztf.ecsv'),
-			format='ascii.ecsv', delimiter=',')
+		tab.write(ztf_lightcurve_path, format='ascii.ecsv', delimiter=',')
 
 		# Find time of maxmimum and 14 days from that:
 		indx_min = np.argmin(tab['mag'])
@@ -99,7 +111,7 @@ def main():
 		ax.set_xlabel('Time (MJD)')
 		ax.set_ylabel('Magnitude')
 		ax.legend()
-		fig.savefig(os.path.join(output_dir, f'{target_name:s}-ztf.png'), format='png', bbox_inches='tight')
+		fig.savefig(ztf_plot_path, format='png', bbox_inches='tight')
 		plt.close(fig)
 
 #--------------------------------------------------------------------------------------------------
