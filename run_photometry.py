@@ -13,13 +13,13 @@ import functools
 import multiprocessing
 from flows import api, photometry, load_config
 
-#--------------------------------------------------------------------------------------------------
-def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False):
-
+# --------------------------------------------------------------------------------------------------
+def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False,
+	keep_diff_fixed=False, cm_timeout=None):
 	logger = logging.getLogger('flows')
 	logging.captureWarnings(True)
 	logger_warn = logging.getLogger('py.warnings')
-	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
 
 	datafile = api.get_datafile(fid)
 	target_name = datafile['target_name']
@@ -43,9 +43,12 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 		logger.addHandler(_filehandler)
 		logger_warn.addHandler(_filehandler)
 
-		photfile = photometry(fileid=fid,
+		photfile = photometry(
+			fileid=fid,
 			output_folder=output_folder,
-			attempt_imagematch=attempt_imagematch)
+			attempt_imagematch=attempt_imagematch,
+			keep_diff_fixed=keep_diff_fixed,
+			cm_timeout=cm_timeout)
 
 	except (SystemExit, KeyboardInterrupt):
 		logger.error("Aborted by user or system.")
@@ -54,7 +57,7 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 		photfile = None
 		api.set_photometry_status(fid, 'abort')
 
-	except: # noqa: E722, pragma: no cover
+	except:  # noqa: E722, pragma: no cover
 		logger.exception("Photometry failed")
 		photfile = None
 		api.set_photometry_status(fid, 'error')
@@ -70,8 +73,8 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 
 	return photfile
 
-#--------------------------------------------------------------------------------------------------
-if __name__ == '__main__':
+# --------------------------------------------------------------------------------------------------
+def main():
 	# Parse command line arguments:
 	parser = argparse.ArgumentParser(description='Run photometry pipeline.')
 	parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
@@ -79,14 +82,22 @@ if __name__ == '__main__':
 	parser.add_argument('-o', '--overwrite', help='Overwrite existing results.', action='store_true')
 
 	group = parser.add_argument_group('Selecting which files to process')
-	group.add_argument('--fileid', help="Process this file ID. Overrides all other filters.", type=int, default=None)
-	group.add_argument('--targetid', help="Only process files from this target.", type=int, default=None)
-	group.add_argument('--filter', type=str, default=None, choices=['missing','all','error'])
+	group.add_argument('--fileid', type=int, default=None, action='append', help="Process this file ID. Overrides all other filters.")
+	group.add_argument('--targetid', type=int, default=None, action='append', help="Only process files from this target.")
+	group.add_argument('--filter', type=str, default=None, choices=['missing', 'all', 'error'])
 
-	group = parser.add_argument_group('Processing details')
+	group = parser.add_argument_group('Processing settings')
 	group.add_argument('--threads', type=int, default=1, help="Number of parallel threads to use.")
 	group.add_argument('--no-imagematch', help="Disable ImageMatch.", action='store_true')
-	group.add_argument('--autoupload', help="Automatically upload completed photometry to Flows website. Only do this, if you know what you are doing!", action='store_true')
+	group.add_argument('--autoupload',
+					   help="Automatically upload completed photometry to Flows website. \
+					   Only do this, if you know what you are doing!",
+					   action='store_true')
+	group.add_argument('--fixposdiff',
+					   help="Fix SN position during PSF photometry of difference image. \
+					   Useful when difference image is noisy.",
+					   action='store_true')
+	group.add_argument('--wcstimeout', type=int, default=None, help="Timeout in Seconds for WCS.")
 	args = parser.parse_args()
 
 	# Ensure that all input has been given:
@@ -106,34 +117,44 @@ if __name__ == '__main__':
 		threads = multiprocessing.cpu_count()
 
 	# Setup logging:
-	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
 	console = logging.StreamHandler()
 	console.setFormatter(formatter)
 	logger = logging.getLogger('flows')
 	if not logger.hasHandlers():
 		logger.addHandler(console)
+	logger.propagate = False
 	logger.setLevel(logging_level)
 
 	if args.fileid is not None:
-		# Run the specified fileid:
-		fileids = [args.fileid]
+		# Run the specified fileids:
+		fileids = args.fileid
 	else:
 		# Ask the API for a list of fileids which are yet to be processed:
-		fileids = api.get_datafiles(targetid=args.targetid, filt=args.filter)
+		fileids = []
+		for targid in args.targetid:
+			fileids += api.get_datafiles(targetid=targid, filt=args.filter)
 
+	# Remove duplicates from fileids to be processed:
+	fileids = list(set(fileids))
+
+	# Ask the config where we should store the output:
 	config = load_config()
 	output_folder_root = config.get('photometry', 'output', fallback='.')
 
 	# Create function wrapper:
-	process_fileid_wrapper = functools.partial(process_fileid,
+	process_fileid_wrapper = functools.partial(
+		process_fileid,
 		output_folder_root=output_folder_root,
 		attempt_imagematch=not args.no_imagematch,
-		autoupload=args.autoupload)
+		autoupload=args.autoupload,
+		keep_diff_fixed=args.fixposdiff,
+		cm_timeout=args.wcstimeout)
 
 	if threads > 1:
 		# Disable printing info messages from the parent function.
 		# It is going to be all jumbled up anyway.
-		#logger.setLevel(logging.WARNING)
+		logger.setLevel(logging.WARNING)
 
 		# There is more than one area to process, so let's start
 		# a process pool and process them in parallel:
@@ -143,7 +164,11 @@ if __name__ == '__main__':
 	else:
 		# Only single thread so simply run it directly:
 		for fid in fileids:
-			print("="*72)
+			print("=" * 72)
 			print(fid)
-			print("="*72)
+			print("=" * 72)
 			process_fileid_wrapper(fid)
+
+#--------------------------------------------------------------------------------------------------
+if __name__ == '__main__':
+	main()

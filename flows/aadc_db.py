@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Connection to the central AADC database.
@@ -14,7 +15,7 @@ from psycopg2.extras import DictCursor
 import getpass
 from .config import load_config
 
-#------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 class AADC_DB(object): # pragma: no cover
 	"""
 	Connection to the central TASOC database.
