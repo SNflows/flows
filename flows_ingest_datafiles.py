@@ -8,6 +8,7 @@ import logging
 import sys
 import os.path
 import glob
+import numpy as np
 from astropy.table import Table
 import shutil
 import gzip
@@ -112,7 +113,7 @@ def ingest_from_inbox():
 		db.cursor.execute("SELECT archive,path FROM aadc.files_archives;")
 		archives_list = db.cursor.fetchall()
 
-		for inputtype in ('science', 'templates', 'subtracted'):
+		for inputtype in ('science', 'templates', 'subtracted', 'replace'): #
 			for fpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype, '*')):
 				logger.info("="*72)
 				logger.info(fpath)
@@ -166,6 +167,7 @@ def ingest_from_inbox():
 					else:
 						raise Exception("Gzip file was not created correctly")
 
+				version = 1
 				if inputtype == 'science':
 					newpath = os.path.join(rootdir, targetname, os.path.basename(fpath))
 					datatype = 1
@@ -187,6 +189,38 @@ def ingest_from_inbox():
 						continue
 					else:
 						subtracted_original_fileid = subtracted_original_fileid[0]
+
+				elif inputtype == 'replace':
+					bname = os.path.basename(fpath)
+					m = re.match(r'^(\d+)_v(\d+)\.fits(\.gz)?$', bname)
+					if m:
+						replaceid = int(m.group(1))
+						version = int(m.group(2))
+
+						db.cursor.execute("SELECT datatype,path,version FROM flows.files WHERE fileid=%s;", [replaceid])
+						row = db.cursor.fetchone()
+						datatype = row['datatype']
+						subdir = {1: '', 4: 'subtracted'}[datatype]
+
+						if version != row['version'] + 1:
+							logger.error("Mismatch in versions: old=%d, new=%d", row['version'], version)
+							continue
+
+						newfilename = re.sub(r'(_v\d+)?\.fits(\.gz)?$', r'_v{version:d}.fits\2'.format(version=version), os.path.basename(row['path']))
+						newpath = os.path.join(rootdir, targetname, subdir, newfilename)
+
+						if datatype == 4:
+							db.cursor.execute("SELECT associd FROM flows.files_cross_assoc INNER JOIN flows.files ON files.fileid=files_cross_assoc.associd WHERE files_cross_assoc.fileid=%s AND datatype=1;", [replaceid])
+							subtracted_original_fileid = db.cursor.fetchone()
+							if subtracted_original_fileid is None:
+								if uploadlogid:
+									db.cursor.execute("UPDATE flows.uploadlog SET status='original science image not found' WHERE logid=%s;", [uploadlogid])
+									db.conn.commit()
+								logger.error("ORIGINAL SCIENCE IMAGE COULD NOT BE FOUND: %s", os.path.basename(fpath))
+								continue
+							else:
+								subtracted_original_fileid = subtracted_original_fileid[0]
+
 				else:
 					raise Exception("Not understood, Captain")
 
@@ -240,7 +274,7 @@ def ingest_from_inbox():
 					continue
 
 				# Check that the site was found:
-				if img.site['siteid'] is None:
+				if img.site is None or img.site['siteid'] is None:
 					logger.error("Unknown SITE")
 					continue
 
@@ -249,20 +283,21 @@ def ingest_from_inbox():
 				# TODO: Look at the actual overlap with the database, instead of just overlap
 				#       with the central value. This way of doing it is more forgiving.
 				obstime = img.obstime.utc.mjd
-				db.cursor.execute("SELECT fileid FROM flows.files WHERE targetid=%s AND datatype=%s AND site=%s AND photfilter=%s AND obstime BETWEEN %s AND %s;", [
-					targetid,
-					datatype,
-					img.site['siteid'],
-					img.photfilter,
-					obstime - 0.5 * img.exptime/86400,
-					obstime + 0.5 * img.exptime/86400,
-				])
-				if db.cursor.fetchone() is not None:
-					logger.error("ALREADY DONE: Deep check")
-					if uploadlogid:
-						db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: deep check' WHERE logid=%s;", [uploadlogid])
-						db.conn.commit()
-					continue
+				if inputtype != 'replace':
+					db.cursor.execute("SELECT fileid FROM flows.files WHERE targetid=%s AND datatype=%s AND site=%s AND photfilter=%s AND obstime BETWEEN %s AND %s;", [
+						targetid,
+						datatype,
+						img.site['siteid'],
+						img.photfilter,
+						obstime - 0.5 * img.exptime/86400,
+						obstime + 0.5 * img.exptime/86400,
+					])
+					if db.cursor.fetchone() is not None:
+						logger.error("ALREADY DONE: Deep check")
+						if uploadlogid:
+							db.cursor.execute("UPDATE flows.uploadlog SET status='Already exists: deep check' WHERE logid=%s;", [uploadlogid])
+							db.conn.commit()
+						continue
 
 				try:
 					# Copy the file to its new home:
@@ -279,7 +314,7 @@ def ingest_from_inbox():
 					if not fpath.endswith('-e00.fits'):
 						create_plot(newpath, target_position=target_pixels)
 
-					db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,1) RETURNING fileid;", {
+					db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,version,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,%(version)s,1) RETURNING fileid;", {
 						'archive': archive,
 						'relpath': relpath,
 						'targetid': targetid,
@@ -289,12 +324,16 @@ def ingest_from_inbox():
 						'filehash': filehash,
 						'obstime': obstime,
 						'photfilter': img.photfilter,
-						'exptime': img.exptime
+						'exptime': img.exptime,
+						'version': version
 					})
 					fileid = db.cursor.fetchone()[0]
 
-					if inputtype == 'subtracted':
+					if datatype == 4:
 						db.cursor.execute("INSERT INTO flows.files_cross_assoc (fileid,associd) VALUES (%s,%s);", [fileid, subtracted_original_fileid])
+
+					if inputtype == 'replace':
+						db.cursor.execute("UPDATE flows.files SET newest_version=FALSE WHERE fileid=%s;", [replaceid])
 
 					if uploadlogid:
 						db.cursor.execute("UPDATE flows.uploadlog SET fileid=%s,status='ok' WHERE logid=%s;", [fileid, uploadlogid])
@@ -480,6 +519,7 @@ def ingest_photometry_from_inbox():
 
 				indx_raw = (tab['starid'] == 0)
 				indx_sub = (tab['starid'] == -1)
+				indx_ref = (tab['starid'] > 0)
 
 				phot_summary = {
 					'fileid_img': fileid_img,
@@ -493,9 +533,57 @@ def ingest_photometry_from_inbox():
 					'mag_raw_error': float(tab[indx_raw]['mag_error']),
 					'mag_sub': None if not any(indx_sub) else float(tab[indx_sub]['mag']),
 					'mag_sub_error': None if not any(indx_sub) else float(tab[indx_sub]['mag_error']),
+					'zeropoint': float(tab.meta['zp']),
+					'zeropoint_error': float(tab.meta['zp_error']),
+					'zeropoint_diff': float(tab.meta['zp_diff']),
+					'fwhm': float(tab.meta['fwhm']),
+					'seeing': float(tab.meta['seeing']),
+					'references_detected': int(np.sum(indx_ref)),
+					'used_for_epsf': int(np.sum(tab['used_for_epsf'])),
+					'faintest_reference_detected': float(np.max(tab[indx_ref]['mag'])),
 					'pipeline_version': tab.meta['version'],
 					'latest_version': new_version
 				}
+
+				db.cursor.execute("""INSERT INTO flows.photometry_details (
+					fileid_phot,
+					fileid_img,
+					fileid_template,
+					fileid_diffimg,
+					obstime_bmjd,
+					mag_raw,
+					mag_raw_error,
+					mag_sub,
+					mag_sub_error,
+					zeropoint,
+					zeropoint_error,
+					zeropoint_diff,
+					fwhm,
+					seeing,
+					references_detected,
+					used_for_epsf,
+					faintest_reference_detected,
+					pipeline_version
+				) VALUES (
+					%(fileid_phot)s,
+					%(fileid_img)s,
+					%(fileid_template)s,
+					%(fileid_diffimg)s,
+					%(obstime)s,
+					%(mag_raw)s,
+					%(mag_raw_error)s,
+					%(mag_sub)s,
+					%(mag_sub_error)s,
+					%(zeropoint)s,
+					%(zeropoint_error)s,
+					%(zeropoint_diff)s,
+					%(fwhm)s,
+					%(seeing)s,
+					%(references_detected)s,
+					%(used_for_epsf)s,
+					%(faintest_reference_detected)s,
+					%(pipeline_version)s,
+				);""", phot_summary)
 
 				db.cursor.execute("SELECT * FROM flows.photometry_summary WHERE fileid_img=%s;", [fileid_img])
 				if db.cursor.fetchone() is None:
@@ -569,7 +657,7 @@ def cleanup_inbox():
 	"""
 	rootdir_inbox = '/flows/inbox'
 
-	for inputtype in ('science', 'templates', 'subtracted', 'photometry'):
+	for inputtype in ('science', 'templates', 'subtracted', 'photometry', 'replace'):
 		for dpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype)):
 			if not os.listdir(dpath):
 				os.rmdir(dpath)
