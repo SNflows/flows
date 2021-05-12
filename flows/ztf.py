@@ -59,6 +59,8 @@ def query_ztf_id(coo_centre, radius=1*u.arcmin):
 	# Start by removing anything marked as likely stellar-like source:
 	results = jsn['items']
 	results = [itm for itm in results if not itm['stellar']]
+	if not results:
+		return None
 
 	# Find target closest to the centre:
 	coords = SkyCoord(

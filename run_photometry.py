@@ -82,8 +82,8 @@ def main():
 	parser.add_argument('-o', '--overwrite', help='Overwrite existing results.', action='store_true')
 
 	group = parser.add_argument_group('Selecting which files to process')
-	group.add_argument('--fileid', help="Process this file ID. Overrides all other filters.", type=int, default=None)
-	group.add_argument('--targetid', help="Only process files from this target.", type=int, default=None)
+	group.add_argument('--fileid', type=int, default=None, action='append', help="Process this file ID. Overrides all other filters.")
+	group.add_argument('--targetid', type=int, default=None, action='append', help="Only process files from this target.")
 	group.add_argument('--filter', type=str, default=None, choices=['missing', 'all', 'error'])
 
 	group = parser.add_argument_group('Processing settings')
@@ -127,12 +127,18 @@ def main():
 	logger.setLevel(logging_level)
 
 	if args.fileid is not None:
-		# Run the specified fileid:
-		fileids = [args.fileid]
+		# Run the specified fileids:
+		fileids = args.fileid
 	else:
 		# Ask the API for a list of fileids which are yet to be processed:
-		fileids = api.get_datafiles(targetid=args.targetid, filt=args.filter)
+		fileids = []
+		for targid in args.targetid:
+			fileids += api.get_datafiles(targetid=targid, filt=args.filter)
 
+	# Remove duplicates from fileids to be processed:
+	fileids = list(set(fileids))
+
+	# Ask the config where we should store the output:
 	config = load_config()
 	output_folder_root = config.get('photometry', 'output', fallback='.')
 

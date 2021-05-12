@@ -191,7 +191,6 @@ def _query_casjobs_refcat2(coo_centre, radius=24*u.arcmin):
 		line = line.strip()
 		if line == '': continue
 		if 'ERROR' in line:
-			logger.error(line)
 			error_thrown = True
 			break
 
