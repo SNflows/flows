@@ -484,14 +484,6 @@ def ingest_photometry_from_inbox():
 					shutil.copytree(tmpdir, os.path.dirname(newpath))
 					os.rename(os.path.join(os.path.dirname(newpath), 'photometry.ecsv'), newpath)
 
-					# Set file and directory permissions:
-					# TODO: Can this not be handled in a more elegant way?
-					os.chmod(os.path.join(rootdir_archive, targetname), 0o2750)
-					os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}'), 0o2750)
-					os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}', f'v{new_version:02d}'), 0o2550)
-					for f in os.listdir(os.path.dirname(newpath)):
-						os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0440)
-
 				# Get information about file:
 				filesize = os.path.getsize(newpath)
 				filehash = get_filehash(newpath)
@@ -582,7 +574,7 @@ def ingest_photometry_from_inbox():
 					%(references_detected)s,
 					%(used_for_epsf)s,
 					%(faintest_reference_detected)s,
-					%(pipeline_version)s,
+					%(pipeline_version)s
 				);""", phot_summary)
 
 				db.cursor.execute("SELECT * FROM flows.photometry_summary WHERE fileid_img=%s;", [fileid_img])
@@ -643,6 +635,14 @@ def ingest_photometry_from_inbox():
 					shutil.rmtree(os.path.dirname(newpath))
 				raise
 			else:
+				# Set file and directory permissions:
+				# TODO: Can this not be handled in a more elegant way?
+				os.chmod(os.path.join(rootdir_archive, targetname), 0o2750)
+				os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}'), 0o2750)
+				os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}', f'v{new_version:02d}'), 0o2550)
+				for f in os.listdir(os.path.dirname(newpath)):
+					os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0440)
+
 				logger.info("DELETE THE ORIGINAL FILE")
 				if os.path.isfile(fpath):
 					os.remove(fpath)
