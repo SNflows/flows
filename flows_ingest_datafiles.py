@@ -449,9 +449,9 @@ def ingest_photometry_from_inbox():
 					newpath = os.path.join(
 						rootdir_archive,
 						targetname,
-						'{0:05d}'.format(fileid_img),
-						'v{0:02d}'.format(new_version),
-						'photometry-{0:s}-{1:05d}-v{2:02d}.ecsv'.format(targetname, fileid_img, new_version)
+						f'{fileid_img:05d}',
+						f'v{new_version:02d}',
+						f'photometry-{targetname:s}-{fileid_img:05d}-v{new_version:02d}.ecsv'
 					)
 					logger.info(newpath)
 
@@ -487,8 +487,8 @@ def ingest_photometry_from_inbox():
 					# Set file and directory permissions:
 					# TODO: Can this not be handled in a more elegant way?
 					os.chmod(os.path.join(rootdir_archive, targetname), 0o2750)
-					os.chmod(os.path.join(rootdir_archive, targetname, '{0:05d}'.format(fileid_img)), 0o2750)
-					os.chmod(os.path.join(rootdir_archive, targetname, '{0:05d}'.format(fileid_img), 'v{0:02d}'.format(new_version)), 0o2550)
+					os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}'), 0o2750)
+					os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}', f'v{new_version:02d}'), 0o2550)
 					for f in os.listdir(os.path.dirname(newpath)):
 						os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0440)
 
@@ -536,8 +536,8 @@ def ingest_photometry_from_inbox():
 					'zeropoint': float(tab.meta['zp']),
 					'zeropoint_error': float(tab.meta['zp_error']),
 					'zeropoint_diff': float(tab.meta['zp_diff']),
-					'fwhm': float(tab.meta['fwhm']),
-					'seeing': float(tab.meta['seeing']),
+					'fwhm': float(tab.meta['fwhm'].value),
+					'seeing': float(tab.meta['seeing'].value),
 					'references_detected': int(np.sum(indx_ref)),
 					'used_for_epsf': int(np.sum(tab['used_for_epsf'])),
 					'faintest_reference_detected': float(np.max(tab[indx_ref]['mag'])),
