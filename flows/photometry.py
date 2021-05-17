@@ -437,7 +437,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 				plot_image(stars[imgnr], ax=ax[i], scale='log', cmap='viridis') # , offset_axes=offset_axes) FIXME (no x-ticks)
 			imgnr += 1
 
-		fig.savefig(os.path.join(output_folder, f'epsf_stars{k+1:02d}%02d.png'), bbox_inches='tight')
+		fig.savefig(os.path.join(output_folder, f'epsf_stars{k+1:02d}.png'), bbox_inches='tight')
 		plt.close(fig)
 
 	# Build the ePSF:
