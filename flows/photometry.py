@@ -509,10 +509,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 		# Create two plots of the difference image:
 		fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
 		plot_image(diffimage, ax=ax, cbar='right', title=target_name)
-		ax.plot(target_pixel_pos[0], target_pixel_pos[1], marker='+', color='r')
+		ax.plot(target_pixel_pos[0], target_pixel_pos[1], marker='+', markersize=20, color='r')
 		fig.savefig(os.path.join(output_folder, 'diffimg.png'), bbox_inches='tight')
-		apertures.plot(color='r')
-		annuli.plot(color='k')
+		apertures.plot(axes=ax, color='r', lw=2)
+		annuli.plot(axes=ax, color='r', lw=2)
 		ax.set_xlim(target_pixel_pos[0] - 50, target_pixel_pos[0] + 50)
 		ax.set_ylim(target_pixel_pos[1] - 50, target_pixel_pos[1] + 50)
 		fig.savefig(os.path.join(output_folder, 'diffimg_zoom.png'), bbox_inches='tight')
