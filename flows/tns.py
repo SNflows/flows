@@ -20,20 +20,47 @@ url_tns_api = 'https://www.wis-tns.org/api/get'
 url_tns_search = 'https://www.wis-tns.org/search'
 
 #--------------------------------------------------------------------------------------------------
-def tns_search(coord=None, radius=3*u.arcsec, objname=None, internal_name=None):
-	"""Cone-search TNS for object near coordinate."""
+def _load_tns_config():
 
-	# API key for Bot
 	config = load_config()
 	api_key = config.get('TNS', 'api_key', fallback=None)
 	if api_key is None:
 		raise RuntimeError("No TNS token has been defined in config")
+
 	tns_bot_id = config.get('TNS', 'bot_id', fallback=None)
 	tns_bot_name = config.get('TNS', 'bot_name', fallback=None)
+	tns_user_id = config.get('TNS', 'user_id', fallback=None)
+	tns_user_name = config.get('TNS', 'user_name', fallback=None)
+
 	if tns_bot_id and tns_bot_name:
 		user_agent = 'tns_marker{"tns_id":' + tns_bot_id + ',"type":"bot","name":"' + tns_bot_name + '"}'
+	elif tns_user_id and tns_user_name:
+		user_agent = 'tns_marker{"tns_id":' + tns_user_id + ',"type":"user","name":"' + tns_user_name + '"}'
 	else:
 		raise RuntimeError("No TNS bot_id or bot_name has been defined in config")
+
+	return {
+		'api-key': api_key,
+		'user-agent': user_agent
+	}
+
+#--------------------------------------------------------------------------------------------------
+def tns_search(coord=None, radius=3*u.arcsec, objname=None, internal_name=None):
+	"""
+	Cone-search TNS for object near coordinate.
+
+	Parameters:
+		coord (:class:`astropy.coordinates.SkyCoord`): Central coordinate to search around.
+		radius (Angle, optional): Radius to search around ``coord``.
+		objname (str, optional): Search on object name.
+		internal_name (str, optional): Search on internal name.
+
+	Returns:
+		dict: Dictionary with TSN response.
+	"""
+
+	# API key for Bot
+	tnsconf = _load_tns_config()
 
 	# change json_list to json format
 	json_file = {
@@ -47,38 +74,42 @@ def tns_search(coord=None, radius=3*u.arcsec, objname=None, internal_name=None):
 		json_file['dec'] = coord.icrs.dec.deg
 
 	# construct the list of (key,value) pairs
-	headers = {'user-agent': user_agent}
+	headers = {'user-agent': tnsconf['user-agent']}
 	search_data = [
-		('api_key', (None, api_key)),
+		('api_key', (None, tnsconf['api-key'])),
 		('data', (None, json.dumps(json_file)))
 	]
 
 	# search obj using request module
 	res = requests.post(url_tns_api + '/search', files=search_data, headers=headers)
 	res.raise_for_status()
-	return res
+	parsed = res.json()
+	data = parsed['data']
+
+	if 'reply' in data:
+		return data['reply']
+	return None
 
 #--------------------------------------------------------------------------------------------------
 def tns_get_obj(name):
-	"""function for get obj"""
+	"""
+	Search TNS for object by name.
+
+	Parameters:
+		name (str): Object name to search for.
+
+	Returns:
+		dict: Dictionary with TSN response.
+	"""
 
 	# API key for Bot
-	config = load_config()
-	api_key = config.get('TNS', 'api_key', fallback=None)
-	if api_key is None:
-		raise RuntimeError("No TNS token has been defined in config")
-	tns_bot_id = config.get('TNS', 'bot_id', fallback=None)
-	tns_bot_name = config.get('TNS', 'bot_name', fallback=None)
-	if tns_bot_id and tns_bot_name:
-		user_agent = 'tns_marker{"tns_id":' + tns_bot_id + ',"type":"bot","name":"' + tns_bot_name + '"}'
-	else:
-		raise RuntimeError("No TNS bot_id or bot_name has been defined in config")
+	tnsconf = _load_tns_config()
 
 	# construct the list of (key,value) pairs
-	headers = {'user-agent': user_agent}
+	headers = {'user-agent': tnsconf['user-agent']}
 	params = {'objname': name, 'photometry': '0', 'spectra': '0'}
 	get_data = [
-		('api_key', (None, api_key)),
+		('api_key', (None, tnsconf['api-key'])),
 		('data', (None, json.dumps(params)))
 	]
 
