@@ -28,7 +28,7 @@ def _load_tns_config():
 		raise RuntimeError("No TNS token has been defined in config")
 
 	tns_bot_id = config.get('TNS', 'bot_id', fallback=None)
-	tns_bot_name = config.get('TNS', 'bot_name', fallback=None)
+	tns_bot_name = config.get('TNS', 'bot_name', fallback='AUFLOWS_BOT')
 	tns_user_id = config.get('TNS', 'user_id', fallback=None)
 	tns_user_name = config.get('TNS', 'user_name', fallback=None)
 
