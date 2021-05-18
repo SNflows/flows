@@ -12,6 +12,7 @@ import zipfile
 import requests
 import shutil
 import glob
+import tempfile
 from tqdm import tqdm
 from .. import api
 from ..config import load_config
@@ -34,7 +35,7 @@ def upload_photometry(fileid, delete_completed=False):
 	"""
 
 	logger = logging.getLogger(__name__)
-	tqdm_settings = {'disable': not logger.isEnabledFor(logging.INFO)}
+	tqdm_settings = {'disable': None if logger.isEnabledFor(logging.INFO) else True}
 
 	# Use API to get the datafile information:
 	datafile = api.get_datafile(fileid)
@@ -45,14 +46,28 @@ def upload_photometry(fileid, delete_completed=False):
 	if token is None:
 		raise RuntimeError("No API token has been defined")
 	photdir_root = config.get('photometry', 'output', fallback='.')
-	photdir = os.path.join(photdir_root, datafile['target_name'], '{0:05d}'.format(fileid))
 
+	# Find the photometry output directory for this fileid:
+	photdir = os.path.join(photdir_root, datafile['target_name'], f'{fileid:05d}')
 	if not os.path.isdir(photdir):
-		raise FileNotFoundError(photdir)
-
-	files_existing = os.listdir(photdir)
+		# Do a last check, to ensure that we have not just added the wrong number of zeros
+		# to the directory name:
+		found_photdir = []
+		for d in os.listdir(os.path.join(photdir_root, datafile['target_name'])):
+			if d.isdigit() and int(d) == fileid and os.path.isdir(d):
+				found_photdir.append(os.path.join(photdir_root, datafile['target_name'], d))
+		# If we only found one, use it, otherwise throw an exception:
+		if len(found_photdir) == 1:
+			photdir = found_photdir[0]
+		elif len(found_photdir) > 1:
+			raise RuntimeError(f"Several photometry output found for fileid={fileid}. \
+				You need to do a cleanup of the photometry output directories.")
+		else:
+			raise FileNotFoundError(photdir)
 
 	# Make sure required files are actually there:
+	photdir = os.path.abspath(photdir)
+	files_existing = os.listdir(photdir)
 	if 'photometry.ecsv' not in files_existing:
 		raise FileNotFoundError(os.path.join(photdir, 'photometry.ecsv'))
 	if 'photometry.log' not in files_existing:
@@ -65,20 +80,20 @@ def upload_photometry(fileid, delete_completed=False):
 	]
 	files += glob.glob(os.path.join(photdir, '*.png'))
 
-	# Path to the ZIP file:
-	# TODO: Use tempfile instead?
-	fname_zip = '{0:05d}.zip'.format(fileid)
-	fpath_zip = os.path.join(photdir, fname_zip)
+	# Create ZIP file:
+	with tempfile.TemporaryDirectory(prefix='flows-upload-') as tmpdir:
+		# Create ZIP-file within the temp directory:
+		fpath_zip = os.path.join(tmpdir, f'{fileid:05d}.zip')
 
-	try:
 		# Create ZIP file with all the files:
 		with zipfile.ZipFile(fpath_zip, 'w', allowZip64=True) as z:
-			for f in tqdm(files, desc='Zipping {0:d}'.format(fileid), **tqdm_settings):
+			for f in tqdm(files, desc=f'Zipping {fileid:d}', **tqdm_settings):
 				logger.debug('Zipping %s', f)
-				z.write(os.path.join(photdir, f), f)
+				z.write(f, os.path.basename(f))
 
 		# Change the name of the uploaded file to contain the file hash:
-		fname_zip = '{0:05d}-{1:s}.zip'.format(fileid, get_filehash(fpath_zip))
+		fhash = get_filehash(fpath_zip)
+		fname_zip = f'{fileid:05d}-{fhash:s}.zip'
 
 		# Send file to the API:
 		logger.info("Uploading to server...")
@@ -88,15 +103,11 @@ def upload_photometry(fileid, delete_completed=False):
 				files={'file': (fname_zip, fid, 'application/zip')},
 				headers={'Authorization': 'Bearer ' + token})
 
-		# Check the returned data from the API:
-		if r.text.strip() != 'OK':
-			logger.error(r.text)
-			raise RuntimeError("An error occurred while uploading photometry: " + r.text)
-		r.raise_for_status()
-
-	finally:
-		if os.path.isfile(fpath_zip):
-			os.remove(fpath_zip)
+	# Check the returned data from the API:
+	if r.text.strip() != 'OK':
+		logger.error(r.text)
+		raise RuntimeError("An error occurred while uploading photometry: " + r.text)
+	r.raise_for_status()
 
 	# If we have made it this far, the upload must have been a success:
 	if delete_completed:
