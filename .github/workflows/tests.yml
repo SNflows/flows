@@ -25,6 +25,7 @@ jobs:
     env:
       OS: ${{ matrix.os }}
       PYTHON: ${{ matrix.python-version }}
+      FLOWS_CONFIG_TOKEN: ${{ secrets.FLOWS_CONFIG_TOKEN }}
 
     steps:
     - name: Checkout code
