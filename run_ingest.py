@@ -1,5 +1,10 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Run ingest of data files in Flows system.
+
+This code is obviously only meant to run on the central
+Flows systems, and will not work outside of that environment.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
@@ -449,9 +454,9 @@ def ingest_photometry_from_inbox():
 					newpath = os.path.join(
 						rootdir_archive,
 						targetname,
-						'{0:05d}'.format(fileid_img),
-						'v{0:02d}'.format(new_version),
-						'photometry-{0:s}-{1:05d}-v{2:02d}.ecsv'.format(targetname, fileid_img, new_version)
+						f'{fileid_img:05d}',
+						f'v{new_version:02d}',
+						f'photometry-{targetname:s}-{fileid_img:05d}-v{new_version:02d}.ecsv'
 					)
 					logger.info(newpath)
 
@@ -483,14 +488,6 @@ def ingest_photometry_from_inbox():
 					# Copy the full directory to its new home:
 					shutil.copytree(tmpdir, os.path.dirname(newpath))
 					os.rename(os.path.join(os.path.dirname(newpath), 'photometry.ecsv'), newpath)
-
-					# Set file and directory permissions:
-					# TODO: Can this not be handled in a more elegant way?
-					os.chmod(os.path.join(rootdir_archive, targetname), 0o2750)
-					os.chmod(os.path.join(rootdir_archive, targetname, '{0:05d}'.format(fileid_img)), 0o2750)
-					os.chmod(os.path.join(rootdir_archive, targetname, '{0:05d}'.format(fileid_img), 'v{0:02d}'.format(new_version)), 0o2550)
-					for f in os.listdir(os.path.dirname(newpath)):
-						os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0440)
 
 				# Get information about file:
 				filesize = os.path.getsize(newpath)
@@ -536,8 +533,8 @@ def ingest_photometry_from_inbox():
 					'zeropoint': float(tab.meta['zp']),
 					'zeropoint_error': float(tab.meta['zp_error']),
 					'zeropoint_diff': float(tab.meta['zp_diff']),
-					'fwhm': float(tab.meta['fwhm']),
-					'seeing': float(tab.meta['seeing']),
+					'fwhm': float(tab.meta['fwhm'].value),
+					'seeing': float(tab.meta['seeing'].value),
 					'references_detected': int(np.sum(indx_ref)),
 					'used_for_epsf': int(np.sum(tab['used_for_epsf'])),
 					'faintest_reference_detected': float(np.max(tab[indx_ref]['mag'])),
@@ -582,7 +579,7 @@ def ingest_photometry_from_inbox():
 					%(references_detected)s,
 					%(used_for_epsf)s,
 					%(faintest_reference_detected)s,
-					%(pipeline_version)s,
+					%(pipeline_version)s
 				);""", phot_summary)
 
 				db.cursor.execute("SELECT * FROM flows.photometry_summary WHERE fileid_img=%s;", [fileid_img])
@@ -643,6 +640,14 @@ def ingest_photometry_from_inbox():
 					shutil.rmtree(os.path.dirname(newpath))
 				raise
 			else:
+				# Set file and directory permissions:
+				# TODO: Can this not be handled in a more elegant way?
+				os.chmod(os.path.join(rootdir_archive, targetname), 0o2750)
+				os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}'), 0o2750)
+				os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}', f'v{new_version:02d}'), 0o2550)
+				for f in os.listdir(os.path.dirname(newpath)):
+					os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0440)
+
 				logger.info("DELETE THE ORIGINAL FILE")
 				if os.path.isfile(fpath):
 					os.remove(fpath)
@@ -657,6 +662,11 @@ def cleanup_inbox():
 	"""
 	rootdir_inbox = '/flows/inbox'
 
+	# Just a simple check to begin with:
+	if not os.path.isdir(rootdir_inbox):
+		raise FileNotFoundError("INBOX could not be found.")
+
+	# Remove empty directories:
 	for inputtype in ('science', 'templates', 'subtracted', 'photometry', 'replace'):
 		for dpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype)):
 			if not os.listdir(dpath):
@@ -666,14 +676,14 @@ def cleanup_inbox():
 		if os.path.isdir(dpath) and not os.listdir(dpath):
 			os.rmdir(dpath)
 
-	# Delete left-over files in the tables, that have been removed from disk:
-	#with AADC_DB() as db:
-	#	db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
-	#	for row in db.cursor.fetchall():
-	#		if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
-	#			print("DELETE THIS FILE: " + row['uploadpath'])
-	#			db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL,status='File deleted' WHERE logid=%s;", [row['logid']])
-	#			db.conn.commit()
+	# Delete left-over files in the database tables, that have been removed from disk:
+	with AADC_DB() as db:
+		db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
+		for row in db.cursor.fetchall():
+			if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
+				print("MARK AS DELETED IN DATABASE: " + row['uploadpath'])
+				db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL,status='File deleted' WHERE logid=%s;", [row['logid']])
+				db.conn.commit()
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Run Flows photometry.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
