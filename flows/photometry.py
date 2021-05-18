@@ -349,10 +349,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 			size=size + 6  # +6 for edge buffer
 		)
 
-	# Store which stars were used in ePSF in the table:
-	references['used_for_epsf'] = False
-	references['used_for_epsf'][[star.id_label - 1 for star in stars]] = True
-	logger.info("Number of stars used for ePSF: %d", len(stars))
+	logger.info("Number of stars input to ePSF builder: %d", len(stars))
 
 	# Plot the stars being used for ePSF:
 	imgnr = 0
@@ -380,6 +377,11 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 		maxiters=100,
 	)(stars)
 	logger.info('Built PSF model (%(n_iter)d/%(max_iters)d) in %(time).1f seconds', epsf.fit_info)
+
+	# Store which stars were used in ePSF in the table:
+	references['used_for_epsf'] = False
+	references['used_for_epsf'][[star.id_label - 1 for star in stars.all_good_stars]] = True
+	logger.info("Number of stars used for ePSF: %d", len(stars))
 
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 15))
 	plot_image(epsf.data, ax=ax1, cmap='viridis')
@@ -558,7 +560,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 		'ra': target['ra'],
 		'decl': target['decl'],
 		'pixel_column': target_pixel_pos[0],
-		'pixel_row': target_pixel_pos[1]
+		'pixel_row': target_pixel_pos[1],
+		'used_for_epsf': False
 	}
 	row.update([(k, np.NaN) for k in set(tab.keys()) - set(row) - {'gaia_variability'}])
 	tab.insert_row(0, row)
