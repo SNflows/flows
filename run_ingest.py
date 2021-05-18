@@ -1,5 +1,10 @@
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
+Run ingest of data files in Flows system.
+
+This code is obviously only meant to run on the central
+Flows systems, and will not work outside of that environment.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
