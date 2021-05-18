@@ -21,13 +21,19 @@ url_tns_search = 'https://www.wis-tns.org/search'
 
 #--------------------------------------------------------------------------------------------------
 def tns_search(coord=None, radius=3*u.arcsec, objname=None, internal_name=None):
-	"""Function for search obj"""
+	"""Cone-search TNS for object near coordinate."""
 
 	# API key for Bot
 	config = load_config()
 	api_key = config.get('TNS', 'api_key', fallback=None)
 	if api_key is None:
-		raise Exception("No TNS token has been defined in config")
+		raise RuntimeError("No TNS token has been defined in config")
+	tns_bot_id = config.get('TNS', 'bot_id', fallback=None)
+	tns_bot_name = config.get('TNS', 'bot_name', fallback=None)
+	if tns_bot_id and tns_bot_name:
+		user_agent = 'tns_marker{"tns_id":' + tns_bot_id + ',"type":"bot","name":"' + tns_bot_name + '"}'
+	else:
+		raise RuntimeError("No TNS bot_id or bot_name has been defined in config")
 
 	# change json_list to json format
 	json_file = {
@@ -41,13 +47,14 @@ def tns_search(coord=None, radius=3*u.arcsec, objname=None, internal_name=None):
 		json_file['dec'] = coord.icrs.dec.deg
 
 	# construct the list of (key,value) pairs
+	headers = {'user-agent': user_agent}
 	search_data = [
 		('api_key', (None, api_key)),
 		('data', (None, json.dumps(json_file)))
 	]
 
 	# search obj using request module
-	res = requests.post(url_tns_api + '/search', files=search_data)
+	res = requests.post(url_tns_api + '/search', files=search_data, headers=headers)
 	res.raise_for_status()
 	return res
 
@@ -59,9 +66,16 @@ def tns_get_obj(name):
 	config = load_config()
 	api_key = config.get('TNS', 'api_key', fallback=None)
 	if api_key is None:
-		raise Exception("No TNS token has been defined in config")
+		raise RuntimeError("No TNS token has been defined in config")
+	tns_bot_id = config.get('TNS', 'bot_id', fallback=None)
+	tns_bot_name = config.get('TNS', 'bot_name', fallback=None)
+	if tns_bot_id and tns_bot_name:
+		user_agent = 'tns_marker{"tns_id":' + tns_bot_id + ',"type":"bot","name":"' + tns_bot_name + '"}'
+	else:
+		raise RuntimeError("No TNS bot_id or bot_name has been defined in config")
 
 	# construct the list of (key,value) pairs
+	headers = {'user-agent': user_agent}
 	params = {'objname': name, 'photometry': '0', 'spectra': '0'}
 	get_data = [
 		('api_key', (None, api_key)),
@@ -69,7 +83,7 @@ def tns_get_obj(name):
 	]
 
 	# get obj using request module
-	res = requests.post(url_tns_api + '/object', files=get_data)
+	res = requests.post(url_tns_api + '/object', files=get_data, headers=headers)
 	res.raise_for_status()
 	parsed = res.json()
 	data = parsed['data']
