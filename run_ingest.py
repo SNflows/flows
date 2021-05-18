@@ -662,6 +662,11 @@ def cleanup_inbox():
 	"""
 	rootdir_inbox = '/flows/inbox'
 
+	# Just a simple check to begin with:
+	if not os.path.isdir(rootdir_inbox):
+		raise FileNotFoundError("INBOX could not be found.")
+
+	# Remove empty directories:
 	for inputtype in ('science', 'templates', 'subtracted', 'photometry', 'replace'):
 		for dpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype)):
 			if not os.listdir(dpath):
@@ -671,14 +676,14 @@ def cleanup_inbox():
 		if os.path.isdir(dpath) and not os.listdir(dpath):
 			os.rmdir(dpath)
 
-	# Delete left-over files in the tables, that have been removed from disk:
-	#with AADC_DB() as db:
-	#	db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
-	#	for row in db.cursor.fetchall():
-	#		if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
-	#			print("DELETE THIS FILE: " + row['uploadpath'])
-	#			db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL,status='File deleted' WHERE logid=%s;", [row['logid']])
-	#			db.conn.commit()
+	# Delete left-over files in the database tables, that have been removed from disk:
+	with AADC_DB() as db:
+		db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
+		for row in db.cursor.fetchall():
+			if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
+				print("MARK AS DELETED IN DATABASE: " + row['uploadpath'])
+				db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL,status='File deleted' WHERE logid=%s;", [row['logid']])
+				db.conn.commit()
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
