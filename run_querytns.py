@@ -17,7 +17,7 @@ import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from datetime import datetime, timedelta, timezone
-from flows import api, tns, load_config
+from flows import api, tns
 
 #--------------------------------------------------------------------------------------------------
 def main():
