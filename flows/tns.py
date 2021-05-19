@@ -14,30 +14,39 @@ import astropy.units as u
 import requests
 import json
 from bs4 import BeautifulSoup
+import datetime
 from .config import load_config
 
 url_tns_api = 'https://www.wis-tns.org/api/get'
 url_tns_search = 'https://www.wis-tns.org/search'
 
 #--------------------------------------------------------------------------------------------------
+class TNSConfigError(Exception):
+	pass
+
+#--------------------------------------------------------------------------------------------------
 def _load_tns_config():
+
+	logger = logging.getLogger(__name__)
 
 	config = load_config()
 	api_key = config.get('TNS', 'api_key', fallback=None)
 	if api_key is None:
-		raise RuntimeError("No TNS token has been defined in config")
+		raise TNSConfigError("No TNS API-KEY has been defined in config")
 
-	tns_bot_id = config.get('TNS', 'bot_id', fallback=None)
+	tns_bot_id = config.getint('TNS', 'bot_id', fallback=93222)
 	tns_bot_name = config.get('TNS', 'bot_name', fallback='AUFLOWS_BOT')
-	tns_user_id = config.get('TNS', 'user_id', fallback=None)
+	tns_user_id = config.getint('TNS', 'user_id', fallback=None)
 	tns_user_name = config.get('TNS', 'user_name', fallback=None)
 
-	if tns_bot_id and tns_bot_name:
-		user_agent = 'tns_marker{"tns_id":' + tns_bot_id + ',"type":"bot","name":"' + tns_bot_name + '"}'
-	elif tns_user_id and tns_user_name:
-		user_agent = 'tns_marker{"tns_id":' + tns_user_id + ',"type":"user","name":"' + tns_user_name + '"}'
+	if tns_user_id and tns_user_name:
+		logger.debug('Using TNS credentials: user=%s', tns_user_name)
+		user_agent = 'tns_marker{"tns_id":' + str(tns_user_id) + ',"type":"user","name":"' + tns_user_name + '"}'
+	elif tns_bot_id and tns_bot_name:
+		logger.debug('Using TNS credentials: bot=%s', tns_bot_name)
+		user_agent = 'tns_marker{"tns_id":' + str(tns_bot_id) + ',"type":"bot","name":"' + tns_bot_name + '"}'
 	else:
-		raise RuntimeError("No TNS bot_id or bot_name has been defined in config")
+		raise TNSConfigError("No TNS bot_id or bot_name has been defined in config")
 
 	return {
 		'api-key': api_key,
@@ -131,6 +140,19 @@ def tns_get_names(months=None, date_begin=None, date_end=None, z_min=None, z_max
 
 	logger = logging.getLogger(__name__)
 
+	# Change formats of input to be ready for query:
+	if isinstance(date_begin, datetime.datetime):
+		date_begin = date_begin.date().isoformat()
+	elif isinstance(date_begin, datetime.date):
+		date_end = date_begin.isoformat()
+	if isinstance(date_end, datetime.datetime):
+		date_end = date_end.date().isoformat()
+	elif isinstance(date_end, datetime.date):
+		date_end = date_end.isoformat()
+	if isinstance(objtype, (list, tuple)):
+		objtype = ','.join([str(o) for o in objtype])
+
+	# Parameters for query:
 	params = {
 		'discovered_period_value': months,
 		'discovered_period_units': 'months',
@@ -208,7 +230,6 @@ def tns_get_names(months=None, date_begin=None, date_end=None, z_min=None, z_max
 
 	con = requests.get(url_tns_search, params=params)
 	con.raise_for_status()
-	logger.info('query successful with status code: %d', con.status_code)
 
 	# Parse output using BS4, find html table
 	soup = BeautifulSoup(con.text, 'html.parser')
@@ -216,7 +237,6 @@ def tns_get_names(months=None, date_begin=None, date_end=None, z_min=None, z_max
 	if tab is None:
 		logger.error('No HTML table obtained from query!')
 		return None
-	logger.info('HTML table found')
 
 	names = tab.find_all('td', 'cell-name')
 	names_list = [name.text.replace(' ', '') for name in names if name.text.startswith('SN')]
