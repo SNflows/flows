@@ -21,7 +21,7 @@ url_tns_api = 'https://www.wis-tns.org/api/get'
 url_tns_search = 'https://www.wis-tns.org/search'
 
 #--------------------------------------------------------------------------------------------------
-class TNSConfigError(Exception):
+class TNSConfigError(RuntimeError):
 	pass
 
 #--------------------------------------------------------------------------------------------------
