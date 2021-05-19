@@ -1,6 +1,8 @@
 ==============
 Flows Pipeline
 ==============
+.. image:: https://zenodo.org/badge/241705955.svg
+   :target: https://zenodo.org/badge/latestdoi/241705955
 .. image:: https://github.com/rhandberg/flows/actions/workflows/tests.yml/badge.svg?branch=devel
     :target: https://github.com/rhandberg/flows/actions/workflows/tests.yml
 .. image:: https://img.shields.io/codecov/c/github/rhandberg/flows
