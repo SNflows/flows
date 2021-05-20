@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Flows photometry code.
@@ -17,25 +17,25 @@ import shutil
 import re
 from astropy.io import fits
 from astropy.wcs.utils import proj_plane_pixel_area
-from setuptools import Distribution
-from setuptools.command.install import install
+#from setuptools import Distribution
+#from setuptools.command.install import install
 from .load_image import load_image
 from . import api
 
 #--------------------------------------------------------------------------------------------------
-class OnlyGetScriptPath(install):
-	def run(self):
-		# does not call install.run() by design
-		self.distribution.install_scripts = self.install_scripts
+#class OnlyGetScriptPath(install):
+#	def run(self):
+#		# does not call install.run() by design
+#		self.distribution.install_scripts = self.install_scripts
 
-def get_setuptools_script_dir():
-	dist = Distribution({'cmdclass': {'install': OnlyGetScriptPath}})
-	dist.dry_run = True  # not sure if necessary, but to be safe
-	dist.parse_config_files()
-	command = dist.get_command_obj('install')
-	command.ensure_finalized()
-	command.run()
-	return dist.install_scripts
+#def get_setuptools_script_dir():
+#	dist = Distribution({'cmdclass': {'install': OnlyGetScriptPath}})
+#	dist.dry_run = True  # not sure if necessary, but to be safe
+#	dist.parse_config_files()
+#	command = dist.get_command_obj('install')
+#	command.ensure_finalized()
+#	command.run()
+#	return dist.install_scripts
 
 #--------------------------------------------------------------------------------------------------
 def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scale=None):
@@ -68,7 +68,7 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 	# This is to avoid problems with it not being on the users PATH
 	# and if the user is using some other version of the python executable.
 	# TODO: There must be a better way of doing this!
-	imgmatch = os.path.join(get_setuptools_script_dir(), 'ImageMatch')
+	#imgmatch = os.path.join(get_setuptools_script_dir(), 'ImageMatch')
 	if os.name == "nt":
 		out = subprocess.check_output(["where", "ImageMatch"], universal_newlines=True)
 		imgmatch = out.strip()
