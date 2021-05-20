@@ -94,7 +94,7 @@ def force_reject_g2d(xarray, yarray, image, get_fwhm=True, rsq_min=0.5, radius=1
 		# Calculate rsq
 		sstot = nansum((curr_star - nanmean(curr_star))**2)
 		sserr = nansum(gfitter.fit_info['fvec']**2)
-		rsqs[i] = 0 if sstot == 0 else 1. - (sserr / sstot)
+		rsqs[i] = 0 if sstot == 0 else 1.0 - (sserr / sstot)
 
 		# FWHM
 		fwhms[i] = gfit.x_fwhm
