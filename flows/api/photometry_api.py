@@ -10,13 +10,76 @@ import logging
 import os
 import zipfile
 import requests
+import tempfile
 import shutil
 import glob
 import tempfile
 from tqdm import tqdm
+from astropy.table import Table
 from .. import api
 from ..config import load_config
 from ..utilities import get_filehash
+
+#--------------------------------------------------------------------------------------------------
+def get_photometry(photid):
+	"""
+	Retrieve lightcurve from Flows server.
+
+	Please note that it can significantly speed up repeated calls to this function
+	to specify a cache directory in the config-file under api -> photometry_cache.
+	This will download the files only once and store them in this local cache for
+	use in subsequent calls.
+
+	Parameters:
+		photid (int): Fileid for the photometry file.
+
+	Returns:
+		:class:`astropy.table.Table`: Table containing photometry.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+
+	# Get API token from config file:
+	config = load_config()
+	token = config.get('api', 'token', fallback=None)
+	if token is None:
+		raise RuntimeError("No API token has been defined")
+
+	# Determine where to store the downloaded file:
+	photcache = config.get('api', 'photometry_cache', fallback=None)
+	tmpdir = None
+	if photcache is not None:
+		photcache = os.path.abspath(photcache)
+		if not os.path.isdir(photcache):
+			raise FileNotFoundError(f"Photometry cache directory does not exist: {photcache}")
+	else:
+		tmpdir = tempfile.TemporaryDirectory(prefix='flows-api-get_photometry-')
+		photcache = tmpdir.name
+
+	# Construct path to the photometry file in the cache:
+	photfile = os.path.join(photcache, f'photometry-{photid:d}.ecsv')
+
+	if not os.path.isfile(photfile):
+		# Send query to the Flows API:
+		params = {'fileid': photid}
+		r = requests.get('https://flows.phys.au.dk/api/download_photometry.php',
+			params=params,
+			headers={'Authorization': 'Bearer ' + token})
+		r.raise_for_status()
+
+		# Create tempory directory and save the file into there,
+		# then open the file as a Table:
+		with open(photfile, 'w') as fid:
+			fid.write(r.text)
+
+	# Read the photometry file:
+	tab = Table.read(photfile, format='ascii.ecsv')
+
+	# Explicitly cleanup the tempoary directory if it was created:
+	if tmpdir:
+		tmpdir.cleanup()
+
+	return tab
 
 #--------------------------------------------------------------------------------------------------
 def upload_photometry(fileid, delete_completed=False):
