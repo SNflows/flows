@@ -24,13 +24,16 @@ Installation instructions
 
   >>> pip install -r requirements.txt
 
-* Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (chmod 0600 config.ini)!
+* Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (``chmod 0600 config.ini``)!
   This file can contain all the settings for running the pipeline. A minimal file for working with the pipeline is
 
-  .. code-block:: text
+  .. code-block:: ini
 
       [api]
       token = <my api token>
+
+      [TNS]
+      api_key = <AUFLOWS_BOT API key>
 
   Where your API token can be found on the Flows webpage.
 
@@ -43,4 +46,32 @@ You can test your installation by going to the root directory where you cloned t
 
 Full configuration file
 =======================
-Coming soon
+Text coming soon...
+
+.. code-block:: ini
+
+    [api]
+    token =
+    photometry_cache =
+
+    [photometry]
+    archive_local =
+    output =
+
+    [casjobs]
+    wsid =
+    password =
+
+    [TNS]
+    api_key =
+    bot_id =
+    bot_name =
+    user_id =
+    user_name =
+
+    [ztf]
+	output_photometry =
+
+    [database]
+    username =
+    password =
