@@ -26,13 +26,14 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 	target_name = datafile['target_name']
 
 	# Folder to save output:
-	output_folder = os.path.join(output_folder_root, target_name, '%05d' % fid)
+	output_folder = os.path.join(output_folder_root, target_name, f'{fid:05d}')
 
 	photfile = None
 	_filehandler = None
 	try:
 		# Set the status to indicate that we have started processing:
-		api.set_photometry_status(fid, 'running')
+		if autoupload:
+			api.set_photometry_status(fid, 'running')
 
 		# Create the output directory if it doesn't exist:
 		os.makedirs(output_folder, exist_ok=True)
@@ -56,12 +57,14 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 		if os.path.exists(output_folder):
 			shutil.rmtree(output_folder, ignore_errors=True)
 		photfile = None
-		api.set_photometry_status(fid, 'abort')
+		if autoupload:
+			api.set_photometry_status(fid, 'abort')
 
 	except:  # noqa: E722, pragma: no cover
 		logger.exception("Photometry failed")
 		photfile = None
-		api.set_photometry_status(fid, 'error')
+		if autoupload:
+			api.set_photometry_status(fid, 'error')
 
 	if _filehandler is not None:
 		logger.removeHandler(_filehandler)
