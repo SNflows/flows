@@ -629,6 +629,9 @@ def ingest_photometry_from_inbox():
 						latest_version=%(latest_version)s
 						WHERE fileid_img=%(fileid_img)s;""", phot_summary)
 
+				# Update the photometry status to done:
+				db.cursor.execute("UPDATE flows.photometry_status SET status='done' WHERE fileid=%(fileid_img)s AND status='ingest';", phot_summary)
+
 				if uploadlogid:
 					db.cursor.execute("UPDATE flows.uploadlog SET fileid=%s,status='ok' WHERE logid=%s;", [fileid, uploadlogid])
 

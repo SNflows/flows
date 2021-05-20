@@ -22,7 +22,7 @@ def set_photometry_status(fileid, status):
 	"""
 	# Validate the input:
 	logger = logging.getLogger(__name__)
-	if status not in ('running', 'error', 'abort', 'done'):
+	if status not in ('running', 'error', 'abort', 'ingest', 'done'):
 		raise ValueError('Invalid status')
 
 	# Get API token from config file:
