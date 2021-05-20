@@ -70,7 +70,7 @@ Text coming soon...
     user_name =
 
     [ztf]
-	output_photometry =
+    output_photometry =
 
     [database]
     username =
