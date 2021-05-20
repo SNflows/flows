@@ -12,6 +12,7 @@ import os
 import glob
 import numpy as np
 from astropy.table import Table
+from astropy.time import Time
 from flows.plots import plt, plots_interactive
 from flows import api, load_config
 import mplcursors
@@ -26,13 +27,11 @@ def main():
 	parser = argparse.ArgumentParser(description='Plot photometry for target')
 	parser.add_argument('--target', '-t', type=str, required=True, help="""Target identifier:
 		Can be either the SN name (e.g. 2019yvr) or the Flows target ID.""")
-	parser.add_argument('--fileid', '-i', type=int, nargs='*', default=None,
-		help='Specific file ids within target separated by spaces: -i <ID> <ID> <ID>')
-	parser.add_argument('--filters', '-f', type=str, nargs='*', default=None,
-		help='List of space delimited filters. If not provided will use all. Choose between {}'.format(all_filters))
+	parser.add_argument('--fileid', '-i', type=int, default=None, action='append', help='Specific file ids.')
+	parser.add_argument('--filter', '-f', type=str, default=None, action='append', choices=all_filters,
+		help=f'Photmetric filter to plot. If not provided will plot all. Choose between {all_filters}')
 	parser.add_argument('--offset', '-jd', type=float, default=2458800.0)
-	parser.add_argument('--subonly', help='Only show template subtracted data points.', action='store_true')
-	parser.add_argument('--hidpi', help='double DPI fo 4k resolution', action='store_true')
+	parser.add_argument('--subonly', action='store_true', help='Only show template subtracted data points.')
 	args = parser.parse_args()
 
 	# To use when only plotting some filters
@@ -49,8 +48,6 @@ def main():
 		fileids = []
 	if len(fileids) > 1:
 		raise NotImplementedError("This has not been implemented yet")
-
-	offset = args.offset
 
 	# Get the name of the target:
 	snname = args.target
@@ -78,7 +75,7 @@ def main():
 		# Pull out meta-data:
 		fileid = AT.meta['fileid']
 		filt = AT.meta['photfilter']
-		jd = AT.meta['obstime-bmjd'] + 2400000.5
+		jd = Time(AT.meta['obstime-bmjd'], format='mjd', scale='tdb').jd
 
 		# get phot of diff image
 		AT.add_index('starid')
@@ -121,18 +118,18 @@ def main():
 	if args.subonly:
 		for filt in filters:
 			lc = phot[(phot['filter'] == filt) & phot['sub']]
-			ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
+			ax.errorbar(lc['jd'] - args.offset, lc['mag'] + shifts[filt], lc['mag_err'],
 				marker='s', linestyle='None', label=filt, color=colors[filt])
 
 	else:
 		for filt in filters:
 			lc = phot[phot['filter'] == filt]
-			ax.errorbar(lc['jd'] - offset, lc['mag'] + shifts[filt], lc['mag_err'],
+			ax.errorbar(lc['jd'] - args.offset, lc['mag'] + shifts[filt], lc['mag_err'],
 				marker='s', linestyle='None', label=filt, color=colors[filt])
 
 	ax.invert_yaxis()
 	ax.legend()
-	ax.set_xlabel('JD - ' + str(offset), fontsize=16)
+	ax.set_xlabel('JD - ' + str(args.offset), fontsize=16)
 	ax.set_ylabel('App. Mag', fontsize=16)
 	ax.set_title(snname)
 

@@ -1,9 +1,10 @@
 ==============
 Flows Pipeline
 ==============
-
-.. image:: https://travis-ci.org/rhandberg/flows.svg?branch=devel
-    :target: https://travis-ci.org/rhandberg/flows
+.. image:: https://zenodo.org/badge/241705955.svg
+   :target: https://zenodo.org/badge/latestdoi/241705955
+.. image:: https://github.com/rhandberg/flows/actions/workflows/tests.yml/badge.svg?branch=devel
+    :target: https://github.com/rhandberg/flows/actions/workflows/tests.yml
 .. image:: https://img.shields.io/codecov/c/github/rhandberg/flows
     :target: https://codecov.io/github/rhandberg/flows
 .. image:: https://hitsofcode.com/github/rhandberg/flows?branch=devel
@@ -22,15 +23,18 @@ Installation instructions
 * All dependencies can be installed using the following command. It is recommended to do this in a dedicated `virtualenv <https://virtualenv.pypa.io/en/stable/>`_ or similar:
 
   >>> pip install -r requirements.txt
-  
-* Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (chmod 0600 config.ini)!
-  This file can contain all the settings for running the pipeline. A minimal file for working with the pipeline is 
 
-  .. code-block:: text
+* Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (``chmod 0600 config.ini``)!
+  This file can contain all the settings for running the pipeline. A minimal file for working with the pipeline is
+
+  .. code-block:: ini
 
       [api]
       token = <my api token>
-      
+
+      [TNS]
+      api_key = <AUFLOWS_BOT API key>
+
   Where your API token can be found on the Flows webpage.
 
 
@@ -42,4 +46,32 @@ You can test your installation by going to the root directory where you cloned t
 
 Full configuration file
 =======================
-Coming soon
+Text coming soon...
+
+.. code-block:: ini
+
+    [api]
+    token =
+    photometry_cache =
+
+    [photometry]
+    archive_local =
+    output =
+
+    [casjobs]
+    wsid =
+    password =
+
+    [TNS]
+    api_key =
+    bot_id =
+    bot_name =
+    user_id =
+    user_name =
+
+    [ztf]
+    output_photometry =
+
+    [database]
+    username =
+    password =
