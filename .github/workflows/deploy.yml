@@ -31,7 +31,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Update VERSION file
-      run: python -c "from photometry import version; version.update_release_version();"
+      run: python -c "from flows import version; version.update_release_version();"
 
     - name: Create Release
       id: create_release
