@@ -25,14 +25,16 @@ def get_photometry(photid):
 	"""
 	Retrieve lightcurve from Flows server.
 
+	Please note that it can significantly speed up repeated calls to this function
+	to specify a cache directory in the config-file under api -> photometry_cache.
+	This will download the files only once and store them in this local cache for
+	use in subsequent calls.
+
 	Parameters:
-		photid (int): Target to download lightcurve for.
+		photid (int): Fileid for the photometry file.
 
 	Returns:
 		:class:`astropy.table.Table`: Table containing photometry.
-
-	TODO:
-		- Enable caching of files.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
