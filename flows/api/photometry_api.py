@@ -13,7 +13,6 @@ import requests
 import tempfile
 import shutil
 import glob
-import tempfile
 from tqdm import tqdm
 from astropy.table import Table
 from .. import api
