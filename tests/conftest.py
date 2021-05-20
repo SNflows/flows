@@ -53,13 +53,13 @@ def SETUP_CONFIG():
 	if os.path.exists(config_file):
 		yield config_file
 	else:
-		token = os.environ.get('FLOWS_CONFIG_TOKEN')
-		if token is None:
+		confstr = os.environ.get('FLOWS_CONFIG')
+		if confstr is None:
 			raise RuntimeError("Config file can not be set up.")
 
 		# Write minimal config file that can be used for testing:
 		config = configparser.ConfigParser()
-		config['api'] = {'token': token}
+		config.read_string(confstr)
 		with open(config_file, 'w') as fid:
 			config.write(fid)
 			fid.flush()

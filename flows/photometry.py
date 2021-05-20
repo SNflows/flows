@@ -33,13 +33,13 @@ from photutils import Background2D, SExtractorBackground, MedianBackground # noq
 from photutils.utils import calc_total_error # noqa: E402
 
 from . import api # noqa: E402
+from . import reference_cleaning as refclean # noqa: E402
 from .config import load_config # noqa: E402
 from .plots import plt, plot_image # noqa: E402
 from .version import get_version # noqa: E402
 from .load_image import load_image # noqa: E402
 from .run_imagematch import run_imagematch # noqa: E402
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet # noqa: E402
-from .wcs import force_reject_g2d, clean_with_rsq_and_get_fwhm, get_clean_references # noqa: E402
 from .coordinatematch import CoordinateMatch, WCS2 # noqa: E402
 from .epsfbuilder import FlowsEPSFBuilder # noqa: E402
 
@@ -220,7 +220,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 	fwhm_max = 18.0
 
 	# Clean extracted stars
-	masked_sep_xy, sep_mask, masked_sep_rsqs = force_reject_g2d(
+	masked_sep_xy, sep_mask, masked_sep_rsqs = refclean.force_reject_g2d(
 		objects['x'],
 		objects['y'],
 		image,
@@ -283,7 +283,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 	target_pixel_pos = image.wcs.all_world2pix([(target['ra'], target['decl'])], 0)[0]
 
 	# Clean reference star locations
-	masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = force_reject_g2d(
+	masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = refclean.force_reject_g2d(
 		clean_references['pixel_column'],
 		clean_references['pixel_row'],
 		image,
@@ -296,7 +296,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
 	# Use R^2 to more robustly determine initial FWHM guess.
 	# This cleaning is good when we have FEW references.
-	fwhm, fwhm_clean_references = clean_with_rsq_and_get_fwhm(
+	fwhm, fwhm_clean_references = refclean.clean_with_rsq_and_get_fwhm(
 		masked_fwhms,
 		masked_rsqs,
 		clean_references,
@@ -317,7 +317,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 	# Final clean of wcs corrected references
 	logger.info("Number of references before final cleaning: %d", len(clean_references))
 	logger.debug('Masked R^2 values: %s', masked_rsqs[rsq_mask])
-	references = get_clean_references(clean_references, masked_rsqs, rsq_ideal=0.8)
+	references = refclean.get_clean_references(clean_references, masked_rsqs, rsq_ideal=0.8)
 	logger.info("Number of references after final cleaning: %d", len(references))
 
 	# Create plot of target and reference star positions:
