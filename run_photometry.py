@@ -70,7 +70,7 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
 	if photfile is not None:
 		if autoupload:
 			api.upload_photometry(fid, delete_completed=True)
-		api.set_photometry_status(fid, 'done')
+			api.set_photometry_status(fid, 'ingest')
 
 	return photfile
 
