@@ -43,24 +43,41 @@ def get_photometry(photid):
 	if token is None:
 		raise RuntimeError("No API token has been defined")
 
-	# Send query to the Flows API:
-	params = {'fileid': photid}
-	r = requests.get('https://flows.phys.au.dk/api/download_photometry.php',
-		params=params,
-		headers={'Authorization': 'Bearer ' + token})
-	r.raise_for_status()
+	# Determine where to store the downloaded file:
+	photcache = config.get('api', 'photometry_cache', fallback=None)
+	tmpdir = None
+	if photcache is not None:
+		photcache = os.path.abspath(photcache)
+		if not os.path.isdir(photcache):
+			raise FileNotFoundError(f"Photometry cache directory does not exist: {photcache}")
+	else:
+		tmpdir = tempfile.TemporaryDirectory(prefix='flows-api-get_photometry-')
+		photcache = tmpdir.name
 
-	# Create tempory directory and save the file into there,
-	# then open the file as a Table:
-	with tempfile.TemporaryDirectory() as tmpdir:
-		tmpfile = os.path.join(tmpdir, f'photometry-{photid:d}.ecsv')
-		with open(tmpfile, 'w') as fid:
+	# Construct path to the photometry file in the cache:
+	photfile = os.path.join(photcache, f'photometry-{photid:d}.ecsv')
+
+	if not os.path.isfile(photfile):
+		# Send query to the Flows API:
+		params = {'fileid': photid}
+		r = requests.get('https://flows.phys.au.dk/api/download_photometry.php',
+			params=params,
+			headers={'Authorization': 'Bearer ' + token})
+		r.raise_for_status()
+
+		# Create tempory directory and save the file into there,
+		# then open the file as a Table:
+		with open(photfile, 'w') as fid:
 			fid.write(r.text)
 
-		tab = Table.read(tmpfile, format='ascii.ecsv')
+	# Read the photometry file:
+	tab = Table.read(photfile, format='ascii.ecsv')
+
+	# Explicitly cleanup the tempoary directory if it was created:
+	if tmpdir:
+		tmpdir.cleanup()
 
 	return tab
-
 
 #--------------------------------------------------------------------------------------------------
 def upload_photometry(fileid, delete_completed=False):

@@ -7,11 +7,13 @@ Test API calls.
 """
 
 import pytest
+import os.path
+import tempfile
 import numpy as np
 from astropy.coordinates import EarthLocation
 from astropy.table import Table
 import conftest # noqa: F401
-from flows import api
+from flows import api, load_config
 
 #--------------------------------------------------------------------------------------------------
 def test_api_get_targets(SETUP_CONFIG):
@@ -121,24 +123,47 @@ def test_api_get_lightcurve(SETUP_CONFIG):
 
 #--------------------------------------------------------------------------------------------------
 def test_api_get_photometry(SETUP_CONFIG):
+	with tempfile.TemporaryDirectory() as tmpdir:
+		# Set cache to the temporary directory:
+		# FIXME: There is a potential race condition here!
+		config = load_config()
+		config.set('api', 'photometry_cache', tmpdir)
+		print(config)
 
-	tab = api.get_photometry(499)
-	print(tab)
+		# The cache file should NOT exists:
+		assert not os.path.isfile(os.path.join(tmpdir, 'photometry-499.ecsv')), "Cache file already exists"
 
-	# Basic tests of table:
-	assert isinstance(tab, Table)
-	assert len(tab) > 0
-	assert 'starid' in tab.colnames
-	assert 'ra' in tab.colnames
-	assert 'decl' in tab.colnames
-	assert 'mag' in tab.colnames
-	assert 'mag_error' in tab.colnames
-	assert np.sum(tab['starid'] == 0) == 1, "There should be one starid=0"
+		# Download a photometry from API:
+		tab = api.get_photometry(499)
+		print(tab)
 
-	# Meta-information:
-	assert tab.meta['targetid'] == 2
-	assert tab.meta['fileid'] == 179
-	assert tab.meta['photfilter'] == 'B'
+		# Basic tests of table:
+		assert isinstance(tab, Table)
+		assert len(tab) > 0
+		assert 'starid' in tab.colnames
+		assert 'ra' in tab.colnames
+		assert 'decl' in tab.colnames
+		assert 'mag' in tab.colnames
+		assert 'mag_error' in tab.colnames
+		assert np.sum(tab['starid'] == 0) == 1, "There should be one starid=0"
+
+		# Meta-information:
+		assert tab.meta['targetid'] == 2
+		assert tab.meta['fileid'] == 179
+		assert tab.meta['photfilter'] == 'B'
+
+		# The cache file should now exists:
+		assert os.path.isfile(os.path.join(tmpdir, 'photometry-499.ecsv')), "Cache file does not exist"
+
+		# Asking for the same photometry should now load from cache:
+		tab2 = api.get_photometry(499)
+		print(tab2)
+
+		# The two tables should be identical:
+		assert tab2.meta == tab.meta
+		assert tab2.colnames == tab.colnames
+		for col in tab.colnames:
+			np.testing.assert_allclose(tab2[col], tab[col], equal_nan=True)
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
