@@ -13,9 +13,11 @@ import requests
 import numpy as np
 from astropy.coordinates import SkyCoord, Angle
 from astropy import units as u
+from astropy.table import Table
 from .config import load_config
 from .aadc_db import AADC_DB
 from .ztf import query_ztf_id
+from astroquery.sdss import SDSS
 
 #--------------------------------------------------------------------------------------------------
 class CasjobsException(Exception):
@@ -281,6 +283,40 @@ def query_apass(coo_centre, radius=24*u.arcmin):
 	return results
 
 #--------------------------------------------------------------------------------------------------
+def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
+	"""
+	Queries SDSS catalog using cone-search around the position using astroquery.
+
+	Parameters:
+		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
+		radius (float, optional):
+
+	Returns:
+		list: Astropy Table with SDSS information.
+
+	.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
+	"""
+
+	if isinstance(radius, (float, int)):
+		radius *= u.deg
+
+	results_sdss = SDSS.query_region(coo_centre,
+							 photoobj_fields=['objID', 'type', 'clean', 'probPSF', 'lnLStar_u', 'flags_u', 'type_u', 'ra','dec', 'psfMag_u', 'psfMagErr_u', 'calibStatus_u'],
+							 data_release=dr,
+							 timeout=600,
+							 radius = radius)
+
+	AT_sdss = Table(results_sdss) # astropy Table explicit call in case astroquery changes return format.
+	AT_sdss.add_index(['ra','dec']) # Indexing might help with preserving order in the future.
+
+	if clean:
+		# Clean SDSS following https://www.sdss.org/dr12/algorithms/photo_flags_recommend/
+		# 6 == star, clean means remove interp, edge, suspicious defects, deblending problems, duplicates.
+		AT_sdss = AT_sdss[(AT_sdss['type']==6) & (AT_sdss['clean']==1)]
+
+	return AT_sdss
+
+#--------------------------------------------------------------------------------------------------
 def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	"""
 	Query all catalogs, and return merged catalog.
@@ -294,62 +330,85 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 		list: List of dicts with catalog stars.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 	"""
 
 	# Query the REFCAT2 catalog using CasJobs around the target position:
 	results = query_casjobs_refcat2(coo_centre, radius=radius)
+	AT_results = Table(results)
 
 	# Query APASS around the target position:
 	results_apass = query_apass(coo_centre, radius=radius)
+	AT_apass = Table(results_apass)
 
 	# Match the two catalogs using coordinates:
 	# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
-	ra = np.array([r['ra'] for r in results])
-	decl = np.array([r['decl'] for r in results])
-	refcat = SkyCoord(ra=ra, dec=decl, unit=u.deg, frame='icrs')
+	#ra = np.array([r['ra'] for r in results])
+	#decl = np.array([r['decl'] for r in results])
+	refcat = SkyCoord(ra=AT_results['ra'], dec=AT_results['decl'], unit=u.deg, frame='icrs')
 
-	ra_apass = np.array([r['ra'] for r in results_apass])
-	decl_apass = np.array([r['decl'] for r in results_apass])
-	apass = SkyCoord(ra=ra_apass, dec=decl_apass, unit=u.deg, frame='icrs')
+	#ra_apass = np.array([r['ra'] for r in results_apass])
+	#decl_apass = np.array([r['decl'] for r in results_apass])
+	apass = SkyCoord(ra=AT_apass['ra'], dec=AT_apass['decl'], unit=u.deg, frame='icrs')
 
 	# Match the two catalogs:
 	idx, d2d, _ = apass.match_to_catalog_sky(refcat)
+	sep_constraint = d2d <= dist_cutoff # Reject any match further away than the cutoff:
+	idx_apass = np.arange(len(idx)) # since idx maps apass to refcat
 
-	# Go through the matches and make sure they are valid:
-	for k, i in enumerate(idx):
-		# If APASS doesn't contain any new information anyway, skip it:
-		if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None \
-			and results_apass[k]['u_mag'] is None:
-			continue
+	# Update results table with APASS bands of interest
+	AT_results['B_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['B_mag']
+	AT_results['V_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['V_mag']
+	AT_results['u_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['u_mag']
 
-		# Reject any match further away than the cutoff:
-		if d2d[k] > dist_cutoff:
-			continue
+	# Create SDSS cat
+	AT_sdss = query_sdss(coo_centre, radius=radius, dr=16, clean=True)
+	sdss = coords.SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
 
-		# TODO: Use the overlapping magnitudes to make better match:
-		#photdist = 0
-		#for photfilt in ('g_mag', 'r_mag', 'i_mag', 'z_mag'):
-		#	if results_apass[k][photfilt] and results[i][photfilt]:
-		#		photdist += (results[i][photfilt] - results_apass[k][photfilt])**2
-		#print( np.sqrt(photdist) )
+	# Match to dist_cutoff sky distance (angular) apart
+	idx, d2d, _ = sdss.match_to_catalog_sky(refcat)
+	sep_constraint = d2d <= dist_cutoff
+	idx_sdss = np.arange(len(idx)) # since idx maps sdss to refcat
+	# TODO: Maybe don't (potentially) overwrite APASS uband with SDSS uband. Decide which is better.
+	AT_results['u_mag'][idx[sep_constraint]] = AT_sdss[idx_sdss[sep_constraint]]['psfMag_u']
 
-		# Update the results "table" with the APASS filters:
-		results[i].update({
-			'V_mag': results_apass[k]['V_mag'],
-			'B_mag': results_apass[k]['B_mag'],
-			'u_mag': results_apass[k]['u_mag']
-		})
+	# # Go through the matches and make sure they are valid:
+	# for k, i in enumerate(idx):
+	# 	# If APASS doesn't contain any new information anyway, skip it:
+	# 	if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None \
+	# 		and results_apass[k]['u_mag'] is None:
+	# 		continue
+	#
+	# 	# Reject any match further away than the cutoff:
+	# 	if d2d[k] > dist_cutoff:
+	# 		continue
+	#
+	# 	# TODO: Use the overlapping magnitudes to make better match:
+	# 	#photdist = 0
+	# 	#for photfilt in ('g_mag', 'r_mag', 'i_mag', 'z_mag'):
+	# 	#	if results_apass[k][photfilt] and results[i][photfilt]:
+	# 	#		photdist += (results[i][photfilt] - results_apass[k][photfilt])**2
+	# 	#print( np.sqrt(photdist) )
+	#
+	# 	# Update the results "table" with the APASS filters:
+	# 	results[i].update({
+	# 		'V_mag': results_apass[k]['V_mag'],
+	# 		'B_mag': results_apass[k]['B_mag'],
+	# 		'u_mag': results_apass[k]['u_mag']
+	# 	})
+	#
+	# # Fill in empty fields where nothing was matched:
+	# for k in range(len(results)):
+	# 	if 'V_mag' not in results[k]:
+	# 		results[k].update({
+	# 			'B_mag': None,
+	# 			'V_mag': None,
+	# 			'u_mag': None
+	# 		})
 
-	# Fill in empty fields where nothing was matched:
-	for k in range(len(results)):
-		if 'V_mag' not in results[k]:
-			results[k].update({
-				'B_mag': None,
-				'V_mag': None,
-				'u_mag': None
-			})
+	# TODO: Adjust receiving functions so we can just pass the astropy table instead.
+	return [dict(zip(AT_results.colnames,row)) for row in AT_results.as_array()]
 
-	return results
 
 #--------------------------------------------------------------------------------------------------
 def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
