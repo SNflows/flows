@@ -26,4 +26,4 @@ git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
 sep
 astroalign > 2.3
 networkx
-astroquery >= 0.4.2.dev0
+astroquery >= 0.4.2

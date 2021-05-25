@@ -301,10 +301,10 @@ def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
 		radius *= u.deg
 
 	results_sdss = SDSS.query_region(coo_centre,
-							photoobj_fields=['objID', 'type', 'clean', 'probPSF', 'lnLStar_u', 'flags_u', 'type_u', 'ra','dec', 'psfMag_u', 'psfMagErr_u', 'calibStatus_u'],
-							data_release=dr,
-							timeout=600,
-							radius = radius)
+		photoobj_fields=['objID', 'type', 'clean', 'probPSF', 'lnLStar_u', 'flags_u', 'type_u', 'ra','dec', 'psfMag_u', 'psfMagErr_u', 'calibStatus_u'],
+		data_release=dr,
+		timeout=600,
+		radius = radius)
 
 	AT_sdss = Table(results_sdss) # astropy Table explicit call in case astroquery changes return format.
 	AT_sdss.add_index(['ra','dec']) # Indexing might help with preserving order in the future.
