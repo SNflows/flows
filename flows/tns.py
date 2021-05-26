@@ -167,9 +167,7 @@ def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=No
 	elif isinstance(date_end, str):
 		date_end = datetime.datetime.strptime(date_end, '%Y-%m-%d').date()
 
-	if objtype is None:
-		objtype = '3,104'
-	elif isinstance(objtype, (list, tuple)):
+	if isinstance(objtype, (list, tuple)):
 		objtype = ','.join([str(o) for o in objtype])
 
 	# Do some sanity checks:

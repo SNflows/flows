@@ -37,8 +37,11 @@ def test_tns_get_obj(SETUP_CONFIG):
 	assert res['name_prefix'] == 'SN'
 
 #--------------------------------------------------------------------------------------------------
-@pytest.mark.parametrize('date_begin', ['2019-01-01', datetime.date(2019, 1, 1), datetime.datetime(2019, 1, 1, 12, 0)])
-@pytest.mark.parametrize('date_end', ['2019-02-01', datetime.date(2019, 2, 1), datetime.datetime(2019, 2, 1, 12, 0)])
+@pytest.mark.parametrize('date_begin,date_end', [
+	('2019-01-01', '2019-02-01'),
+	(datetime.date(2019, 1, 1), datetime.date(2019, 2, 1)),
+	(datetime.datetime(2019, 1, 1, 12, 0), datetime.datetime(2019, 2, 1, 12, 0))
+])
 def test_tns_getnames(SETUP_CONFIG, date_begin, date_end):
 
 	names = tns.tns_getnames(
@@ -46,7 +49,7 @@ def test_tns_getnames(SETUP_CONFIG, date_begin, date_end):
 		date_end=date_end,
 		zmin=0,
 		zmax=0.105,
-		objtype=[3, 104]
+		objtype=3
 	)
 
 	print(names)
