@@ -7,6 +7,7 @@ Test TNS queries which rely on the TNS API.
 """
 
 import pytest
+import datetime
 from astropy.coordinates import SkyCoord
 from conftest import capture_cli
 from flows import tns
@@ -34,6 +35,35 @@ def test_tns_get_obj(SETUP_CONFIG):
 	print(res)
 	assert res['objname'] == '2019yvr'
 	assert res['name_prefix'] == 'SN'
+
+#--------------------------------------------------------------------------------------------------
+@pytest.mark.parametrize('date_begin', ['2019-01-01', datetime.date(2019, 1, 1), datetime.datetime(2019, 1, 1, 12, 0)])
+@pytest.mark.parametrize('date_end', ['2019-02-01', datetime.date(2019, 2, 1), datetime.datetime(2019, 2, 1, 12, 0)])
+def test_tns_getnames(SETUP_CONFIG, date_begin, date_end):
+
+	names = tns.tns_getnames(
+		date_begin=date_begin,
+		date_end=date_end,
+		zmin=0,
+		zmax=0.105,
+		objtype=[3, 104]
+	)
+
+	print(names)
+	assert isinstance(names, list), "Should return a list"
+	for n in names:
+		assert isinstance(n, str), "Each element should be a string"
+		assert n.startswith('SN'), "All names should begin with 'SN'"
+	assert 'SN2019A' in names, "SN2019A should be in the list"
+
+#--------------------------------------------------------------------------------------------------
+def test_tns_getnames_wronginput(SETUP_CONFIG):
+	# Wrong dates should result in ValueError:
+	with pytest.raises(ValueError):
+		tns.tns_getnames(
+			date_begin=datetime.date(2019, 1, 1),
+			date_end=datetime.date(2017, 1, 1)
+		)
 
 #--------------------------------------------------------------------------------------------------
 def test_run_querytns(SETUP_CONFIG):

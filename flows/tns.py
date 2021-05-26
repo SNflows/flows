@@ -10,10 +10,10 @@ Obtained from https://wis-tns.weizmann.ac.il/content/tns-getting-started
 """
 
 import logging
+from astropy.table import Table
 import astropy.units as u
 import requests
 import json
-from bs4 import BeautifulSoup
 import datetime
 from .config import load_config
 
@@ -135,22 +135,47 @@ def tns_get_obj(name):
 	return None
 
 #--------------------------------------------------------------------------------------------------
-def tns_get_names(months=None, date_begin=None, date_end=None, z_min=None, z_max=None, objtype=None):
-	"""Get SN names from TNS html table"""
+def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=None, objtype=None):
+	"""
+	Get SN names from TNS.
+
+	Parameters:
+		months (int, optional):
+		date_begin (date, optional):
+		date_end (date, optional):
+		zmin (float, optional):
+		zmax (float, optional):
+		objtype (list, optional):
+
+	Returns:
+		list: List of names fulfilling search criteria.
+	"""
 
 	logger = logging.getLogger(__name__)
 
 	# Change formats of input to be ready for query:
 	if isinstance(date_begin, datetime.datetime):
-		date_begin = date_begin.date().isoformat()
-	elif isinstance(date_begin, datetime.date):
-		date_end = date_begin.isoformat()
+		date_begin = date_begin.date()
+	elif isinstance(date_begin, str):
+		date_begin = datetime.datetime.strptime(date_begin, '%Y-%m-%d').date()
+
 	if isinstance(date_end, datetime.datetime):
-		date_end = date_end.date().isoformat()
-	elif isinstance(date_end, datetime.date):
-		date_end = date_end.isoformat()
-	if isinstance(objtype, (list, tuple)):
+		date_end = date_end.date()
+	elif isinstance(date_end, str):
+		date_end = datetime.datetime.strptime(date_end, '%Y-%m-%d').date()
+
+	if objtype is None:
+		objtype = '3,104'
+	elif isinstance(objtype, (list, tuple)):
 		objtype = ','.join([str(o) for o in objtype])
+
+	# Do some sanity checks:
+	if date_end < date_begin:
+		raise ValueError("Dates are in the wrong order.")
+
+	date_now = datetime.datetime.now(datetime.timezone.utc).date()
+	if months is not None and date_end is not None and date_end < date_now - datetime.timedelta(days=months*30):
+		logger.warning('Months limit restricts days_begin, consider increasing limit_months.')
 
 	# Parameters for query:
 	params = {
@@ -166,22 +191,22 @@ def tns_get_names(months=None, date_begin=None, date_end=None, z_min=None, z_max
 		#'ra':
 		#'decl':
 		#'radius':
-		'coords_unit': 'arcsec',
+		#'coords_unit': 'arcsec',
 		'reporting_groupid[]': 'null',
 		'groupid[]': 'null',
 		'classifier_groupid[]': 'null',
 		'objtype[]': objtype,
 		'at_type[]': 'null',
-		'date_start[date]': date_begin,
-		'date_end[date]': date_end,
+		'date_start[date]': date_begin.isoformat(),
+		'date_end[date]': date_end.isoformat(),
 		#'discovery_mag_min':
 		#'discovery_mag_max':
 		#'internal_name':
 		#'discoverer':
 		#'classifier':
 		#'spectra_count':
-		'redshift_min': z_min,
-		'redshift_max': z_max,
+		'redshift_min': zmin,
+		'redshift_max': zmax,
 		#'hostname':
 		#'ext_catid':
 		#'ra_range_min':
@@ -225,20 +250,28 @@ def tns_get_names(months=None, date_begin=None, date_end=None, z_min=None, z_max
 		'display[remarks]': 0,
 		'display[sources]': 0,
 		'display[bibcode]': 0,
-		'display[ext_catalogs]': 0
+		'display[ext_catalogs]': 0,
+		'format': 'csv'
 	}
 
+	# Query TNS for names:
 	con = requests.get(url_tns_search, params=params)
 	con.raise_for_status()
 
-	# Parse output using BS4, find html table
-	soup = BeautifulSoup(con.text, 'html.parser')
-	tab = soup.find('table', 'results-table')
-	if tab is None:
-		logger.error('No HTML table obtained from query!')
-		return None
+	# Parse the CSV table:
+	# Ensure that there is a newline in table string.
+	# AstroPy uses this to distinguish file-paths from pure-string inputs:
+	text = str(con.text) + "\n"
+	tab = Table.read(text,
+		format='ascii.csv',
+		guess=False,
+		delimiter=',',
+		quotechar='"',
+		header_start=0,
+		data_start=1)
 
-	names = tab.find_all('td', 'cell-name')
-	names_list = [name.text.replace(' ', '') for name in names if name.text.startswith('SN')]
+	# Pull out the names only if they begin with "SN":
+	names_list = [name.replace(' ', '') for name in tab['Name'] if name.startswith('SN')]
+	names_list = sorted(names_list)
 
 	return names_list
