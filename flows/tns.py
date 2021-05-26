@@ -135,17 +135,20 @@ def tns_get_obj(name):
 	return None
 
 #--------------------------------------------------------------------------------------------------
-def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=None, objtype=None):
+def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=None, objtype=[3, 104]):
 	"""
 	Get SN names from TNS.
 
 	Parameters:
-		months (int, optional):
-		date_begin (date, optional):
-		date_end (date, optional):
-		zmin (float, optional):
-		zmax (float, optional):
-		objtype (list, optional):
+		months (int, optional): Only return objects reported within the last X months.
+		date_begin (date, optional): Discovery date begin.
+		date_end (date, optional): Discovery date end.
+		zmin (float, optional): Minimum redshift.
+		zmax (float, optional): Maximum redshift.
+		objtype (list, optional): Constraint object type.
+			Default is to query for
+			- 3: SN Ia
+			- 104: SN Ia-91T-like
 
 	Returns:
 		list: List of names fulfilling search criteria.
@@ -179,11 +182,11 @@ def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=No
 
 	# Parameters for query:
 	params = {
-		'discovered_period_value': months,
+		'discovered_period_value': months, # Reported Within The Last
 		'discovered_period_units': 'months',
-		'unclassified_at': 0,
-		'classified_sne': 1,
-		'include_frb': 0,
+		'unclassified_at': 0, # Limit to unclasssified ATs
+		'classified_sne': 1, # Limit to classified SNe
+		'include_frb': 0, # Include FRBs
 		#'name': ,
 		'name_like': 0,
 		'isTNS_AT': 'all',
@@ -230,23 +233,23 @@ def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=No
 		#'frb_flux_range_min':
 		#'frb_flux_range_max':
 		'num_page': 500,
-		'display[redshift]': 1,
-		'display[hostname]': 1,
-		'display[host_redshift]': 1,
-		'display[source_group_name]': 1,
-		'display[classifying_source_group_name]': 1,
+		'display[redshift]': 0,
+		'display[hostname]': 0,
+		'display[host_redshift]': 0,
+		'display[source_group_name]': 0,
+		'display[classifying_source_group_name]': 0,
 		'display[discovering_instrument_name]': 0,
 		'display[classifing_instrument_name]': 0,
 		'display[programs_name]': 0,
-		'display[internal_name]': 1,
+		'display[internal_name]': 0,
 		'display[isTNS_AT]': 0,
-		'display[public]': 1,
+		'display[public]': 0,
 		'display[end_pop_period]': 0,
-		'display[spectra_count]': 1,
-		'display[discoverymag]': 1,
-		'display[discmagfilter]': 1,
-		'display[discoverydate]': 1,
-		'display[discoverer]': 1,
+		'display[spectra_count]': 0,
+		'display[discoverymag]': 0,
+		'display[discmagfilter]': 0,
+		'display[discoverydate]': 0,
+		'display[discoverer]': 0,
 		'display[remarks]': 0,
 		'display[sources]': 0,
 		'display[bibcode]': 0,
