@@ -13,7 +13,6 @@ import argparse
 import logging
 from tqdm import tqdm
 import re
-import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from datetime import datetime, timedelta, timezone
@@ -60,29 +59,21 @@ def main():
 		parser.error("Error in TNS configuration.")
 		return
 
-	# Extract settings:
-	upload_to_flows = args.autoupload
-	days_before_today = args.days_end  # end = now - dbt
-	days_to_include = args.days_begin  # begin = now - dti
-	months = args.limit_months  # pre-limit TNS search to candidates reported in the last X months
-	if np.floor(days_before_today/30) > months:
-		logger.warning('Months limit restricts days_begin, consider increasing limit_months.')
-
 	# Calculate current date and date range to search:
 	date_now = datetime.now(timezone.utc).date()
-	date_end = date_now - timedelta(days=days_before_today)
-	date_begin = date_now - timedelta(days=days_to_include)
+	date_end = date_now - timedelta(days=args.days_end)
+	date_begin = date_now - timedelta(days=args.days_begin)
 	logger.info('Date begin = %s, date_end = %s', date_begin, date_end)
 
 	# Query TNS for SN names
 	logger.info('Querying TNS for all targets, this may take awhile')
-	nms = tns.tns_get_names(
-		months=months,
+	nms = tns.tns_getnames(
+		months=args.limit_months, # pre-limit TNS search to candidates reported in the last X months
 		date_begin=date_begin,
 		date_end=date_end,
-		z_min=args.zmin,
-		z_max=args.zmax,
-		objtype=args.objtype  # Relevant TNS SN Ia subtypes.
+		zmin=args.zmin,
+		zmax=args.zmax,
+		objtype=args.objtype # Relevant TNS SN Ia subtypes.
 	)
 	logger.debug(nms)
 
@@ -96,38 +87,35 @@ def main():
 	logger.info('Target names obtained: %s', nms)
 
 	# Regular Expression matching any string starting with "ztf"
-	regex = re.compile('^ztf', flags=re.IGNORECASE)
+	regex_ztf = re.compile('^ztf', flags=re.IGNORECASE)
+	regex_sn = re.compile(r'^sn\s*', flags=re.IGNORECASE)
 
 	# Query TNS for object info using API, then upload to FLOWS using API.
 	num_uploaded = 0
-	for name in tqdm(nms, **tqdm_settings):
-		sn = re.sub('^SN', '', name)
-		logger.debug('querying TNS for: %s', sn)
+	if args.autoupload:
+		for name in tqdm(nms, **tqdm_settings):
+			sn = regex_sn.sub('', name)
+			logger.debug('querying TNS for: %s', sn)
 
-		# make GET request to TNS via API
-		reply = tns.tns_get_obj(sn)
+			# make GET request to TNS via API
+			reply = tns.tns_get_obj(sn)
 
-		# Parse output
-		if reply:
-			logger.debug('GET query successful')
+			# Parse output
+			if reply:
+				logger.debug('GET query successful')
 
-			# Extract object info
-			name = reply['objname']
-			coord = SkyCoord(ra=reply['radeg'], dec=reply['decdeg'], unit='deg', frame='icrs')
-			redshift = reply['redshift']
-			discovery_date = Time(reply['discoverydate'], format='iso', scale='utc')
-			discovery_mag = reply['discoverymag']
-			host_galaxy = reply['hostname']
-			ztf = list(filter(regex.match, reply['internal_names']))
-			ztf = None if not ztf else ztf[0]
+				# Extract object info
+				coord = SkyCoord(ra=reply['radeg'], dec=reply['decdeg'], unit='deg', frame='icrs')
+				discovery_date = Time(reply['discoverydate'], format='iso', scale='utc')
+				ztf = list(filter(regex_ztf.match, reply['internal_names']))
+				ztf = None if not ztf else ztf[0]
 
-			# Try to upload to FLOWS
-			if upload_to_flows:
-				newtargetid = api.add_target(name, coord,
-					redshift=redshift,
+				# Try to upload to FLOWS
+				newtargetid = api.add_target(reply['objname'], coord,
+					redshift=reply['redshift'],
 					discovery_date=discovery_date,
-					discovery_mag=discovery_mag,
-					host_galaxy=host_galaxy,
+					discovery_mag=reply['discoverymag'],
+					host_galaxy=reply['hostname'],
 					ztf=ztf,
 					status='candidate',
 					project='flows')
