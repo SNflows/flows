@@ -357,6 +357,7 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	idx_apass = np.arange(len(idx)) # since idx maps apass to refcat
 
 	# Update results table with APASS bands of interest
+	AT_results.add_columns([None,None,None],names=['B_mag','V_mag','u_mag'])  # Results table does not have uBV
 	AT_results['B_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['B_mag']
 	AT_results['V_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['V_mag']
 	AT_results['u_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['u_mag']
