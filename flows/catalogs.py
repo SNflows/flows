@@ -14,17 +14,17 @@ import numpy as np
 from astropy.coordinates import SkyCoord, Angle
 from astropy import units as u
 from astropy.table import Table
+from astroquery.sdss import SDSS
 from .config import load_config
 from .aadc_db import AADC_DB
 from .ztf import query_ztf_id
-from astroquery.sdss import SDSS
 
 #--------------------------------------------------------------------------------------------------
-class CasjobsException(Exception):
+class CasjobsError(RuntimeError):
 	pass
 
 #--------------------------------------------------------------------------------------------------
-class CasjobsMemoryError(Exception):
+class CasjobsMemoryError(RuntimeError):
 	pass
 
 #--------------------------------------------------------------------------------------------------
@@ -56,7 +56,7 @@ def configure_casjobs(overwrite=False):
 	wsid = config.get('casjobs', 'wsid', fallback=None)
 	passwd = config.get('casjobs', 'password', fallback=None)
 	if wsid is None or passwd is None:
-		raise CasjobsException("CasJobs WSID and PASSWORD not in config.ini")
+		raise CasjobsError("CasJobs WSID and PASSWORD not in config.ini")
 
 	try:
 		with open(casjobs_config, 'w') as fid:
@@ -227,10 +227,10 @@ def _query_casjobs_refcat2(coo_centre, radius=24*u.arcmin):
 		if 'query results exceed memory limit' in error_msg.lower():
 			raise CasjobsMemoryError("Query results exceed memory limit")
 		else:
-			raise CasjobsException("ERROR detected in CasJobs: " + error_msg)
+			raise CasjobsError("ERROR detected in CasJobs: " + error_msg)
 
 	if not results:
-		raise CasjobsException("Could not find anything on CasJobs")
+		raise CasjobsError("Could not find anything on CasJobs")
 
 	logger.debug("Found %d results", len(results))
 	return results
@@ -255,12 +255,19 @@ def query_apass(coo_centre, radius=24*u.arcmin):
 	if isinstance(radius, (float, int)):
 		radius *= u.deg
 
-	r = requests.post('https://www.aavso.org/cgi-bin/apass_dr10_download.pl',
-		data={'ra': coo_centre.ra.deg, 'dec': coo_centre.dec.deg, 'radius': Angle(radius).deg, 'outtype': '1'})
+	data = {
+		'ra': coo_centre.icrs.ra.deg,
+		'dec': coo_centre.icrs.dec.deg,
+		'radius': Angle(radius).deg,
+		'outtype': '1'
+	}
+
+	res = requests.post('https://www.aavso.org/cgi-bin/apass_dr10_download.pl', data=data)
+	res.raise_for_status()
 
 	results = []
 
-	lines = r.text.split("\n")
+	lines = res.text.split("\n")
 	#header = lines[0]
 
 	for line in lines[1:]:
@@ -295,24 +302,22 @@ def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
 		list: Astropy Table with SDSS information.
 
 	.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
 	if isinstance(radius, (float, int)):
 		radius *= u.deg
 
-	results_sdss = SDSS.query_region(coo_centre,
-		photoobj_fields=['objID', 'type', 'clean', 'probPSF', 'lnLStar_u', 'flags_u', 'type_u', 'ra','dec', 'psfMag_u', 'psfMagErr_u', 'calibStatus_u'],
+	AT_sdss = SDSS.query_region(coo_centre,
+		photoobj_fields=['type', 'clean', 'ra', 'dec', 'psfMag_u'],
 		data_release=dr,
 		timeout=600,
-		radius = radius)
-
-	AT_sdss = Table(results_sdss) # astropy Table explicit call in case astroquery changes return format.
-	AT_sdss.add_index(['ra','dec']) # Indexing might help with preserving order in the future.
+		radius=radius)
 
 	if clean:
 		# Clean SDSS following https://www.sdss.org/dr12/algorithms/photo_flags_recommend/
 		# 6 == star, clean means remove interp, edge, suspicious defects, deblending problems, duplicates.
-		AT_sdss = AT_sdss[(AT_sdss['type']==6) & (AT_sdss['clean']==1)]
+		AT_sdss = AT_sdss[(AT_sdss['type'] == 6) & (AT_sdss['clean'] == 1)]
 
 	return AT_sdss
 
@@ -363,7 +368,7 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	AT_results['u_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['u_mag']
 
 	# Create SDSS cat
-	AT_sdss = query_sdss(coo_centre, radius=radius, dr=16, clean=True)
+	AT_sdss = query_sdss(coo_centre, radius=radius)
 	sdss = SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
 
 	# Match to dist_cutoff sky distance (angular) apart
@@ -408,8 +413,7 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	# 		})
 
 	# TODO: Adjust receiving functions so we can just pass the astropy table instead.
-	return [dict(zip(AT_results.colnames,row)) for row in AT_results.as_array()]
-
+	return [dict(zip(AT_results.colnames, row)) for row in AT_results]
 
 #--------------------------------------------------------------------------------------------------
 def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
