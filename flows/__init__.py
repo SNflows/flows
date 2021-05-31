@@ -3,7 +3,7 @@
 # flake8: noqa
 
 from .photometry import photometry
-from .download_catalog import download_catalog
+from .catalogs import download_catalog
 from .visibility import visibility
 from .config import load_config
 
