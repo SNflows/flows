@@ -178,6 +178,9 @@ def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=No
 	if months is not None and date_end is not None and date_end < date_now - datetime.timedelta(days=months*30):
 		logger.warning('Months limit restricts days_begin, consider increasing limit_months.')
 
+	# API key for Bot
+	tnsconf = _load_tns_config()
+
 	# Parameters for query:
 	params = {
 		'discovered_period_value': months, # Reported Within The Last
@@ -256,7 +259,8 @@ def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=No
 	}
 
 	# Query TNS for names:
-	con = requests.get(url_tns_search, params=params)
+	headers = {'user-agent': tnsconf['user-agent']}
+	con = requests.get(url_tns_search, params=params, headers=headers)
 	con.raise_for_status()
 
 	# Parse the CSV table:
