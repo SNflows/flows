@@ -364,7 +364,7 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 
 	# Create SDSS cat
 	AT_sdss = query_sdss(coo_centre, radius=radius, dr=16, clean=True)
-	sdss = coords.SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
+	sdss = SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
 
 	# Match to dist_cutoff sky distance (angular) apart
 	idx, d2d, _ = sdss.match_to_catalog_sky(refcat)
