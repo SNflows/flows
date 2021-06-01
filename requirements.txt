@@ -1,10 +1,10 @@
 pytest
 flake8
-flake8-tabs !=2.3.0,!=2.3.1
+flake8-tabs >= 2.3.2
 flake8-builtins
 flake8-logging-format
 numpy >= 1.16
-scipy
+scipy == 1.5.4
 astropy == 4.1
 photutils == 1.1.0; python_version >= '3.7'
 photutils == 1.0.2; python_version < '3.7'
@@ -18,12 +18,12 @@ PyYAML
 psycopg2-binary
 jplephem
 vtk
-scikit-image
+scikit-image == 0.17.2
 tqdm
 pytz
+wheel
 git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
 sep
 astroalign > 2.3
 networkx
-wheel # Needed for astroquery/pyvo
 astroquery >= 0.4.2
