@@ -25,4 +25,5 @@ git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
 sep
 astroalign > 2.3
 networkx
+wheel # Needed for astroquery/pyvo
 astroquery >= 0.4.2
