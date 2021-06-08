@@ -21,7 +21,6 @@ vtk
 scikit-image == 0.17.2
 tqdm
 pytz
-wheel
 git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
 sep
 astroalign > 2.3
