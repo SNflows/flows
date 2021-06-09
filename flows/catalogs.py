@@ -441,16 +441,19 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dis
 
 		# Get the information about the target from the database:
 		if target is not None and isinstance(target, int):
-			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE targetid=%s;", [target])
+			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE targetid=%s;", [target])
 		elif target is not None:
-			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE target_name=%s;", [target])
+			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE target_name=%s;", [target])
 		else:
-			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE catalog_downloaded=FALSE;")
+			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE catalog_downloaded=FALSE;")
 
 		for row in db.cursor.fetchall():
 			# The unique identifier of the target:
 			targetid = int(row['targetid'])
 			target_name = row['target_name']
+			dd = row['discovery_date']
+			if dd is not None:
+				dd = Time(dd, format='iso', scale='utc')
 
 			# Coordinate of the target, which is the centre of the search cone:
 			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
@@ -458,7 +461,7 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dis
 			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
 
 			# Query for a ZTF identifier for this target:
-			ztf_id = query_ztf_id(coo_centre, radius=radius_ztf)
+			ztf_id = query_ztf_id(coo_centre, radius=radius_ztf, discovery_date=dd)
 
 			# Insert the catalog into the local database:
 			try:

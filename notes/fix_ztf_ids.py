@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
+import os.path
 from tqdm import tqdm
 from astropy.coordinates import SkyCoord
+if os.path.abspath('..') not in sys.path:
+	sys.path.insert(0, os.path.abspath('..'))
 import flows
 
 #--------------------------------------------------------------------------------------------------
@@ -14,8 +18,12 @@ if __name__ == '__main__':
 
 			targetid = target['targetid']
 			coord = SkyCoord(ra=target['ra'], dec=target['decl'], unit='deg', frame='icrs')
-			ztf_id = flows.ztf.query_ztf_id(coord)
+			dd = target['discovery_date']
 
+			# Query for the ZTF id:
+			ztf_id = flows.ztf.query_ztf_id(coord, discovery_date=dd)
+
+			# If the ZTF id is not the same as we have currently, update it in the database:
 			if ztf_id != target['ztf_id']:
 				print(target)
 				print(ztf_id)
