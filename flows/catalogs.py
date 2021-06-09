@@ -11,6 +11,7 @@ import subprocess
 import shlex
 import requests
 import numpy as np
+from astropy.time import Time
 from astropy.coordinates import SkyCoord, Angle
 from astropy import units as u
 from astropy.table import Table

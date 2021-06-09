@@ -13,16 +13,17 @@ from astropy.coordinates import SkyCoord
 import conftest # noqa: F401
 from flows import catalogs
 
-CASJOBS_NOT_AVAILABLE = False
-try:
-	catalogs.configure_casjobs()
-except catalogs.CasjobsError:
-	CASJOBS_NOT_AVAILABLE = True
-
 #--------------------------------------------------------------------------------------------------
-@pytest.mark.skipif(CASJOBS_NOT_AVAILABLE, reason="CasJobs not configured")
 def test_download_catalog(SETUP_CONFIG):
 
+	# Check if CasJobs have been configured, and skip the entire test if it isn't.
+	# This has to be done like this, to avoid problems when config.ini doesn't exist.
+	try:
+		catalogs.configure_casjobs()
+	except catalogs.CasjobsError:
+		pytest.skip("CasJobs not configured")
+
+	# Coordinates around test-object (2019yvr):
 	coo_centre = SkyCoord(
 		ra=256.727512,
 		dec=30.271482,
