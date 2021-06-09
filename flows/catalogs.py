@@ -191,7 +191,8 @@ def _query_casjobs_refcat2(coo_centre, radius=24*u.arcmin):
 	results = []
 	for line in output:
 		line = line.strip()
-		if line == '': continue
+		if line == '':
+			continue
 		if 'ERROR' in line:
 			error_thrown = True
 			break
@@ -297,6 +298,8 @@ def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
 	Parameters:
 		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
 		radius (float, optional):
+		dr (int, optional): SDSS Data Release to query. Default=16.
+		clean (bool, optional): Clean results for stars only and no other problems.
 
 	Returns:
 		list: Astropy Table with SDSS information.
@@ -324,7 +327,10 @@ def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
 #--------------------------------------------------------------------------------------------------
 def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	"""
-	Query all catalogs, and return merged catalog.
+	Query all catalogs (REFCAT2, APASS and SDSS) and return merged catalog.
+
+	Merging of catalogs are done using sky coordinates:
+	https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
 
 	Parameters:
 		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
@@ -416,7 +422,18 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	return [dict(zip(AT_results.colnames, row)) for row in AT_results]
 
 #--------------------------------------------------------------------------------------------------
-def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
+def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dist_cutoff=2*u.arcsec):
+	"""
+	Download reference star catalogs and save to Flows database.
+
+	Parameters:
+		target (str or int): Target identifier to download catalog for.
+		radius (Angle, optional): Radius around target to download catalogs.
+		radius_ztf (Angle, optional): Radius around target to search for ZTF identifier.
+		dist_cutoff (Angle, optional): Distance cutoff used for matching catalog positions.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
 
 	logger = logging.getLogger(__name__)
 
@@ -441,11 +458,10 @@ def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
 
 			# Query for a ZTF identifier for this target:
-			ztf_id = query_ztf_id(coo_centre, radius=radius)
+			ztf_id = query_ztf_id(coo_centre, radius=radius_ztf)
 
 			# Insert the catalog into the local database:
 			try:
-				#db.cursor.execute("TRUNCATE flows.refcat2;")
 				db.cursor.executemany("""INSERT INTO flows.refcat2 (
 					starid,
 					ra,

@@ -17,7 +17,7 @@ import requests
 from . import api
 
 #--------------------------------------------------------------------------------------------------
-def query_ztf_id(coo_centre, radius=1*u.arcmin):
+def query_ztf_id(coo_centre, radius=3*u.arcsec):
 	"""
 	Query ALeRCE ZTF api to lookup ZTF identifier.
 
@@ -26,7 +26,7 @@ def query_ztf_id(coo_centre, radius=1*u.arcmin):
 
 	Parameters:
 		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
-		radius (Angle, optional): Search radius. Default 1 arcmin.
+		radius (Angle, optional): Search radius. Default 3 arcsec.
 
 	Returns:
 		str: ZTF identifier.
