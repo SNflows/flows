@@ -10,6 +10,7 @@ import pytest
 import numpy as np
 from astropy.table import Table
 from astropy.coordinates import SkyCoord
+from astropy.time import Time
 import tempfile
 import os
 from conftest import capture_cli
@@ -26,6 +27,16 @@ def test_ztf_id():
 	)
 	ztfid = ztf.query_ztf_id(coo_centre)
 	assert ztfid == 'ZTF20aabqkxs'
+
+	# With the correct discovery date we should get the same result:
+	dd = Time('2019-12-27 12:30:14', format='iso', scale='utc')
+	ztfid = ztf.query_ztf_id(coo_centre, discovery_date=dd)
+	assert ztfid == 'ZTF20aabqkxs'
+
+	# With a wrong discovery date, we should not get a ZTF id:
+	dd = Time('2021-12-24 18:00:00', format='iso', scale='utc')
+	ztfid = ztf.query_ztf_id(coo_centre, discovery_date=dd)
+	assert ztfid is None
 
 	coo_centre = SkyCoord(
 		ra=181.6874198,

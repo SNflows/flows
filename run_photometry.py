@@ -88,19 +88,16 @@ def main():
 	group = parser.add_argument_group('Selecting which files to process')
 	group.add_argument('--fileid', type=int, default=None, action='append', help="Process this file ID. Overrides all other filters.")
 	group.add_argument('--targetid', type=int, default=None, action='append', help="Only process files from this target.")
-	group.add_argument('--filter', type=str, default=None, choices=['missing', 'all', 'error'])
+	group.add_argument('--filter', type=str, default=None, choices=['missing', 'all', 'error', 'version'])
+	group.add_argument('--minversion', type=str, default=None, help="Include files not previously processed with at least this version.")
 
 	group = parser.add_argument_group('Processing settings')
 	group.add_argument('--threads', type=int, default=1, help="Number of parallel threads to use.")
-	group.add_argument('--no-imagematch', help="Disable ImageMatch.", action='store_true')
-	group.add_argument('--autoupload',
-					   help="Automatically upload completed photometry to Flows website. \
-					   Only do this, if you know what you are doing!",
-					   action='store_true')
-	group.add_argument('--fixposdiff',
-					   help="Fix SN position during PSF photometry of difference image. \
-					   Useful when difference image is noisy.",
-					   action='store_true')
+	group.add_argument('--no-imagematch', action='store_true', help="Disable ImageMatch.")
+	group.add_argument('--autoupload', action='store_true',
+		 help="Automatically upload completed photometry to Flows website. Only do this, if you know what you are doing!")
+	group.add_argument('--fixposdiff', action='store_true',
+		help="Fix SN position during PSF photometry of difference image. Useful when difference image is noisy.")
 	group.add_argument('--wcstimeout', type=int, default=None, help="Timeout in Seconds for WCS.")
 	args = parser.parse_args()
 
@@ -135,9 +132,12 @@ def main():
 		fileids = args.fileid
 	else:
 		# Ask the API for a list of fileids which are yet to be processed:
-		fileids = []
-		for targid in args.targetid:
-			fileids += api.get_datafiles(targetid=targid, filt=args.filter)
+		if args.targetid is not None:
+			fileids = []
+			for targid in args.targetid:
+				fileids += api.get_datafiles(targetid=targid, filt=args.filter, minversion=args.minversion)
+		else:
+			fileids = api.get_datafiles(filt=args.filter, minversion=args.minversion)
 
 	# Remove duplicates from fileids to be processed:
 	fileids = list(set(fileids))

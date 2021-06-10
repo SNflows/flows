@@ -12,12 +12,13 @@ import numpy as np
 import astropy.units as u
 from astropy.coordinates import Angle, SkyCoord
 from astropy.table import Table
+from astropy.time import Time
 import datetime
 import requests
 from . import api
 
 #--------------------------------------------------------------------------------------------------
-def query_ztf_id(coo_centre, radius=1*u.arcmin):
+def query_ztf_id(coo_centre, radius=3*u.arcsec, discovery_date=None):
 	"""
 	Query ALeRCE ZTF api to lookup ZTF identifier.
 
@@ -26,7 +27,11 @@ def query_ztf_id(coo_centre, radius=1*u.arcmin):
 
 	Parameters:
 		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
-		radius (Angle, optional): Search radius. Default 1 arcmin.
+		radius (Angle, optional): Search radius. Default 3 arcsec.
+		discovery_date (:class:`astropy.time.Time`, optional): Discovery date of target to
+			match against ZTF. The date is compared to the ZTF first timestamp and ZTF targets
+			are rejected if they are not within 15 days prior to the discovery date
+			and 90 days after.
 
 	Returns:
 		str: ZTF identifier.
@@ -61,6 +66,18 @@ def query_ztf_id(coo_centre, radius=1*u.arcmin):
 	results = [itm for itm in results if not itm['stellar']]
 	if not results:
 		return None
+
+	# Constrain on the discovery date if it is provided:
+	if discovery_date is not None:
+		# Extract the time of the first ZTF timestamp and compare it with
+		# the discovery time:
+		firstmjd = Time([itm['firstmjd'] for itm in results], format='mjd', scale='utc')
+		tdelta = firstmjd.utc.mjd - discovery_date.utc.mjd
+
+		# Only keep results that are within the margins:
+		results = [itm for k, itm in enumerate(results) if -15 <= tdelta[k] <= 90]
+		if not results:
+			return None
 
 	# Find target closest to the centre:
 	coords = SkyCoord(

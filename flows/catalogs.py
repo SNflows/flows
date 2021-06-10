@@ -11,18 +11,21 @@ import subprocess
 import shlex
 import requests
 import numpy as np
+from astropy.time import Time
 from astropy.coordinates import SkyCoord, Angle
 from astropy import units as u
+from astropy.table import Table
+from astroquery.sdss import SDSS
 from .config import load_config
 from .aadc_db import AADC_DB
 from .ztf import query_ztf_id
 
 #--------------------------------------------------------------------------------------------------
-class CasjobsException(Exception):
+class CasjobsError(RuntimeError):
 	pass
 
 #--------------------------------------------------------------------------------------------------
-class CasjobsMemoryError(Exception):
+class CasjobsMemoryError(RuntimeError):
 	pass
 
 #--------------------------------------------------------------------------------------------------
@@ -54,7 +57,7 @@ def configure_casjobs(overwrite=False):
 	wsid = config.get('casjobs', 'wsid', fallback=None)
 	passwd = config.get('casjobs', 'password', fallback=None)
 	if wsid is None or passwd is None:
-		raise CasjobsException("CasJobs WSID and PASSWORD not in config.ini")
+		raise CasjobsError("CasJobs WSID and PASSWORD not in config.ini")
 
 	try:
 		with open(casjobs_config, 'w') as fid:
@@ -189,7 +192,8 @@ def _query_casjobs_refcat2(coo_centre, radius=24*u.arcmin):
 	results = []
 	for line in output:
 		line = line.strip()
-		if line == '': continue
+		if line == '':
+			continue
 		if 'ERROR' in line:
 			error_thrown = True
 			break
@@ -225,10 +229,10 @@ def _query_casjobs_refcat2(coo_centre, radius=24*u.arcmin):
 		if 'query results exceed memory limit' in error_msg.lower():
 			raise CasjobsMemoryError("Query results exceed memory limit")
 		else:
-			raise CasjobsException("ERROR detected in CasJobs: " + error_msg)
+			raise CasjobsError("ERROR detected in CasJobs: " + error_msg)
 
 	if not results:
-		raise CasjobsException("Could not find anything on CasJobs")
+		raise CasjobsError("Could not find anything on CasJobs")
 
 	logger.debug("Found %d results", len(results))
 	return results
@@ -253,12 +257,19 @@ def query_apass(coo_centre, radius=24*u.arcmin):
 	if isinstance(radius, (float, int)):
 		radius *= u.deg
 
-	r = requests.post('https://www.aavso.org/cgi-bin/apass_dr10_download.pl',
-		data={'ra': coo_centre.ra.deg, 'dec': coo_centre.dec.deg, 'radius': Angle(radius).deg, 'outtype': '1'})
+	data = {
+		'ra': coo_centre.icrs.ra.deg,
+		'dec': coo_centre.icrs.dec.deg,
+		'radius': Angle(radius).deg,
+		'outtype': '1'
+	}
+
+	res = requests.post('https://www.aavso.org/cgi-bin/apass_dr10_download.pl', data=data)
+	res.raise_for_status()
 
 	results = []
 
-	lines = r.text.split("\n")
+	lines = res.text.split("\n")
 	#header = lines[0]
 
 	for line in lines[1:]:
@@ -281,9 +292,46 @@ def query_apass(coo_centre, radius=24*u.arcmin):
 	return results
 
 #--------------------------------------------------------------------------------------------------
+def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
+	"""
+	Queries SDSS catalog using cone-search around the position using astroquery.
+
+	Parameters:
+		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
+		radius (float, optional):
+		dr (int, optional): SDSS Data Release to query. Default=16.
+		clean (bool, optional): Clean results for stars only and no other problems.
+
+	Returns:
+		list: Astropy Table with SDSS information.
+
+	.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+
+	if isinstance(radius, (float, int)):
+		radius *= u.deg
+
+	AT_sdss = SDSS.query_region(coo_centre,
+		photoobj_fields=['type', 'clean', 'ra', 'dec', 'psfMag_u'],
+		data_release=dr,
+		timeout=600,
+		radius=radius)
+
+	if clean:
+		# Clean SDSS following https://www.sdss.org/dr12/algorithms/photo_flags_recommend/
+		# 6 == star, clean means remove interp, edge, suspicious defects, deblending problems, duplicates.
+		AT_sdss = AT_sdss[(AT_sdss['type'] == 6) & (AT_sdss['clean'] == 1)]
+
+	return AT_sdss
+
+#--------------------------------------------------------------------------------------------------
 def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	"""
-	Query all catalogs, and return merged catalog.
+	Query all catalogs (REFCAT2, APASS and SDSS) and return merged catalog.
+
+	Merging of catalogs are done using sky coordinates:
+	https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
 
 	Parameters:
 		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
@@ -294,65 +342,99 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 		list: List of dicts with catalog stars.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 	"""
 
 	# Query the REFCAT2 catalog using CasJobs around the target position:
 	results = query_casjobs_refcat2(coo_centre, radius=radius)
+	AT_results = Table(results)
 
 	# Query APASS around the target position:
 	results_apass = query_apass(coo_centre, radius=radius)
+	AT_apass = Table(results_apass)
 
 	# Match the two catalogs using coordinates:
 	# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
-	ra = np.array([r['ra'] for r in results])
-	decl = np.array([r['decl'] for r in results])
-	refcat = SkyCoord(ra=ra, dec=decl, unit=u.deg, frame='icrs')
+	#ra = np.array([r['ra'] for r in results])
+	#decl = np.array([r['decl'] for r in results])
+	refcat = SkyCoord(ra=AT_results['ra'], dec=AT_results['decl'], unit=u.deg, frame='icrs')
 
-	ra_apass = np.array([r['ra'] for r in results_apass])
-	decl_apass = np.array([r['decl'] for r in results_apass])
-	apass = SkyCoord(ra=ra_apass, dec=decl_apass, unit=u.deg, frame='icrs')
+	#ra_apass = np.array([r['ra'] for r in results_apass])
+	#decl_apass = np.array([r['decl'] for r in results_apass])
+	apass = SkyCoord(ra=AT_apass['ra'], dec=AT_apass['decl'], unit=u.deg, frame='icrs')
 
 	# Match the two catalogs:
 	idx, d2d, _ = apass.match_to_catalog_sky(refcat)
+	sep_constraint = d2d <= dist_cutoff # Reject any match further away than the cutoff:
+	idx_apass = np.arange(len(idx)) # since idx maps apass to refcat
 
-	# Go through the matches and make sure they are valid:
-	for k, i in enumerate(idx):
-		# If APASS doesn't contain any new information anyway, skip it:
-		if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None \
-			and results_apass[k]['u_mag'] is None:
-			continue
+	# Update results table with APASS bands of interest
+	AT_results.add_columns([None,None,None],names=['B_mag','V_mag','u_mag'])  # Results table does not have uBV
+	AT_results['B_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['B_mag']
+	AT_results['V_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['V_mag']
+	AT_results['u_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['u_mag']
 
-		# Reject any match further away than the cutoff:
-		if d2d[k] > dist_cutoff:
-			continue
+	# Create SDSS cat
+	AT_sdss = query_sdss(coo_centre, radius=radius)
+	sdss = SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
 
-		# TODO: Use the overlapping magnitudes to make better match:
-		#photdist = 0
-		#for photfilt in ('g_mag', 'r_mag', 'i_mag', 'z_mag'):
-		#	if results_apass[k][photfilt] and results[i][photfilt]:
-		#		photdist += (results[i][photfilt] - results_apass[k][photfilt])**2
-		#print( np.sqrt(photdist) )
+	# Match to dist_cutoff sky distance (angular) apart
+	idx, d2d, _ = sdss.match_to_catalog_sky(refcat)
+	sep_constraint = d2d <= dist_cutoff
+	idx_sdss = np.arange(len(idx)) # since idx maps sdss to refcat
+	# TODO: Maybe don't (potentially) overwrite APASS uband with SDSS uband. Decide which is better.
+	AT_results['u_mag'][idx[sep_constraint]] = AT_sdss[idx_sdss[sep_constraint]]['psfMag_u']
 
-		# Update the results "table" with the APASS filters:
-		results[i].update({
-			'V_mag': results_apass[k]['V_mag'],
-			'B_mag': results_apass[k]['B_mag'],
-			'u_mag': results_apass[k]['u_mag']
-		})
+	# # Go through the matches and make sure they are valid:
+	# for k, i in enumerate(idx):
+	# 	# If APASS doesn't contain any new information anyway, skip it:
+	# 	if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None \
+	# 		and results_apass[k]['u_mag'] is None:
+	# 		continue
+	#
+	# 	# Reject any match further away than the cutoff:
+	# 	if d2d[k] > dist_cutoff:
+	# 		continue
+	#
+	# 	# TODO: Use the overlapping magnitudes to make better match:
+	# 	#photdist = 0
+	# 	#for photfilt in ('g_mag', 'r_mag', 'i_mag', 'z_mag'):
+	# 	#	if results_apass[k][photfilt] and results[i][photfilt]:
+	# 	#		photdist += (results[i][photfilt] - results_apass[k][photfilt])**2
+	# 	#print( np.sqrt(photdist) )
+	#
+	# 	# Update the results "table" with the APASS filters:
+	# 	results[i].update({
+	# 		'V_mag': results_apass[k]['V_mag'],
+	# 		'B_mag': results_apass[k]['B_mag'],
+	# 		'u_mag': results_apass[k]['u_mag']
+	# 	})
+	#
+	# # Fill in empty fields where nothing was matched:
+	# for k in range(len(results)):
+	# 	if 'V_mag' not in results[k]:
+	# 		results[k].update({
+	# 			'B_mag': None,
+	# 			'V_mag': None,
+	# 			'u_mag': None
+	# 		})
 
-	# Fill in empty fields where nothing was matched:
-	for k in range(len(results)):
-		if 'V_mag' not in results[k]:
-			results[k].update({
-				'B_mag': None,
-				'V_mag': None,
-				'u_mag': None
-			})
-
-	return results
+	# TODO: Adjust receiving functions so we can just pass the astropy table instead.
+	return [dict(zip(AT_results.colnames, row)) for row in AT_results]
 
 #--------------------------------------------------------------------------------------------------
-def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
+def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dist_cutoff=2*u.arcsec):
+	"""
+	Download reference star catalogs and save to Flows database.
+
+	Parameters:
+		target (str or int): Target identifier to download catalog for.
+		radius (Angle, optional): Radius around target to download catalogs.
+		radius_ztf (Angle, optional): Radius around target to search for ZTF identifier.
+		dist_cutoff (Angle, optional): Distance cutoff used for matching catalog positions.
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
 
 	logger = logging.getLogger(__name__)
 
@@ -360,16 +442,19 @@ def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 
 		# Get the information about the target from the database:
 		if target is not None and isinstance(target, int):
-			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE targetid=%s;", [target])
+			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE targetid=%s;", [target])
 		elif target is not None:
-			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE target_name=%s;", [target])
+			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE target_name=%s;", [target])
 		else:
-			db.cursor.execute("SELECT targetid,target_name,ra,decl FROM flows.targets WHERE catalog_downloaded=FALSE;")
+			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE catalog_downloaded=FALSE;")
 
 		for row in db.cursor.fetchall():
 			# The unique identifier of the target:
 			targetid = int(row['targetid'])
 			target_name = row['target_name']
+			dd = row['discovery_date']
+			if dd is not None:
+				dd = Time(dd, format='iso', scale='utc')
 
 			# Coordinate of the target, which is the centre of the search cone:
 			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
@@ -377,11 +462,10 @@ def download_catalog(target=None, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
 
 			# Query for a ZTF identifier for this target:
-			ztf_id = query_ztf_id(coo_centre, radius=radius)
+			ztf_id = query_ztf_id(coo_centre, radius=radius_ztf, discovery_date=dd)
 
 			# Insert the catalog into the local database:
 			try:
-				#db.cursor.execute("TRUNCATE flows.refcat2;")
 				db.cursor.executemany("""INSERT INTO flows.refcat2 (
 					starid,
 					ra,

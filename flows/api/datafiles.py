@@ -33,7 +33,7 @@ def get_datafile(fileid):
 	return jsn
 
 #--------------------------------------------------------------------------------------------------
-def get_datafiles(targetid=None, filt=None):
+def get_datafiles(targetid=None, filt=None, minversion=None):
 	"""
 	Get list of data file IDs to be processed.
 
@@ -42,6 +42,8 @@ def get_datafiles(targetid=None, filt=None):
 		filt (str, optional): Filter the returned list:
 			- ``missing``: Return only data files that have not yet been processed.
 			- ``'all'``: Return all data files.
+		minversion (str, optional): Special filter matching files not processed at least with
+			the specified version (defined internally in API for now).
 
 	Returns:
 		list: List of data files the can be processed.
@@ -64,6 +66,8 @@ def get_datafiles(targetid=None, filt=None):
 	params = {}
 	if targetid is not None:
 		params['targetid'] = targetid
+	if minversion is not None:
+		params['version'] = minversion
 	params['filter'] = filt
 
 	r = requests.get('https://flows.phys.au.dk/api/datafiles.php',
