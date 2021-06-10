@@ -465,6 +465,13 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dis
 			# Query for a ZTF identifier for this target:
 			ztf_id = query_ztf_id(coo_centre, radius=radius_ztf, discovery_date=dd)
 
+			# Because the database is picky with datatypes, we need to change things
+			# before they are passed on to the database:
+			for row in results:
+				for key, val in row.items():
+					if isinstance(val, (np.int64, np.int32)):
+						row[key] = int(val)
+
 			# Insert the catalog into the local database:
 			try:
 				db.cursor.executemany("""INSERT INTO flows.refcat2 (
