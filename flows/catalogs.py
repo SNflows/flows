@@ -454,11 +454,12 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dis
 			target_name = row['target_name']
 			dd = row['discovery_date']
 			if dd is not None:
-				dd = Time(dd, format='iso', scale='utc')
+				dd = Time(dd.isoformat(), format='isot', scale='utc')
 
 			# Coordinate of the target, which is the centre of the search cone:
 			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
 
+			# Download combined catalog from all sources:
 			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
 
 			# Query for a ZTF identifier for this target:
