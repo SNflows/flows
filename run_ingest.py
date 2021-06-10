@@ -518,6 +518,10 @@ def ingest_photometry_from_inbox():
 				indx_sub = (tab['starid'] == -1)
 				indx_ref = (tab['starid'] > 0)
 
+				frd = float(np.nanmax(tab[indx_ref]['mag']))
+				if not np.isfinite(frd):
+					frd = None
+
 				phot_summary = {
 					'fileid_img': fileid_img,
 					'fileid_phot': fileid,
@@ -537,7 +541,7 @@ def ingest_photometry_from_inbox():
 					'seeing': float(tab.meta['seeing'].value),
 					'references_detected': int(np.sum(indx_ref)),
 					'used_for_epsf': int(np.sum(tab['used_for_epsf'])),
-					'faintest_reference_detected': float(np.max(tab[indx_ref]['mag'])),
+					'faintest_reference_detected': frd,
 					'pipeline_version': tab.meta['version'],
 					'latest_version': new_version
 				}
