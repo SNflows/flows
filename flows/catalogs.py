@@ -318,10 +318,16 @@ def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
 		timeout=600,
 		radius=radius)
 
+	if AT_sdss is None:
+		return None
+
 	if clean:
 		# Clean SDSS following https://www.sdss.org/dr12/algorithms/photo_flags_recommend/
 		# 6 == star, clean means remove interp, edge, suspicious defects, deblending problems, duplicates.
 		AT_sdss = AT_sdss[(AT_sdss['type'] == 6) & (AT_sdss['clean'] == 1)]
+
+	if len(AT_sdss) == 0:
+		return None
 
 	return AT_sdss
 
@@ -348,42 +354,43 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	# Query the REFCAT2 catalog using CasJobs around the target position:
 	results = query_casjobs_refcat2(coo_centre, radius=radius)
 	AT_results = Table(results)
+	refcat = SkyCoord(ra=AT_results['ra'], dec=AT_results['decl'], unit=u.deg, frame='icrs')
+
+	# Results table does not have uBV
+	AT_results.add_columns([None,None,None], names=['B_mag','V_mag','u_mag'])
 
 	# Query APASS around the target position:
 	results_apass = query_apass(coo_centre, radius=radius)
-	AT_apass = Table(results_apass)
+	if results_apass:
+		AT_apass = Table(results_apass)
 
-	# Match the two catalogs using coordinates:
-	# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
-	#ra = np.array([r['ra'] for r in results])
-	#decl = np.array([r['decl'] for r in results])
-	refcat = SkyCoord(ra=AT_results['ra'], dec=AT_results['decl'], unit=u.deg, frame='icrs')
+		# Match the two catalogs using coordinates:
+		# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
+		#ra_apass = np.array([r['ra'] for r in results_apass])
+		#decl_apass = np.array([r['decl'] for r in results_apass])
+		apass = SkyCoord(ra=AT_apass['ra'], dec=AT_apass['decl'], unit=u.deg, frame='icrs')
 
-	#ra_apass = np.array([r['ra'] for r in results_apass])
-	#decl_apass = np.array([r['decl'] for r in results_apass])
-	apass = SkyCoord(ra=AT_apass['ra'], dec=AT_apass['decl'], unit=u.deg, frame='icrs')
+		# Match the two catalogs:
+		idx, d2d, _ = apass.match_to_catalog_sky(refcat)
+		sep_constraint = d2d <= dist_cutoff # Reject any match further away than the cutoff:
+		idx_apass = np.arange(len(idx)) # since idx maps apass to refcat
 
-	# Match the two catalogs:
-	idx, d2d, _ = apass.match_to_catalog_sky(refcat)
-	sep_constraint = d2d <= dist_cutoff # Reject any match further away than the cutoff:
-	idx_apass = np.arange(len(idx)) # since idx maps apass to refcat
-
-	# Update results table with APASS bands of interest
-	AT_results.add_columns([None,None,None],names=['B_mag','V_mag','u_mag'])  # Results table does not have uBV
-	AT_results['B_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['B_mag']
-	AT_results['V_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['V_mag']
-	AT_results['u_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['u_mag']
+		# Update results table with APASS bands of interest
+		AT_results['B_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['B_mag']
+		AT_results['V_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['V_mag']
+		AT_results['u_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['u_mag']
 
 	# Create SDSS cat
 	AT_sdss = query_sdss(coo_centre, radius=radius)
-	sdss = SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
+	if AT_sdss:
+		sdss = SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
 
-	# Match to dist_cutoff sky distance (angular) apart
-	idx, d2d, _ = sdss.match_to_catalog_sky(refcat)
-	sep_constraint = d2d <= dist_cutoff
-	idx_sdss = np.arange(len(idx)) # since idx maps sdss to refcat
-	# TODO: Maybe don't (potentially) overwrite APASS uband with SDSS uband. Decide which is better.
-	AT_results['u_mag'][idx[sep_constraint]] = AT_sdss[idx_sdss[sep_constraint]]['psfMag_u']
+		# Match to dist_cutoff sky distance (angular) apart
+		idx, d2d, _ = sdss.match_to_catalog_sky(refcat)
+		sep_constraint = d2d <= dist_cutoff
+		idx_sdss = np.arange(len(idx)) # since idx maps sdss to refcat
+		# TODO: Maybe don't (potentially) overwrite APASS uband with SDSS uband. Decide which is better.
+		AT_results['u_mag'][idx[sep_constraint]] = AT_sdss[idx_sdss[sep_constraint]]['psfMag_u']
 
 	# # Go through the matches and make sure they are valid:
 	# for k, i in enumerate(idx):

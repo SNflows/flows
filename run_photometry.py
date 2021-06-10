@@ -88,7 +88,7 @@ def main():
 	group = parser.add_argument_group('Selecting which files to process')
 	group.add_argument('--fileid', type=int, default=None, action='append', help="Process this file ID. Overrides all other filters.")
 	group.add_argument('--targetid', type=int, default=None, action='append', help="Only process files from this target.")
-	group.add_argument('--filter', type=str, default=None, choices=['missing', 'all', 'error', 'version'])
+	group.add_argument('--filter', type=str, default=None, choices=['missing', 'all', 'error'])
 	group.add_argument('--minversion', type=str, default=None, help="Include files not previously processed with at least this version.")
 
 	group = parser.add_argument_group('Processing settings')
