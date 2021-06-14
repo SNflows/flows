@@ -430,7 +430,8 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	return [dict(zip(AT_results.colnames, row)) for row in AT_results]
 
 #--------------------------------------------------------------------------------------------------
-def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dist_cutoff=2*u.arcsec):
+def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec,
+	dist_cutoff=2*u.arcsec, update_existing=False):
 	"""
 	Download reference star catalogs and save to Flows database.
 
@@ -439,6 +440,7 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dis
 		radius (Angle, optional): Radius around target to download catalogs.
 		radius_ztf (Angle, optional): Radius around target to search for ZTF identifier.
 		dist_cutoff (Angle, optional): Distance cutoff used for matching catalog positions.
+		update_existing (bool, optional): Update existing catalog entries or skip them.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
@@ -448,8 +450,8 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dis
 	with AADC_DB() as db:
 
 		# Get the information about the target from the database:
-		if target is not None and isinstance(target, int):
-			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE targetid=%s;", [target])
+		if target is not None and isinstance(target, (int, float)):
+			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE targetid=%s;", [int(target)])
 		elif target is not None:
 			db.cursor.execute("SELECT targetid,target_name,ra,decl,discovery_date FROM flows.targets WHERE target_name=%s;", [target])
 		else:
@@ -478,8 +480,34 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dis
 				for key, val in row.items():
 					if isinstance(val, (np.int64, np.int32)):
 						row[key] = int(val)
+					#elif isinstance(val, float) and np.isnan(val):
+					#	row[key] = None
 
 			# Insert the catalog into the local database:
+			if update_existing:
+				on_conflict = """ON CONSTRAINT refcat2_pkey DO UPDATE SET
+					ra=EXCLUDED.ra,
+					decl=EXCLUDED.decl,
+					pm_ra=EXCLUDED.pm_ra,
+					pm_dec=EXCLUDED.pm_dec,
+					gaia_mag=EXCLUDED.gaia_mag,
+					gaia_bp_mag=EXCLUDED.gaia_bp_mag,
+					gaia_rp_mag=EXCLUDED.gaia_rp_mag,
+					gaia_variability=EXCLUDED.gaia_variability,
+					u_mag=EXCLUDED.u_mag,
+					g_mag=EXCLUDED.g_mag,
+					r_mag=EXCLUDED.r_mag,
+					i_mag=EXCLUDED.i_mag,
+					z_mag=EXCLUDED.z_mag,
+					"J_mag"=EXCLUDED."J_mag",
+					"H_mag"=EXCLUDED."H_mag",
+					"K_mag"=EXCLUDED."K_mag",
+					"V_mag"=EXCLUDED."V_mag",
+					"B_mag"=EXCLUDED."B_mag"
+				WHERE refcat2.starid=EXCLUDED.starid"""
+			else:
+				on_conflict = 'DO NOTHING'
+
 			try:
 				db.cursor.executemany("""INSERT INTO flows.refcat2 (
 					starid,
@@ -521,7 +549,7 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec, dis
 					%(K_mag)s,
 					%(V_mag)s,
 					%(B_mag)s)
-				ON CONFLICT DO NOTHING;""", results)
+				ON CONFLICT """ + on_conflict + ";", results)
 				logger.info("%d catalog entries inserted for %s.", db.cursor.rowcount, target_name)
 
 				# Mark the target that the catalog has been downloaded:
