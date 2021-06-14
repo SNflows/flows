@@ -113,7 +113,9 @@ def load_image(FILENAME):
 			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=observatory)
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 
-			image.photfilter = hdr['FILTER']
+			image.photfilter = {
+				'zs': 'zp'
+			}.get(hdr['FILTER'], hdr['FILTER'])
 
 			# Get non-linear limit
 			# TODO: Use actual or some fraction of the non-linearity limit
