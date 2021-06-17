@@ -320,8 +320,19 @@ def load_image(FILENAME):
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 			image.photfilter = hdr['CCDFLTID']
 
+		elif telescope == '1.3m PAIRITEL' and instrument == '2MASS Survey cam':
+			image.site = api.get_site(21) # Hard-coded the siteid for Peters Automated InfraRed Imaging TELescope
+			time_start = Time(hdr['STRT_CPU'], format='iso', scale='utc', location=image.site['EarthLocation'])
+			time_stop = Time(hdr['STOP_CPU'], format='iso', scale='utc', location=image.site['EarthLocation'])
+			image.obstime = time_start + 0.5*(time_stop - time_start)
+			image.photfilter = {
+				'j': 'J',
+				'h': 'H',
+				'k': 'K',
+			}.get(hdr['FILTER'], hdr['FILTER'])
+
 		else:
-			raise Exception("Could not determine origin of image")
+			raise RuntimeError("Could not determine origin of image")
 
 	# Create masked version of image:
 	image.image[image.mask] = np.NaN
