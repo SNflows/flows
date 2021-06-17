@@ -331,6 +331,9 @@ def load_image(FILENAME):
 				'k': 'K',
 			}.get(hdr['FILTER'], hdr['FILTER'])
 
+			# Mask out "halo" of pixels with zero value along edge of image:
+			image.mask |= edge_mask(image.image, value=0)
+
 		else:
 			raise RuntimeError("Could not determine origin of image")
 
