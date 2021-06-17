@@ -24,6 +24,15 @@ jobs:
       with:
         python-version: 3.7
 
+    - name: Cache pip
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-py3.7-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-py3.7-
+          ${{ runner.os }}-pip-
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -33,6 +42,12 @@ jobs:
     - name: Update VERSION file
       run: python -c "from flows import version; version.update_release_version();"
 
+    - name: Generate changelog
+      id: changelog
+      uses: metcalfc/changelog-generator@v1.0.0
+      with:
+        myToken: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -40,7 +55,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref }}
-        release_name: Version ${{ github.ref }}
+        release_name: Version ${GITHUB_REF##*/}
         body: |
-          Version ${{ github.ref }}
+          Version ${GITHUB_REF##*/}
+          ${{ steps.changelog.outputs.changelog }}
         draft: true
