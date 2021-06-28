@@ -99,8 +99,8 @@ def load_image(FILENAME):
 			warnings.simplefilter('ignore', category=FITSFixedWarning)
 			image.wcs = WCS(hdr)
 
-		# Specific headers everyone can agree on:
-		image.exptime = float(hdr['EXPTIME']) # * u.second
+		# Values which will be filled out below, depending on the instrument:
+		image.exptime = None # Exposure time
 		image.peakmax = None # Maximum value above which data is not to be trusted
 
 		# Timestamp:
@@ -157,7 +157,7 @@ def load_image(FILENAME):
 						"z'_SDSS 832_LP": 'zp'
 					}.get(filters_used[0].replace('  ', ' '), filters_used[0])
 				else:
-					raise Exception("Could not determine filter used.")
+					raise RuntimeError("Could not determine filter used.")
 
 			# Get non-linear limit
 			# Obtained from http://www.not.iac.es/instruments/detectors/CCD14/LED-linearity/20181026-200-1x1.pdf
@@ -172,7 +172,7 @@ def load_image(FILENAME):
 			# if not we have to try to figure out which filter
 			# was used based on some of the other headers:
 			if 'FILTER' in hdr:
-				raise Exception("NOTCAM: Filter keyword defined")
+				raise RuntimeError("NOTCAM: Filter keyword defined")
 			filters_used = []
 			for check_headers in ('NCFLTNM1', 'NCFLTNM2'):
 				if hdr.get(check_headers) and hdr.get(check_headers).strip().lower() != 'open':
@@ -180,7 +180,7 @@ def load_image(FILENAME):
 			if len(filters_used) == 1:
 				image.photfilter = {}.get(filters_used[0], filters_used[0])
 			else:
-				raise Exception("Could not determine filter used.")
+				raise RuntimeError("Could not determine filter used.")
 
 			# Mask out "halo" of pixels with zero value along edge of image:
 			image.mask |= edge_mask(image.image, value=0)
@@ -280,7 +280,7 @@ def load_image(FILENAME):
 				if len(filters_used) == 1:
 					image.photfilter = photfilter_translate.get(filters_used[0], filters_used[0])
 				else:
-					raise Exception("Could not determine filter used.")
+					raise RuntimeError("Could not determine filter used.")
 
 			# Mask out "halo" of pixels with zero value along edge of image:
 			image.mask |= edge_mask(image.image, value=0)
@@ -304,7 +304,7 @@ def load_image(FILENAME):
 				'H_Open': 'H',
 				'K_Open': 'K',
 			}.get(hdr['FILTER'], hdr['FILTER'])
-			image.exptime = float(hdr['FULL_EXP'])
+			image.exptime = hdr.get('FULL_EXP', None)
 
 		elif instrument == 'OMEGACAM' and (origin == 'ESO' or origin.startswith('NOAO-IRAF')):
 			image.site = api.get_site(18) # Hard-coded the siteid for ESO VLT Survey telescope
@@ -336,6 +336,10 @@ def load_image(FILENAME):
 
 		else:
 			raise RuntimeError("Could not determine origin of image")
+
+	# This is something most instruments can agree on:
+	if image.exptime is None:
+		image.exptime = float(hdr['EXPTIME']) # * u.second
 
 	# Create masked version of image:
 	image.image[image.mask] = np.NaN
