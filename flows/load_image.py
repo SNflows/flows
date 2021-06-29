@@ -100,7 +100,7 @@ def load_image(FILENAME):
 			image.wcs = WCS(hdr)
 
 		# Values which will be filled out below, depending on the instrument:
-		image.exptime = None # Exposure time
+		image.exptime = hdr.get('EXPTIME', None) # Exposure time * u.second
 		image.peakmax = None # Maximum value above which data is not to be trusted
 
 		# Timestamp:
@@ -299,12 +299,15 @@ def load_image(FILENAME):
 
 		elif telescope == 'SAI-2.5' and instrument == 'ASTRONIRCAM':
 			image.site = api.get_site(13) # Hard-coded the siteid for Caucasus Mountain Observatory
-			image.obstime = Time(hdr['MJD-AVG'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+			if 'MIDPOINT' in hdr:
+				image.obstime = Time(hdr['MIDPOINT'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+			else:
+				image.obstime = Time(hdr['MJD-AVG'], format='mjd', scale='utc', location=image.site['EarthLocation'])
 			image.photfilter = {
 				'H_Open': 'H',
 				'K_Open': 'K',
 			}.get(hdr['FILTER'], hdr['FILTER'])
-			image.exptime = hdr.get('FULL_EXP', None)
+			image.exptime = hdr.get('FULL_EXP', image.exptime)
 
 		elif instrument == 'OMEGACAM' and (origin == 'ESO' or origin.startswith('NOAO-IRAF')):
 			image.site = api.get_site(18) # Hard-coded the siteid for ESO VLT Survey telescope
@@ -337,9 +340,9 @@ def load_image(FILENAME):
 		else:
 			raise RuntimeError("Could not determine origin of image")
 
-	# This is something most instruments can agree on:
+	# Sanity checks:
 	if image.exptime is None:
-		image.exptime = float(hdr['EXPTIME']) # * u.second
+		raise ValueError("Image exposure time could not be extracted")
 
 	# Create masked version of image:
 	image.image[image.mask] = np.NaN
