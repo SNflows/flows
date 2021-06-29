@@ -300,7 +300,7 @@ def load_image(FILENAME):
 		elif telescope == 'SAI-2.5' and instrument == 'ASTRONIRCAM':
 			image.site = api.get_site(13) # Hard-coded the siteid for Caucasus Mountain Observatory
 			if 'MIDPOINT' in hdr:
-				image.obstime = Time(hdr['MIDPOINT'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+				image.obstime = Time(hdr['MIDPOINT'], format='isot', scale='utc', location=image.site['EarthLocation'])
 			else:
 				image.obstime = Time(hdr['MJD-AVG'], format='mjd', scale='utc', location=image.site['EarthLocation'])
 			image.photfilter = {
