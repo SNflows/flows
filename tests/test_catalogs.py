@@ -14,7 +14,12 @@ import conftest # noqa: F401
 from flows import catalogs
 
 #--------------------------------------------------------------------------------------------------
-def test_download_catalog(SETUP_CONFIG):
+
+@pytest.mark.parametrize('ra,dec', [
+	[256.727512, 30.271482], # 2019yvr
+	[58.59512, -19.18172] # 2009D
+])
+def test_download_catalog(SETUP_CONFIG, ra, dec):
 
 	# Check if CasJobs have been configured, and skip the entire test if it isn't.
 	# This has to be done like this, to avoid problems when config.ini doesn't exist.
@@ -25,8 +30,8 @@ def test_download_catalog(SETUP_CONFIG):
 
 	# Coordinates around test-object (2019yvr):
 	coo_centre = SkyCoord(
-		ra=256.727512,
-		dec=30.271482,
+		ra=ra,
+		dec=dec,
 		unit='deg',
 		frame='icrs'
 	)
