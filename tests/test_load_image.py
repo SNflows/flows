@@ -11,7 +11,7 @@ import numpy as np
 from astropy.time import Time
 from astropy.wcs import WCS
 import os.path
-import conftest
+import conftest # noqa: F401
 from flows.load_image import load_image
 
 #--------------------------------------------------------------------------------------------------
