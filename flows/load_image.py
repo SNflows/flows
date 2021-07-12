@@ -97,7 +97,7 @@ def load_image(FILENAME):
 		# World Coordinate System:
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore', category=FITSFixedWarning)
-			image.wcs = WCS(hdr)
+			image.wcs = WCS(header=hdr, relax=True)
 
 		# Values which will be filled out below, depending on the instrument:
 		image.exptime = hdr.get('EXPTIME', None) # Exposure time * u.second
@@ -352,6 +352,6 @@ def load_image(FILENAME):
 
 	# Create masked version of image:
 	image.image[image.mask] = np.NaN
-	image.clean = np.ma.masked_array(image.image, image.mask)
+	image.clean = np.ma.masked_array(data=image.image, mask=image.mask, copy=False)
 
 	return image
