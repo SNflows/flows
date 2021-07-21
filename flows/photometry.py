@@ -11,6 +11,7 @@ Flows photometry code.
 import os
 import logging
 import warnings
+import gc
 from timeit import default_timer
 import numpy as np
 from scipy.interpolate import UnivariateSpline
@@ -183,8 +184,8 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 	image.error = calc_total_error(image.clean, background.background_rms, 1.0)
 
 	# Use sep to for soure extraction
-	sep_background = sep.Background(image.clean.data, mask=image.mask)
-	objects = sep.extract(image.clean.data - sep_background,
+	sep_background = sep.Background(image.image, mask=image.mask)
+	objects = sep.extract(image.image - sep_background,
 		thresh=5.,
 		err=sep_background.globalrms,
 		mask=image.mask,
@@ -192,12 +193,15 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 		minarea=9,
 		clean_param=2.0)
 
+	# Cleanup large arrays which are no longer needed:
+	del background, fig, ax, sep_background, ltt_bary
+	gc.collect()
+
 	#==============================================================================================
 	# DETECTION OF STARS AND MATCHING WITH CATALOG
 	#==============================================================================================
 
 	# Account for proper motion:
-	# TODO: Are catalog RA-proper motions including cosdec?
 	replace(references['pm_ra'], np.NaN, 0)
 	replace(references['pm_dec'], np.NaN, 0)
 	refs_coord = coords.SkyCoord(
@@ -231,6 +235,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 		fwhm_max=fwhm_max,
 		fwhm_min=fwhm_min)
 
+	logger.info("Finding new WCS solution...")
 	head_wcs = str(WCS2.from_astropy_wcs(image.wcs))
 	logger.debug('Head WCS: %s', head_wcs)
 
@@ -244,8 +249,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 		rd_order=np.argsort(target_coord.separation(refs_coord)),
 		xy_nmax=100,
 		rd_nmax=100,
-		maximum_angle_distance=0.002,
-	)
+		maximum_angle_distance=0.002)
 
 	# Set timeout par to infinity unless specified.
 	if cm_timeout is None:
@@ -261,6 +265,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 		image.wcs = fit_wcs_from_points(
 			np.array(list(zip(*cm.xy[i_xy]))),
 			coords.SkyCoord(*map(list, zip(*cm.rd[i_rd])), unit='deg'))
+		del i_xy, i_rd
 
 	used_wcs = str(WCS2.from_astropy_wcs(image.wcs))
 	logger.debug('Used WCS: %s', used_wcs)
@@ -329,6 +334,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 	fig.savefig(os.path.join(output_folder, 'positions.png'), bbox_inches='tight')
 	plt.close(fig)
 
+	# Cleanup large arrays which are no longer needed:
+	del fig, ax, cm
+	gc.collect()
+
 	#==============================================================================================
 	# CREATE EFFECTIVE PSF MODEL
 	#==============================================================================================
@@ -381,7 +390,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 	# Store which stars were used in ePSF in the table:
 	references['used_for_epsf'] = False
 	references['used_for_epsf'][[star.id_label - 1 for star in stars.all_good_stars]] = True
-	logger.info("Number of stars used for ePSF: %d", len(stars))
+	logger.info("Number of stars used for ePSF: %d", np.sum(references['used_for_epsf']))
 
 	fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 15))
 	plot_image(epsf.data, ax=ax1, cmap='viridis')
@@ -431,6 +440,10 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 	# Let's make the final FWHM the largest one we found:
 	fwhm = np.max(fwhms)
 	logger.info("Final FWHM based on ePSF: %f", fwhm)
+
+	# Cleanup large arrays which are no longer needed:
+	del fig, ax, stars, fwhms, profile_intp
+	gc.collect()
 
 	#==============================================================================================
 	# COORDINATES TO DO PHOTOMETRY AT

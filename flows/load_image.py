@@ -97,7 +97,7 @@ def load_image(FILENAME):
 		# World Coordinate System:
 		with warnings.catch_warnings():
 			warnings.simplefilter('ignore', category=FITSFixedWarning)
-			image.wcs = WCS(hdr)
+			image.wcs = WCS(header=hdr, relax=True)
 
 		# Values which will be filled out below, depending on the instrument:
 		image.exptime = hdr.get('EXPTIME', None) # Exposure time * u.second
@@ -337,7 +337,7 @@ def load_image(FILENAME):
 			# Mask out "halo" of pixels with zero value along edge of image:
 			image.mask |= edge_mask(image.image, value=0)
 
-		elif origin == 'OAdM' and telescope == 'TJO' and instrument == 'MEIA3':
+		elif (origin == 'OAdM' or origin.startswith('NOAO-IRAF')) and telescope == 'TJO' and instrument == 'MEIA3':
 			image.site = api.get_site(22) # Hard-coded the siteid for Telescopi Joan Oró (TJO) at Observatori Astronòmic del Montsec
 			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
@@ -352,6 +352,6 @@ def load_image(FILENAME):
 
 	# Create masked version of image:
 	image.image[image.mask] = np.NaN
-	image.clean = np.ma.masked_array(image.image, image.mask)
+	image.clean = np.ma.masked_array(data=image.image, mask=image.mask, copy=False)
 
 	return image
