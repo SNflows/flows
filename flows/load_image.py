@@ -337,7 +337,7 @@ def load_image(FILENAME):
 			# Mask out "halo" of pixels with zero value along edge of image:
 			image.mask |= edge_mask(image.image, value=0)
 
-		elif origin == 'OAdM' and telescope == 'TJO' and instrument == 'MEIA3':
+		elif (origin == 'OAdM' or origin.startswith('NOAO-IRAF')) and telescope == 'TJO' and instrument == 'MEIA3':
 			image.site = api.get_site(22) # Hard-coded the siteid for Telescopi Joan Oró (TJO) at Observatori Astronòmic del Montsec
 			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
