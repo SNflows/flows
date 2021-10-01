@@ -36,6 +36,7 @@ def test_load_image(fpath):
 	assert img.exptime > 0
 	assert isinstance(img.photfilter, str)
 	assert isinstance(img.wcs, WCS)
+	assert isinstance(img.site, dict)
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
