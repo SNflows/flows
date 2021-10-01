@@ -41,13 +41,14 @@ def get_lightcurve(target):
 		params=params,
 		headers={'Authorization': 'Bearer ' + token})
 	r.raise_for_status()
+	text = r.text.replace('str,','string,') # Fix 4.3 issue with str not being mapped to string.
 
 	# Create tempory directory and save the file into there,
 	# then open the file as a Table:
 	with tempfile.TemporaryDirectory() as tmpdir:
 		tmpfile = os.path.join(tmpdir, 'table.ecsv')
 		with open(tmpfile, 'w') as fid:
-			fid.write(r.text)
+			fid.write(text)
 
 		tab = Table.read(tmpfile, format='ascii.ecsv')
 
