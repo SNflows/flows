@@ -5,7 +5,7 @@ flake8-builtins
 flake8-logging-format
 numpy >= 1.16
 scipy == 1.5.4
-astropy == 4.1
+astropy >= 4.3
 photutils == 1.1.0; python_version >= '3.7'
 photutils == 1.0.2; python_version < '3.7'
 Bottleneck == 1.3.2
@@ -26,3 +26,5 @@ sep
 astroalign > 2.3
 networkx
 astroquery >= 0.4.2
+regions
+reproject
