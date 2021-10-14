@@ -60,7 +60,7 @@ def flows_get_archive_from_path(fname, archives_list=None):
 
 	# We did not find anything:
 	if archive is None:
-		raise Exception("File not in registred archive")
+		raise RuntimeError("File not in registred archive")
 
 	return archive, relpath
 
@@ -170,7 +170,7 @@ def ingest_from_inbox():
 						os.remove(fpath)
 						fpath += '.gz'
 					else:
-						raise Exception("Gzip file was not created correctly")
+						raise RuntimeError("Gzip file was not created correctly")
 
 				version = 1
 				if inputtype == 'science':
@@ -204,6 +204,9 @@ def ingest_from_inbox():
 
 						db.cursor.execute("SELECT datatype,path,version FROM flows.files WHERE fileid=%s;", [replaceid])
 						row = db.cursor.fetchone()
+						if row is None:
+							logger.error("Unknown fileid to be replaced: %s", bname)
+							continue
 						datatype = row['datatype']
 						subdir = {1: '', 4: 'subtracted'}[datatype]
 
@@ -225,9 +228,12 @@ def ingest_from_inbox():
 								continue
 							else:
 								subtracted_original_fileid = subtracted_original_fileid[0]
+					else:
+						logger.error("Invalid replace file name: %s", bname)
+						continue
 
 				else:
-					raise Exception("Not understood, Captain")
+					raise RuntimeError("Not understood, Captain")
 
 				logger.info(newpath)
 
