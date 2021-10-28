@@ -8,6 +8,7 @@ Flows photometry code.
 
 import numpy as np
 import warnings
+import logging
 import astropy.units as u
 import astropy.coordinates as coords
 from astropy.io import fits
@@ -71,6 +72,8 @@ def load_image(FILENAME):
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	"""
 
+	logger = logging.getLogger(__name__)
+
 	# Get image and WCS, find stars, remove galaxies
 	image = type('image', (object,), dict()) # image container
 
@@ -88,7 +91,11 @@ def load_image(FILENAME):
 		image.header = hdr
 
 		if origin == 'LCOGT':
-			image.mask = np.asarray(hdul['BPM'].data, dtype='bool')
+			if 'BPM' in hdul:
+				image.mask = np.asarray(hdul['BPM'].data, dtype='bool')
+			else:
+				logger.warning('LCOGT image does not contain bad pixel map. Not applying mask.')
+				image.mask = np.zeros_like(image.image, dtype='bool')
 		else:
 			image.mask = np.zeros_like(image.image, dtype='bool')
 
