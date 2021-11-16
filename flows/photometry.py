@@ -135,7 +135,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
 	# Load the image from the FITS file:
 	logger.info("Load image '%s'", filepath)
-	image = load_image(filepath)
+	image = load_image(filepath, target_coord=target_coord)
 
 	references = catalog['references']
 	references.sort(ref_filter)
