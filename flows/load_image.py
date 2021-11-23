@@ -149,6 +149,14 @@ def load_image(FILENAME, target_coord=None):
 				s = [hdul[k].header['NAXIS2'], hdul[k].header['NAXIS1']]
 				pix = w.all_world2pix(target_radec, 0).flatten()
 				if pix[0] >= -0.5 and pix[1] >= -0.5 and pix[0] <= s[1]-0.5 and pix[1] <= s[0]-0.5:
+					ob_type = hdul[k].header["HIERARCH ESO OCS DET1 IMGNAME"].split('_')[-1]
+					if "Auto" in ob_type:
+						image.ob_type = 'Autojitter'
+					elif "Fixed" in ob_type:
+						image.ob_type = 'FixedOffset'
+					# Should we use a default instead of raising?
+					else:
+						raise RuntimeError("Image OB Type not AutoJitter or FixedOffset")
 					image.image = np.asarray(hdul[k].data, dtype='float64')
 					image.shape = image.image.shape
 					image.wcs = w
