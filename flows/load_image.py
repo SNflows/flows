@@ -59,12 +59,15 @@ def edge_mask(img, value=0):
 	return mask
 
 #--------------------------------------------------------------------------------------------------
-def load_image(FILENAME):
+def load_image(FILENAME, target_coord=None):
 	"""
 	Load FITS image.
 
 	Parameters:
-		FILENAME (string): Path to FITS file to be loaded.
+		FILENAME (str): Path to FITS file to be loaded.
+		target_coord (:class:`astropy.coordinates.SkyCoord`): Coordinates of target.
+			Only used for HAWKI images to determine which image extension to load,
+			for all other images it is ignored.
 
 	Returns:
 		object: Image constainer.
@@ -81,15 +84,16 @@ def load_image(FILENAME):
 	with fits.open(FILENAME, mode='readonly') as hdul:
 
 		hdr = hdul[0].header
-		origin = hdr.get('ORIGIN')
-		telescope = hdr.get('TELESCOP')
-		instrument = hdr.get('INSTRUME')
+		image.header = hdr
+		origin = hdr.get('ORIGIN', '')
+		telescope = hdr.get('TELESCOP', '')
+		instrument = hdr.get('INSTRUME', '')
 
+		# Load image data:
 		image.image = np.asarray(hdul[0].data, dtype='float64')
 		image.shape = image.image.shape
 
-		image.header = hdr
-
+		# Load image mask:
 		if origin == 'LCOGT':
 			if 'BPM' in hdul:
 				image.mask = np.asarray(hdul['BPM'].data, dtype='bool')
@@ -128,6 +132,30 @@ def load_image(FILENAME):
 			# TODO: Use actual or some fraction of the non-linearity limit
 			#image.peakmax = hdr.get('MAXLIN') # Presumed non-linearity limit from header
 			image.peakmax = 60000 # From experience, this one is better.
+
+		elif origin == 'ESO-PARANAL' and telescope == 'ESO-VLT-U4' and instrument == 'HAWKI' and hdr.get('PRODCATG') == 'SCIENCE.MEFIMAGE':
+			image.site = api.get_site(2) # Hard-coded the siteid for ESO Paranal, VLT, UT4
+			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
+			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
+			image.photfilter = hdr['FILTER']
+
+			# For HAWKI multi-extension images we search the extensions for which one contains
+			# the target, and overwrites the image data with that:
+			if target_coord is None:
+				raise ValueError("TARGET_COORD is needed for HAWKI images to find the correct extension")
+			target_radec = [[target_coord.icrs.ra.deg, target_coord.icrs.dec.deg]]
+			for k in range(1, 5):
+				w = WCS(header=hdul[k].header, relax=True)
+				s = [hdul[k].header['NAXIS2'], hdul[k].header['NAXIS1']]
+				pix = w.all_world2pix(target_radec, 0).flatten()
+				if pix[0] >= -0.5 and pix[1] >= -0.5 and pix[0] <= s[1]-0.5 and pix[1] <= s[0]-0.5:
+					image.image = np.asarray(hdul[k].data, dtype='float64')
+					image.shape = image.image.shape
+					image.wcs = w
+					image.mask = ~np.isfinite(image.image)
+					break
+			else:
+				raise RuntimeError("Could not find image extension that target is on")
 
 		elif telescope == 'NOT' and instrument in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE', '').lower() == 'imaging':
 			image.site = api.get_site(5) # Hard-coded the siteid for NOT
