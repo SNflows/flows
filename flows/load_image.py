@@ -160,19 +160,16 @@ class AbstractInstrument(ABC):
 	def get_photfilter(self):
 		pass
 
+	@abstractmethod
+	def process_image(self):
+
 
 class Instrument(AbstractInstrument):
 	peakmax: int = None
 	siteid: int = None
 
-	def __init__(self, image: FlowsImage):
+	def __init__(self, image: FlowsImage=None):
 		self.image = image
-		self.image.peakmax = self.peakmax
-		self.image.site = self.get_site()
-		self.image.exptime = self.get_exptime()
-		self.image.obstime = self.get_obstime()
-		self.image.photfilter = self.get_photfilter()
-		self.image.create_masked_image()
 
 	def get_site(self):
 		if self.siteid is not None:
@@ -191,6 +188,23 @@ class Instrument(AbstractInstrument):
 
 	def get_photfilter(self):
 		return self.image.header['FILTER']
+
+	def _get_clean_image(self):
+		self.image.peakmax = self.peakmax
+		self.image.site = self.get_site()
+		self.image.exptime = self.get_exptime()
+		self.image.obstime = self.get_obstime()
+		self.image.photfilter = self.get_photfilter()
+		self.image.create_masked_image()
+
+	def process_image(self, image: FlowsImage=None):
+		"""Process existing or new image."""
+		if image is not None:
+			self.image = image
+		if self.image is None:
+			raise AttributeError('No FlowsImage to be processed. Self.image was None')
+
+		self._get_clean_image()
 
 
 class LCOGT(Instrument):
@@ -218,9 +232,10 @@ class LCOGT(Instrument):
 class HAWKI(Instrument):
 	siteid = 2  # Hard-coded the siteid for ESO Paranal, VLT, UT4
 
-	def __init__(self, image: FlowsImage):
+	def __init__(self, image: FlowsImage=None):
 		super().__init__(image)
-		self.get_obtype()
+		if self.image is not None:
+			self.get_obtype()
 
 	def get_obstime(self):
 		obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
@@ -665,7 +680,7 @@ def new_load_image(filename: str, target_coord: coords.SkyCoord = None):
 		while instrument_name is None:
 			# LCOGT
 			if origin == "LCOGT":
-				instrument_name = 'LCOGT'
+				instrument_name = LCOGT()
 				if 'BPM' in hdul:
 					mask = np.asarray(hdul['BPM'].data, dtype='bool')
 				else:
@@ -674,7 +689,7 @@ def new_load_image(filename: str, target_coord: coords.SkyCoord = None):
 			# HAWKI
 			elif origin == 'ESO-PARANAL' and telescope == 'ESO-VLT-U4' and instrument == 'HAWKI' and hdr.get(
 				'PRODCATG') == 'SCIENCE.MEFIMAGE':
-				instrument_name = 'HAWKI'
+				instrument_name = HAWKI()
 
 				if target_coord is None:
 					raise ValueError("TARGET_COORD is needed for HAWKI images to find the correct extension")
@@ -691,79 +706,79 @@ def new_load_image(filename: str, target_coord: coords.SkyCoord = None):
 			# NOT - ALFOSC
 			elif telescope == 'NOT' and instrument in ('ALFOSC FASU', 'ALFOSC_FASU') and hdr.get('OBS_MODE',
 																								 '').lower() == 'imaging':
-				instrument_name = 'ALFOSC'
+				instrument_name = ALFOSC()
 				break
 
 			elif telescope == 'NOT' and instrument == 'NOTCAM' and hdr.get('OBS_MODE', '').lower() == 'imaging':
-				instrument_name = 'NOTCAM'
+				instrument_name = NOTCAM()
 				break
 
 			elif hdr.get('FPA.TELESCOPE') == 'PS1' and hdr.get('FPA.INSTRUMENT') == 'GPC1':
-				instrument_name = 'PS1'
+				instrument_name = PS1()
 				break
 
 			elif telescope == 'Liverpool Telescope':
-				instrument_name = 'Liverpool'
+				instrument_name = Liverpool()
 				break
 
 			elif telescope == 'CA 3.5m' and instrument == 'Omega2000':
-				instrument_name = 'Omega2000'
+				instrument_name = Omega2000()
 				break
 
 			elif telescope == 'SWO' and hdr.get('SITENAME') == 'LCO':
-				instrument_name = 'Swope'
+				instrument_name = Swope()
 				break
 
 			elif telescope == 'DUP' and hdr.get('SITENAME') == 'LCO' and instrument == 'Direct/SITe2K-1':
-				instrument_name = 'Dupont'
+				instrument_name = Dupont()
 				break
 
 			elif telescope == 'DUP' and instrument == 'RetroCam':
-				instrument_name = 'RetroCam'
+				instrument_name = RetroCam()
 				break
 
 			elif telescope == 'Baade' and hdr.get('SITENAME') == 'LCO' and instrument == 'FourStar':
-				instrument_name = 'Baade'
+				instrument_name = Baade()
 				break
 
 			elif instrument == 'SOFI' and telescope in ('ESO-NTT', 'other') and (
 				origin == 'ESO' or origin.startswith('NOAO-IRAF')):
-				instrument_name = 'Sofi'
+				instrument_name = Sofi()
 				break
 
 			elif telescope == 'ESO-NTT' and instrument == 'EFOSC' and (
 				origin == 'ESO' or origin.startswith('NOAO-IRAF')):
-				instrument_name = 'EFOSC'
+				instrument_name = EFOSC()
 				break
 
 			elif telescope == 'SAI-2.5' and instrument == 'ASTRONIRCAM':
-				instrument_name = 'AstroNIRCam'
+				instrument_name = AstroNIRCam()
 				break
 
 			elif instrument == 'OMEGACAM' and (origin == 'ESO' or origin.startswith('NOAO-IRAF')):
-				instrument_name = 'OmegaCam'
+				instrument_name = OmegaCam()
 				break
 
 			elif instrument == 'ANDICAM-CCD' and hdr.get('OBSERVAT') == 'CTIO':
-				instrument_name = 'AndiCam'
+				instrument_name = AndiCam()
 				break
 
 			elif telescope == '1.3m PAIRITEL' and instrument == '2MASS Survey cam':
-				instrument_name = 'PairTel'
+				instrument_name = PairTel()
 				break
 
 			elif (origin == 'OAdM' or origin.startswith('NOAO-IRAF')) and telescope == 'TJO' and instrument in (
 				'MEIA3', 'MEIA2'):
-				instrument_name = 'TJO'
+				instrument_name = TJO()
 				break
 
 			else:
 				raise RuntimeError("Could not determine origin of image")
 
 		image = FlowsImage(image=np.asarray(hdul[ext].data, dtype='float64'), header=hdr, mask=mask)
-		ins = instruments[instrument_name](image)
+		instrument_name.process_image(image)
 
-		return ins.image
+		return instrument_name.image
 
 
 # get image and wcs solution
