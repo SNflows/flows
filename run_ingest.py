@@ -14,6 +14,7 @@ import sys
 import os.path
 import glob
 import numpy as np
+import astropy.coordinates as coords
 from astropy.table import Table
 import shutil
 import gzip
@@ -83,11 +84,11 @@ class CounterFilter(logging.Filter):
 		return True
 
 #--------------------------------------------------------------------------------------------------
-def create_plot(filepath, target_position=None):
+def create_plot(filepath, target_coord=None, target_position=None):
 
 	output_fpath = os.path.abspath(re.sub(r'\.fits(\.gz)?$', '', filepath) + '.png')
 
-	img = load_image(filepath)
+	img = load_image(filepath, target_coord=target_coord)
 
 	fig = plt.figure(figsize=(12,12))
 	ax = fig.add_subplot(111)
@@ -153,6 +154,11 @@ def ingest_from_inbox():
 				targetid = row['targetid']
 				targetname = row['target_name']
 				target_radec = [[row['ra'], row['decl']]]
+				target_coord = coords.SkyCoord(
+					ra=row['ra'],
+					dec=row['decl'],
+					unit='deg',
+					frame='icrs')
 
 				if not fpath.endswith('.gz'):
 					# Gzip the FITS file:
@@ -265,7 +271,7 @@ def ingest_from_inbox():
 
 				# Try to load the image using the same function as the pipeline would:
 				try:
-					img = load_image(fpath)
+					img = load_image(fpath, target_coord=target_coord)
 				except: # noqa: E722, pragma: no cover
 					logger.exception("Could not load FITS image")
 					continue
@@ -323,7 +329,7 @@ def ingest_from_inbox():
 					filesize = os.path.getsize(fpath)
 
 					if not fpath.endswith('-e00.fits'):
-						create_plot(newpath, target_position=target_pixels)
+						create_plot(newpath, target_coord=target_coord, target_position=target_pixels)
 
 					db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,version,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,%(version)s,1) RETURNING fileid;", {
 						'archive': archive,
