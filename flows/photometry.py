@@ -384,6 +384,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 		recentering_boxsize=max(int(np.round(2 * fwhm)), 5),
 		norm_radius=max(fwhm, 5),
 		maxiters=100,
+		progress_bar=logger.isEnabledFor(logging.INFO)
 	)(stars)
 	logger.info('Built PSF model (%(n_iter)d/%(max_iters)d) in %(time).1f seconds', epsf.fit_info)
 
