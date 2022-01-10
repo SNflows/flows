@@ -67,7 +67,7 @@ def get_datafiles(targetid=None, filt=None, minversion=None):
 	if targetid is not None:
 		params['targetid'] = targetid
 	if minversion is not None:
-		params['version'] = minversion
+		params['minversion'] = minversion
 	params['filter'] = filt
 
 	r = requests.get('https://flows.phys.au.dk/api/datafiles.php',
