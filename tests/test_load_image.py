@@ -55,11 +55,10 @@ def test_load_image(fpath, siteid):
 	assert isinstance(img.exptime, float)
 	assert img.exptime > 0
 	assert isinstance(img.photfilter, str)
+	assert img.photfilter in all_filters
 	assert isinstance(img.wcs, WCS)
 	assert isinstance(img.site, dict)
 	assert img.site['siteid'] == siteid
-	assert isinstance(img.photfilter, str)
-	assert img.photfilter in all_filters
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
