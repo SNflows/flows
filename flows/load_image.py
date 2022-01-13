@@ -213,7 +213,9 @@ def load_image(FILENAME, target_coord=None):
 				if hdr.get(check_headers) and hdr.get(check_headers).strip().lower() != 'open':
 					filters_used.append(hdr.get(check_headers).strip())
 			if len(filters_used) == 1:
-				image.photfilter = {}.get(filters_used[0], filters_used[0])
+				image.photfilter = {
+					'Ks': 'K'
+				}.get(filters_used[0], filters_used[0])
 			else:
 				raise RuntimeError("Could not determine filter used.")
 

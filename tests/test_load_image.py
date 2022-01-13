@@ -13,6 +13,7 @@ from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 import os.path
 import conftest # noqa: F401
+from flows.api import get_filters
 from flows.load_image import load_image
 
 #--------------------------------------------------------------------------------------------------
@@ -23,9 +24,12 @@ from flows.load_image import load_image
 	#['lsc1m009-fa04-20210704-0044-e91_v1.fits.gz', 4],
 	#['SN2021rcp_59409.931159242_B.fits.gz', 22],
 	#['SN2021rhu_59465.86130221_B.fits.gz', 22],
-	#['20200613_SN2020lao_u_stacked_meandiff.fits.gz', 1]
+	#['20200613_SN2020lao_u_stacked_meandiff.fits.gz', 1],
+	#['2021aess_20220104_K.fits.gz', 5],
 ])
 def test_load_image(fpath, siteid):
+	# Get list of all available filters:
+	all_filters = set(get_filters().keys())
 
 	# The test input directory containing the test-images:
 	INPUT_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'input')
@@ -51,6 +55,7 @@ def test_load_image(fpath, siteid):
 	assert isinstance(img.exptime, float)
 	assert img.exptime > 0
 	assert isinstance(img.photfilter, str)
+	assert img.photfilter in all_filters
 	assert isinstance(img.wcs, WCS)
 	assert isinstance(img.site, dict)
 	assert img.site['siteid'] == siteid
