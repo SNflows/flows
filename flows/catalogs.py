@@ -11,11 +11,13 @@ import subprocess
 import shlex
 import requests
 import warnings
+from io import BytesIO
 import numpy as np
+from bottleneck import anynan
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, Angle
 from astropy import units as u
-from astropy.table import Table
+from astropy.table import Table, MaskedColumn
 from astroquery.sdss import SDSS
 from astroquery.simbad import Simbad
 from .config import load_config
@@ -296,7 +298,7 @@ def query_apass(coo_centre, radius=24*u.arcmin):
 #--------------------------------------------------------------------------------------------------
 def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
 	"""
-	Queries SDSS catalog using cone-search around the position using astroquery.
+	Queries SDSS catalog using cone-search around the position.
 
 	Parameters:
 		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
@@ -305,7 +307,9 @@ def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
 		clean (bool, optional): Clean results for stars only and no other problems.
 
 	Returns:
-		list: Astropy Table with SDSS information.
+		tuple:
+		- :class:`astropy.table.Table`: Table with SDSS information.
+		- :class:`astropy.coordinates.SkyCoord`: Sky coordinates for SDSS objects.
 
 	.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
@@ -321,17 +325,27 @@ def query_sdss(coo_centre, radius=24*u.arcmin, dr=16, clean=True):
 		radius=radius)
 
 	if AT_sdss is None:
-		return None
+		return None, None
 
 	if clean:
 		# Clean SDSS following https://www.sdss.org/dr12/algorithms/photo_flags_recommend/
 		# 6 == star, clean means remove interp, edge, suspicious defects, deblending problems, duplicates.
 		AT_sdss = AT_sdss[(AT_sdss['type'] == 6) & (AT_sdss['clean'] == 1)]
 
-	if len(AT_sdss) == 0:
-		return None
+	# Remove these columns since they are no longer needed:
+	AT_sdss.remove_columns(['type', 'clean'])
 
-	return AT_sdss
+	if len(AT_sdss) == 0:
+		return None, None
+
+	# Create SkyCoord object with the coordinates:
+	sdss = SkyCoord(
+		ra=AT_sdss['ra'],
+		dec=AT_sdss['dec'],
+		unit=u.deg,
+		frame='icrs')
+
+	return AT_sdss, sdss
 
 #--------------------------------------------------------------------------------------------------
 def query_simbad(coo_centre, radius=24*u.arcmin):
@@ -405,9 +419,64 @@ def query_simbad(coo_centre, radius=24*u.arcmin):
 	return results, simbad
 
 #--------------------------------------------------------------------------------------------------
+def query_skymapper(coo_centre, radius=24*u.arcmin):
+	"""
+	Queries SkyMapper catalog using cone-search around the position.
+
+	Parameters:
+		coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
+		radius (float, optional):
+
+	Returns:
+		tuple:
+		- :class:`astropy.table.Table`: Astropy Table with SkyMapper information.
+		- :class:`astropy.coordinates.SkyCoord`:
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+
+	if isinstance(radius, (float, int)):
+		radius *= u.deg
+
+	# Query the SkyMapper cone-search API:
+	params = {
+		'RA': coo_centre.icrs.ra.deg,
+		'DEC': coo_centre.icrs.dec.deg,
+		'SR': Angle(radius).deg,
+		'CATALOG': 'dr2.master',
+		'VERB': 1,
+		'RESPONSEFORMAT': 'VOTABLE'
+	}
+	res = requests.get('http://skymapper.anu.edu.au/sm-cone/public/query', params=params)
+	res.raise_for_status()
+
+	# For some reason the VOTable parser needs a file-like object:
+	fid = BytesIO(bytes(res.text, 'utf8'))
+	results = Table.read(fid, format='votable')
+
+	if len(results) == 0:
+		return None, None
+
+	# Clean the results:
+	# http://skymapper.anu.edu.au/data-release/dr2/#Access
+	indx = (results['flags'] == 0) & (results['nimaflags'] == 0) & (results['ngood'] > 1)
+	results = results[indx]
+	if len(results) == 0:
+		return None, None
+
+	# Create SkyCoord object containing SkyMapper objects with their observation time:
+	skymapper = SkyCoord(
+		ra=results['raj2000'],
+		dec=results['dej2000'],
+		obstime=Time(results['mean_epoch'], format='mjd', scale='utc'),
+		frame='icrs')
+
+	return results, skymapper
+
+#--------------------------------------------------------------------------------------------------
 def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	"""
-	Query all catalogs (REFCAT2, APASS and SDSS) and return merged catalog.
+	Query all catalogs (REFCAT2, APASS, SDSS and SkyMapper) and return merged catalog.
 
 	Merging of catalogs are done using sky coordinates:
 	https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
@@ -418,7 +487,10 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 		dist_cutoff (float): Maximal distance between object is catalog matching. Default 2 arcsec.
 
 	Returns:
-		list: List of dicts with catalog stars.
+		:class:`astropy.table.Table`: Table with catalog stars.
+
+	TODO:
+		- Use the overlapping magnitudes to make better matching.
 
 	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 	.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
@@ -429,78 +501,80 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	AT_results = Table(results)
 	refcat = SkyCoord(ra=AT_results['ra'], dec=AT_results['decl'], unit=u.deg, frame='icrs')
 
-	# Results table does not have uBV
-	AT_results.add_columns([None,None,None], names=['B_mag','V_mag','u_mag'])
+	# REFCAT results table does not have uBV
+	N = len(AT_results)
+	d = np.full(N, np.NaN)
+	AT_results.add_column(MaskedColumn(name='B_mag', unit='mag', dtype='float32', fill_value=np.NaN, data=d))
+	AT_results.add_column(MaskedColumn(name='V_mag', unit='mag', dtype='float32', fill_value=np.NaN, data=d))
+	AT_results.add_column(MaskedColumn(name='u_mag', unit='mag', dtype='float32', fill_value=np.NaN, data=d))
 
 	# Query APASS around the target position:
 	results_apass = query_apass(coo_centre, radius=radius)
 	if results_apass:
 		AT_apass = Table(results_apass)
-
-		# Match the two catalogs using coordinates:
-		# https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
-		#ra_apass = np.array([r['ra'] for r in results_apass])
-		#decl_apass = np.array([r['decl'] for r in results_apass])
 		apass = SkyCoord(ra=AT_apass['ra'], dec=AT_apass['decl'], unit=u.deg, frame='icrs')
 
-		# Match the two catalogs:
+		# Match the two catalogs using coordinates:
 		idx, d2d, _ = apass.match_to_catalog_sky(refcat)
-		sep_constraint = d2d <= dist_cutoff # Reject any match further away than the cutoff:
-		idx_apass = np.arange(len(idx)) # since idx maps apass to refcat
+		sep_constraint = (d2d <= dist_cutoff) # Reject any match further away than the cutoff
+		idx_apass = np.arange(len(idx), dtype='int') # since idx maps apass to refcat
 
 		# Update results table with APASS bands of interest
 		AT_results['B_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['B_mag']
 		AT_results['V_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['V_mag']
 		AT_results['u_mag'][idx[sep_constraint]] = AT_apass[idx_apass[sep_constraint]]['u_mag']
 
-	# Create SDSS cat
-	AT_sdss = query_sdss(coo_centre, radius=radius)
+	# Create SDSS around the target position:
+	AT_sdss, sdss = query_sdss(coo_centre, radius=radius)
 	if AT_sdss:
-		sdss = SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
-
 		# Match to dist_cutoff sky distance (angular) apart
 		idx, d2d, _ = sdss.match_to_catalog_sky(refcat)
-		sep_constraint = d2d <= dist_cutoff
-		idx_sdss = np.arange(len(idx)) # since idx maps sdss to refcat
-		# TODO: Maybe don't (potentially) overwrite APASS uband with SDSS uband. Decide which is better.
+		sep_constraint = (d2d <= dist_cutoff)
+		idx_sdss = np.arange(len(idx), dtype='int') # since idx maps sdss to refcat
+
+		# Overwrite APASS u-band with SDSS u-band:
 		AT_results['u_mag'][idx[sep_constraint]] = AT_sdss[idx_sdss[sep_constraint]]['psfMag_u']
 
-	# # Go through the matches and make sure they are valid:
-	# for k, i in enumerate(idx):
-	# 	# If APASS doesn't contain any new information anyway, skip it:
-	# 	if results_apass[k]['B_mag'] is None and results_apass[k]['V_mag'] is None \
-	# 		and results_apass[k]['u_mag'] is None:
-	# 		continue
-	#
-	# 	# Reject any match further away than the cutoff:
-	# 	if d2d[k] > dist_cutoff:
-	# 		continue
-	#
-	# 	# TODO: Use the overlapping magnitudes to make better match:
-	# 	#photdist = 0
-	# 	#for photfilt in ('g_mag', 'r_mag', 'i_mag', 'z_mag'):
-	# 	#	if results_apass[k][photfilt] and results[i][photfilt]:
-	# 	#		photdist += (results[i][photfilt] - results_apass[k][photfilt])**2
-	# 	#print( np.sqrt(photdist) )
-	#
-	# 	# Update the results "table" with the APASS filters:
-	# 	results[i].update({
-	# 		'V_mag': results_apass[k]['V_mag'],
-	# 		'B_mag': results_apass[k]['B_mag'],
-	# 		'u_mag': results_apass[k]['u_mag']
-	# 	})
-	#
-	# # Fill in empty fields where nothing was matched:
-	# for k in range(len(results)):
-	# 	if 'V_mag' not in results[k]:
-	# 		results[k].update({
-	# 			'B_mag': None,
-	# 			'V_mag': None,
-	# 			'u_mag': None
-	# 		})
+	# Query SkyMapper around the target position, only if there are missing u-band magnitudes:
+	if anynan(AT_results['u_mag']):
+		results_skymapper, skymapper = query_skymapper(coo_centre, radius=radius)
+		if results_skymapper:
+			idx, d2d, _ = skymapper.match_to_catalog_sky(refcat)
+			sep_constraint = (d2d <= dist_cutoff)
+			idx_skymapper = np.arange(len(idx), dtype='int') # since idx maps skymapper to refcat
 
-	# TODO: Adjust receiving functions so we can just pass the astropy table instead.
-	return [dict(zip(AT_results.colnames, row)) for row in AT_results]
+			newval = results_skymapper[idx_skymapper[sep_constraint]]['u_psf']
+			oldval = AT_results['u_mag'][idx[sep_constraint]]
+			indx = ~np.isfinite(oldval)
+			if np.any(indx):
+				AT_results['u_mag'][idx[sep_constraint]][indx] = newval[indx]
+
+	return AT_results
+
+#--------------------------------------------------------------------------------------------------
+def convert_table_to_dict(tab):
+	"""
+	Utility function for converting Astropy Table to list of dicts that the database
+	likes as input.
+
+	Parameters:
+		tab (:class:`astropy.table.Table`): Astropy table coming from query_all.
+
+	Returns:
+		list: List of dicts where the column names are the keys. Datatypes are changed
+			to things that the database understands (e.g. NaN -> None).
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+	results = [dict(zip(tab.colnames, row)) for row in tab.filled()]
+	for row in results:
+		for key, val in row.items():
+			if isinstance(val, (np.int64, np.int32)):
+				row[key] = int(val)
+			elif isinstance(val, (float, np.float32, np.float64)) and not np.isfinite(val):
+				row[key] = None
+
+	return results
 
 #--------------------------------------------------------------------------------------------------
 def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec,
@@ -542,19 +616,14 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec,
 			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
 
 			# Download combined catalog from all sources:
-			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
+			tab = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
 
 			# Query for a ZTF identifier for this target:
 			ztf_id = query_ztf_id(coo_centre, radius=radius_ztf, discovery_date=dd)
 
 			# Because the database is picky with datatypes, we need to change things
 			# before they are passed on to the database:
-			for row in results:
-				for key, val in row.items():
-					if isinstance(val, (np.int64, np.int32)):
-						row[key] = int(val)
-					#elif isinstance(val, float) and np.isnan(val):
-					#	row[key] = None
+			results = convert_table_to_dict(tab)
 
 			# Insert the catalog into the local database:
 			if update_existing:
