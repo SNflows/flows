@@ -571,8 +571,11 @@ def convert_table_to_dict(tab):
 		for key, val in row.items():
 			if isinstance(val, (np.int64, np.int32)):
 				row[key] = int(val)
-			elif isinstance(val, (float, np.float32, np.float64)) and not np.isfinite(val):
-				row[key] = None
+			elif isinstance(val, (float, np.float32, np.float64)):
+				if np.isfinite(val):
+					row[key] = float(val)
+				else:
+					row[key] = None
 
 	return results
 
