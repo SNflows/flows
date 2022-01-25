@@ -9,9 +9,27 @@ Test API calls.
 import pytest
 import numpy as np
 from astropy.coordinates import SkyCoord
-#from astropy.table import Table
+from astropy.table import Table
 import conftest # noqa: F401
 from flows import catalogs
+
+#--------------------------------------------------------------------------------------------------
+def test_query_simbad():
+
+	# Coordinates around test-object (2019yvr):
+		ra=256.727512,
+	coo_centre = SkyCoord(
+		dec=30.271482,
+		frame='icrs'
+		unit='deg',
+	)
+
+	results, simbad = catalogs.query_simbad(coo_centre)
+
+	assert isinstance(results, Table)
+	assert isinstance(simbad, SkyCoord)
+	assert len(results) > 0
+	results.pprint_all(50)
 
 #--------------------------------------------------------------------------------------------------
 

@@ -9,6 +9,7 @@ Run Flows photometry.
 import argparse
 import logging
 import os
+import sys
 import shutil
 import functools
 import multiprocessing
@@ -119,7 +120,7 @@ def main():
 
 	# Setup logging:
 	formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
-	console = logging.StreamHandler()
+	console = logging.StreamHandler(sys.stdout)
 	console.setFormatter(formatter)
 	logger = logging.getLogger('flows')
 	if not logger.hasHandlers():
@@ -163,14 +164,15 @@ def main():
 		# There is more than one area to process, so let's start
 		# a process pool and process them in parallel:
 		with multiprocessing.Pool(threads) as pool:
-			pool.map(process_fileid_wrapper, fileids)
+			for res in pool.imap_unordered(process_fileid_wrapper, fileids):
+				pass
 
 	else:
 		# Only single thread so simply run it directly:
 		for fid in fileids:
-			print("=" * 72)
-			print(fid)
-			print("=" * 72)
+			logger.info("=" * 72)
+			logger.info(fid)
+			logger.info("=" * 72)
 			process_fileid_wrapper(fid)
 
 #--------------------------------------------------------------------------------------------------
