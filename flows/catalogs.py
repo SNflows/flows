@@ -476,7 +476,7 @@ def query_skymapper(coo_centre, radius=24*u.arcmin):
 #--------------------------------------------------------------------------------------------------
 def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 	"""
-	Query all catalogs (REFCAT2, APASS and SDSS) and return merged catalog.
+	Query all catalogs (REFCAT2, APASS, SDSS and SkyMapper) and return merged catalog.
 
 	Merging of catalogs are done using sky coordinates:
 	https://docs.astropy.org/en/stable/coordinates/matchsep.html#matching-catalogs
@@ -487,7 +487,7 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 		dist_cutoff (float): Maximal distance between object is catalog matching. Default 2 arcsec.
 
 	Returns:
-		list: List of dicts with catalog stars.
+		:class:`astropy.table.Table`: Table with catalog stars.
 
 	TODO:
 		- Use the overlapping magnitudes to make better matching.
@@ -549,8 +549,32 @@ def query_all(coo_centre, radius=24*u.arcmin, dist_cutoff=2*u.arcsec):
 			if np.any(indx):
 				AT_results['u_mag'][idx[sep_constraint]][indx] = newval[indx]
 
-	# TODO: Adjust receiving functions so we can just pass the astropy table instead.
-	return [dict(zip(AT_results.colnames, row)) for row in AT_results.filled()]
+	return AT_results
+
+#--------------------------------------------------------------------------------------------------
+def convert_table_to_dict(tab):
+	"""
+	Utility function for converting Astropy Table to list of dicts that the database
+	likes as input.
+
+	Parameters:
+		tab (:class:`astropy.table.Table`): Astropy table coming from query_all.
+
+	Returns:
+		list: List of dicts where the column names are the keys. Datatypes are changed
+			to things that the database understands (e.g. NaN -> None).
+
+	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+	"""
+	results = [dict(zip(tab.colnames, row)) for row in tab.filled()]
+	for row in results:
+		for key, val in row.items():
+			if isinstance(val, (np.int64, np.int32)):
+				row[key] = int(val)
+			elif isinstance(val, (float, np.float32, np.float64)) and not np.isfinite(val):
+				row[key] = None
+
+	return results
 
 #--------------------------------------------------------------------------------------------------
 def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec,
@@ -592,19 +616,14 @@ def download_catalog(target=None, radius=24*u.arcmin, radius_ztf=3*u.arcsec,
 			coo_centre = SkyCoord(ra=row['ra'], dec=row['decl'], unit=u.deg, frame='icrs')
 
 			# Download combined catalog from all sources:
-			results = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
+			tab = query_all(coo_centre, radius=radius, dist_cutoff=dist_cutoff)
 
 			# Query for a ZTF identifier for this target:
 			ztf_id = query_ztf_id(coo_centre, radius=radius_ztf, discovery_date=dd)
 
 			# Because the database is picky with datatypes, we need to change things
 			# before they are passed on to the database:
-			for row in results:
-				for key, val in row.items():
-					if isinstance(val, (np.int64, np.int32)):
-						row[key] = int(val)
-					#elif isinstance(val, float) and np.isnan(val):
-					#	row[key] = None
+			results = convert_table_to_dict(tab)
 
 			# Insert the catalog into the local database:
 			if update_existing:

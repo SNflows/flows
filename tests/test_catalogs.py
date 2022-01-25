@@ -17,11 +17,11 @@ from flows import catalogs
 def test_query_simbad():
 
 	# Coordinates around test-object (2019yvr):
-		ra=256.727512,
 	coo_centre = SkyCoord(
+		ra=256.727512,
 		dec=30.271482,
-		frame='icrs'
 		unit='deg',
+		frame='icrs'
 	)
 
 	results, simbad = catalogs.query_simbad(coo_centre)
@@ -32,10 +32,28 @@ def test_query_simbad():
 	results.pprint_all(50)
 
 #--------------------------------------------------------------------------------------------------
+def test_query_skymapper():
+
+	# Coordinates around test-object (2021aess):
+	coo_centre = SkyCoord(
+		ra=53.4505,
+		dec=-19.495725,
+		unit='deg',
+		frame='icrs'
+	)
+
+	results, skymapper = catalogs.query_skymapper(coo_centre)
+
+	assert isinstance(results, Table)
+	assert isinstance(skymapper, SkyCoord)
+	assert len(results) > 0
+	results.pprint_all(50)
+
+#--------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize('ra,dec', [
 	[256.727512, 30.271482], # 2019yvr
-	[58.59512, -19.18172] # 2009D
+	[58.59512, -19.18172], # 2009D
 ])
 def test_download_catalog(SETUP_CONFIG, ra, dec):
 
@@ -54,11 +72,11 @@ def test_download_catalog(SETUP_CONFIG, ra, dec):
 		frame='icrs'
 	)
 
-	results = catalogs.query_all(coo_centre)
-	#print(tab)
+	tab = catalogs.query_all(coo_centre)
+	print(tab)
 
-	#assert isinstance(tab, Table), "Should return a Table"
-	#results = [dict(zip(tab.colnames, row)) for row in tab.filled()]
+	assert isinstance(tab, Table), "Should return a Table"
+	results = catalogs.convert_table_to_dict(tab)
 
 	assert isinstance(results, list), "Should return a list"
 	for obj in results:
