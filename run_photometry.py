@@ -128,6 +128,13 @@ def main():
 	logger.propagate = False
 	logger.setLevel(logging_level)
 
+	# If we have started a new processing, perform a cleanup of the
+	# photometry status indicator. This will change all processes
+	# still marked as "running" to "abort" if they have been running
+	# for more than a day:
+	if args.autoupload:
+		api.cleanup_photometry_status()
+
 	if args.fileid is not None:
 		# Run the specified fileids:
 		fileids = args.fileid
