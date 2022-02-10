@@ -119,6 +119,10 @@ def ingest_from_inbox():
 		db.cursor.execute("SELECT archive,path FROM aadc.files_archives;")
 		archives_list = db.cursor.fetchall()
 
+		# Get list of all available filters:
+		db.cursor.execute("SELECT photfilter FROM flows.photfilters;")
+		all_filters = set([row['photfilter'] for row in db.cursor.fetchall()])
+
 		for inputtype in ('science', 'templates', 'subtracted', 'replace'): #
 			for fpath in glob.iglob(os.path.join(rootdir_inbox, '*', inputtype, '*')):
 				logger.info("="*72)
@@ -131,6 +135,7 @@ def ingest_from_inbox():
 					uploadlogid = row['logid']
 				else:
 					uploadlogid = None
+				logger.info("Uploadlog ID: %s", uploadlogid)
 
 				# Only accept FITS file, or already compressed FITS files:
 				if not fpath.endswith('.fits') and not fpath.endswith('.fits.gz'):
@@ -272,8 +277,12 @@ def ingest_from_inbox():
 				# Try to load the image using the same function as the pipeline would:
 				try:
 					img = load_image(fpath, target_coord=target_coord)
-				except: # noqa: E722, pragma: no cover
+				except Exception as e: # pragma: no cover
 					logger.exception("Could not load FITS image")
+					if uploadlogid:
+						errmsg = str(e) if hasattr(e, 'message') else str(e.message)
+						db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", ['Load Image Error: ' + errmsg, uploadlogid])
+						db.conn.commit()
 					continue
 
 				# Use the WCS in the file to calculate the pixel-positon of the target:
@@ -281,6 +290,10 @@ def ingest_from_inbox():
 					target_pixels = img.wcs.all_world2pix(target_radec, 0).flatten()
 				except: # noqa: E722, pragma: no cover
 					logger.exception("Could not find target position using the WCS.")
+					if uploadlogid:
+						errmsg = "Could not find target position using the WCS."
+						db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", [errmsg, uploadlogid])
+						db.conn.commit()
 					continue
 
 				# Check that the position of the target actually falls within
@@ -288,11 +301,28 @@ def ingest_from_inbox():
 				if target_pixels[0] < -0.5 or target_pixels[1] < -0.5 \
 					or target_pixels[0] > img.shape[1]-0.5 or target_pixels[1] > img.shape[0]-0.5:
 					logger.error("Target position does not fall within image. Check the WCS.")
+					if uploadlogid:
+						errmsg = "Target position does not fall within image. Check the WCS."
+						db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", [errmsg, uploadlogid])
+						db.conn.commit()
 					continue
 
 				# Check that the site was found:
 				if img.site is None or img.site['siteid'] is None:
 					logger.error("Unknown SITE")
+					if uploadlogid:
+						errmsg = "Unknown site"
+						db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", [errmsg, uploadlogid])
+						db.conn.commit()
+					continue
+
+				# Check that the extracted photometric filter is valid:
+				if img.photfilter not in all_filters:
+					logger.error("Unknown PHOTFILTER: %s", img.photfilter)
+					if uploadlogid:
+						errmsg = "Unknown PHOTFILTER: '" + str(img.photfilter) + "'"
+						db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", [errmsg, uploadlogid])
+						db.conn.commit()
 					continue
 
 				# Do a deep check to ensure that there is not already another file with the same

@@ -4,7 +4,7 @@
 import logging
 import sys
 import os.path
-from tqdm import tqdm
+import tqdm
 from astropy.coordinates import SkyCoord
 if os.path.abspath('..') not in sys.path:
 	sys.path.insert(0, os.path.abspath('..'))
@@ -37,12 +37,16 @@ if __name__ == '__main__':
 		logger.addHandler(console)
 	logger.setLevel(logging.INFO)
 
-	for target in tqdm(flows.api.get_targets()):
-		#if target['targetid'] != 1942:
-		#	continue
+	# Do it by status, just to prioritize things a bit:
+	for tgtstatus in ('target', 'candidate', 'rejected'):
+		targetids = sorted([tgt['targetid'] for tgt in flows.api.get_targets() if tgt['target_status'] == tgtstatus])[::-1]
 
-		donefile = f"{target['targetid']:05d}.done"
-		if not os.path.exists(donefile):
-			flows.catalogs.download_catalog(target['targetid'], update_existing=True)
-
-			open(donefile, 'w').close()
+		for targetid in tqdm.tqdm(targetids, desc=tgtstatus):
+			donefile = f"catalog_updates/{targetid:05d}.done"
+			if not os.path.exists(donefile):
+				try:
+					flows.catalogs.download_catalog(targetid, update_existing=True)
+				except:
+					logger.exception("targetid=%d", targetid)
+				else:
+					open(donefile, 'w').close()

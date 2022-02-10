@@ -183,6 +183,7 @@ def load_image(FILENAME, target_coord=None):
 						filters_used.append(hdr.get(check_headers).strip())
 				if len(filters_used) == 1:
 					image.photfilter = {
+						'B_Bes 440_100': 'B',
 						'V_Bes 530_80': 'V',
 						'R_Bes 650_130': 'R',
 						"g'_SDSS 480_145": 'gp',

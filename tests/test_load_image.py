@@ -26,6 +26,7 @@ from flows.load_image import load_image
 	#['SN2021rhu_59465.86130221_B.fits.gz', 22],
 	#['20200613_SN2020lao_u_stacked_meandiff.fits.gz', 1],
 	#['2021aess_20220104_K.fits.gz', 5],
+	#['2021aess_B01_20220207v1.fits.gz', 5],
 ])
 def test_load_image(fpath, siteid):
 	# Get list of all available filters:
@@ -54,11 +55,11 @@ def test_load_image(fpath, siteid):
 	assert isinstance(img.obstime, Time)
 	assert isinstance(img.exptime, float)
 	assert img.exptime > 0
-	assert isinstance(img.photfilter, str)
-	assert img.photfilter in all_filters
 	assert isinstance(img.wcs, WCS)
 	assert isinstance(img.site, dict)
 	assert img.site['siteid'] == siteid
+	assert isinstance(img.photfilter, str)
+	assert img.photfilter in all_filters
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':

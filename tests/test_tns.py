@@ -7,12 +7,14 @@ Test TNS queries which rely on the TNS API.
 """
 
 import pytest
+import os
 import datetime
 from astropy.coordinates import SkyCoord
 from conftest import capture_cli
 from flows import tns
 
 #--------------------------------------------------------------------------------------------------
+@pytest.mark.skipif(os.environ.get('CI') == 'true', reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 def test_tns_search(SETUP_CONFIG):
 
 	coo_centre = SkyCoord(
@@ -28,6 +30,7 @@ def test_tns_search(SETUP_CONFIG):
 	assert res[0]['prefix'] == 'SN'
 
 #--------------------------------------------------------------------------------------------------
+@pytest.mark.skipif(os.environ.get('CI') == 'true', reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 def test_tns_get_obj(SETUP_CONFIG):
 
 	res = tns.tns_get_obj('2019yvr')
@@ -37,6 +40,7 @@ def test_tns_get_obj(SETUP_CONFIG):
 	assert res['name_prefix'] == 'SN'
 
 #--------------------------------------------------------------------------------------------------
+@pytest.mark.skipif(os.environ.get('CI') == 'true', reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 @pytest.mark.parametrize('date_begin,date_end', [
 	('2019-01-01', '2019-02-01'),
 	(datetime.date(2019, 1, 1), datetime.date(2019, 2, 1)),
@@ -69,6 +73,7 @@ def test_tns_getnames_wronginput(SETUP_CONFIG):
 		)
 
 #--------------------------------------------------------------------------------------------------
+@pytest.mark.skipif(os.environ.get('CI') == 'true', reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 def test_run_querytns(SETUP_CONFIG):
 
 	# Run the command line interface:
