@@ -109,6 +109,10 @@ def main():
 				discovery_date = Time(reply['discoverydate'], format='iso', scale='utc')
 				ztf = list(filter(regex_ztf.match, reply['internal_names']))
 				ztf = None if not ztf else ztf[0]
+				if 'object_type' in reply and 'name' in reply['object_type']:
+					sntype = regex_sn.sub('', reply['object_type']['name'])
+				else:
+					sntype = None
 
 				# Try to upload to FLOWS
 				newtargetid = api.add_target(reply['objname'], coord,
@@ -117,6 +121,7 @@ def main():
 					discovery_mag=reply['discoverymag'],
 					host_galaxy=reply['hostname'],
 					ztf=ztf,
+					sntype=sntype,
 					status='candidate',
 					project='flows')
 				logger.debug('Uploaded to FLOWS with targetid=%d', newtargetid)

@@ -58,8 +58,8 @@ def get_catalog(target, radius=None, output='table'):
 	dict_tables = {}
 
 	tab = Table(
-		names=('targetid', 'target_name', 'target_status', 'ra', 'decl', 'redshift', 'redshift_error', 'discovery_mag', 'catalog_downloaded', 'pointing_model_created', 'inserted', 'discovery_date', 'project', 'host_galaxy', 'ztf_id'),
-		dtype=('int32', 'str', 'str', 'float64', 'float64', 'float32', 'float32', 'float32', 'bool', 'bool', 'object', 'object', 'str', 'str', 'str'),
+		names=('targetid', 'target_name', 'target_status', 'ra', 'decl', 'redshift', 'redshift_error', 'discovery_mag', 'catalog_downloaded', 'pointing_model_created', 'inserted', 'discovery_date', 'project', 'host_galaxy', 'ztf_id', 'sntype'),
+		dtype=('int32', 'str', 'str', 'float64', 'float64', 'float32', 'float32', 'float32', 'bool', 'bool', 'object', 'object', 'str', 'str', 'str', 'str'),
 		rows=[jsn['target']])
 
 	tab['ra'].description = 'Right ascension'

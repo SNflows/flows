@@ -62,7 +62,8 @@ def get_targets():
 
 #--------------------------------------------------------------------------------------------------
 def add_target(name, coord, redshift=None, redshift_error=None, discovery_date=None,
-	discovery_mag=None, host_galaxy=None, ztf=None, status='candidate', project='flows'):
+	discovery_mag=None, host_galaxy=None, ztf=None, sntype=None, status='candidate',
+	project='flows'):
 	"""
 	Add new candidate or target.
 
@@ -95,6 +96,7 @@ def add_target(name, coord, redshift=None, redshift_error=None, discovery_date=N
 		discovery_date (:class:`astropy.time.Time`, :class:`datetime.datetime` or str, optional):
 		discovery_mag (float, optional): Magnitude at time of discovery.
 		host_galaxy (str, optional): Host galaxy name.
+		sntype (str, optional): Supernovae type (e.g. Ia, Ib, II).
 		ztf (str, optional): ZTF identifier.
 		status (str, optional):
 		project (str, optional):
@@ -142,7 +144,8 @@ def add_target(name, coord, redshift=None, redshift_error=None, discovery_date=N
 		'host_galaxy': host_galaxy,
 		'project': project,
 		'ztf_id': ztf,
-		'target_status': status
+		'target_status': status,
+		'sntype': sntype
 	}
 
 	# Post the request to the API:

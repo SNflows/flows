@@ -130,6 +130,11 @@ def tns_get_obj(name):
 
 	if 'reply' in data:
 		reply = data['reply']
+		if not reply:
+			return None
+		if 'objname' not in reply: # Bit of a cheat, but it is simple and works
+			return None
+
 		reply['internal_names'] = [name.strip() for name in reply['internal_names'].split(',') if name.strip()]
 		return reply
 	return None
