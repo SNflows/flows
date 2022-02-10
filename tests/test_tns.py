@@ -41,6 +41,13 @@ def test_tns_get_obj(SETUP_CONFIG):
 
 #--------------------------------------------------------------------------------------------------
 @pytest.mark.skipif(os.environ.get('CI') == 'true', reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
+def test_tns_get_obj_noexist(SETUP_CONFIG):
+	res = tns.tns_get_obj('1892doesnotexist')
+	print(res)
+	assert res is None
+
+#--------------------------------------------------------------------------------------------------
+@pytest.mark.skipif(os.environ.get('CI') == 'true', reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 @pytest.mark.parametrize('date_begin,date_end', [
 	('2019-01-01', '2019-02-01'),
 	(datetime.date(2019, 1, 1), datetime.date(2019, 2, 1)),
