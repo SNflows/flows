@@ -15,6 +15,7 @@ import os.path
 import conftest # noqa: F401
 from flows.api import get_filters
 from flows.load_image import load_image
+from flows.api import get_filters
 
 #--------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize('fpath,siteid', [
@@ -32,18 +33,18 @@ def test_load_image(fpath, siteid):
 	# Get list of all available filters:
 	all_filters = set(get_filters().keys())
 
-	# The test input directory containing the test-images:
-	INPUT_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'input')
+    # The test input directory containing the test-images:
+    INPUT_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'input')
 
-	# Target coordinates, only used for HAWKI image:
-	target_coord = SkyCoord(
-		ra=347.6230189,
-		dec=7.5888196,
-		unit='deg',
-		frame='icrs')
+    # Target coordinates, only used for HAWKI image:
+    target_coord = SkyCoord(
+        ra=347.6230189,
+        dec=7.5888196,
+        unit='deg',
+        frame='icrs')
 
-	# Load the image from the test-set:
-	img = load_image(os.path.join(INPUT_DIR, fpath), target_coord=target_coord)
+    # Load the image from the test-set:
+    img = load_image(os.path.join(INPUT_DIR, fpath), target_coord=target_coord)
 
 	# Check the attributes of the image object:
 	assert isinstance(img.image, np.ndarray)
@@ -63,4 +64,4 @@ def test_load_image(fpath, siteid):
 
 #--------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
-	pytest.main([__file__])
+    pytest.main([__file__])
