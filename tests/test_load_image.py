@@ -15,7 +15,7 @@ import os.path
 import conftest # noqa: F401
 from flows.api import get_filters
 from flows.load_image import load_image
-from flows.api import get_filters
+
 
 #--------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize('fpath,siteid', [
