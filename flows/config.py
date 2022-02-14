@@ -9,22 +9,23 @@ import os.path
 import configparser
 from functools import lru_cache
 
-#--------------------------------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def load_config():
-	"""
-	Load configuration file.
+    """
+    Load configuration file.
 
-	Returns:
-		``configparser.ConfigParser``: Configuration file.
+    Returns:
+        ``configparser.ConfigParser``: Configuration file.
 
-	.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
-	"""
+    .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+    """
 
-	config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.ini')
-	if not os.path.isfile(config_file):
-		raise FileNotFoundError("config.ini file not found")
+    config_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'config.ini')
+    if not os.path.isfile(config_file):
+        raise FileNotFoundError("config.ini file not found")
 
-	config = configparser.ConfigParser()
-	config.read(config_file)
-	return config
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    return config
