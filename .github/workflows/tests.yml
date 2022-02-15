@@ -6,7 +6,7 @@ on:
   push:
     branches: [master, devel]
     tags: 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
-  pull_request:
+  pull_request_target:
     branches: [master, devel]
   schedule:
     - cron: '0 6 1 * *'  # once a month in the morning
@@ -19,6 +19,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+          persist-credentials: true
 
     - name: Setup Python 3.7
       uses: actions/setup-python@v2
