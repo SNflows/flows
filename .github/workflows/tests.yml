@@ -1,4 +1,4 @@
-# GitHub Actions workflow for Flows's continuous integration.
+# GitHub Actions workflow for Flows continuous integration.
 
 name: Tests
 
