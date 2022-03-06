@@ -1,9 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Test loading of images.
-
-.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
 import pytest
@@ -13,7 +9,7 @@ from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 import os.path
 import conftest  # noqa: F401
-from flows.api import get_filters
+from tendrils import api
 from flows.load_image import load_image
 
 
@@ -30,7 +26,7 @@ from flows.load_image import load_image
                           ])
 def test_load_image(fpath, siteid):
     # Get list of all available filters:
-    all_filters = set(get_filters().keys())
+    all_filters = set(api.get_filters().keys())
 
     # The test input directory containing the test-images:
     INPUT_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'input')

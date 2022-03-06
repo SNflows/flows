@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Plot photometry for target, loaded from local photometry working directory.
-
+@TODO:Refactor out of FLOWS pipeline into flows-tools
 .. codeauthor:: Emir K <emir.k@phys.au.dk>
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
@@ -14,12 +14,11 @@ import numpy as np
 from astropy.table import Table
 from astropy.time import Time
 from flows.plots import plt, plots_interactive
-from flows import api, load_config
+from tendrils import api, utils
 import mplcursors
 import seaborn as sns
 
 
-# --------------------------------------------------------------------------------------------------
 def main():
     # All available filters:
     all_filters = list(api.get_filters().keys())
@@ -57,7 +56,7 @@ def main():
         snname = api.get_datafile(datafiles[0])['target_name']
 
     # Change to directory, raise if it does not exist
-    config = load_config()
+    config = utils.load_config()
     workdir_root = config.get('photometry', 'output', fallback='.')
     sndir = os.path.join(workdir_root, snname)
     if not os.path.isdir(sndir):

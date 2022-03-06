@@ -1,33 +1,29 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 TNS API FUNCTIONS
-Pre-provided helper functions for the TNS API
+Pre-provided helper functions for the TNS API, type annotations added
 Obtained from https://wis-tns.weizmann.ac.il/content/tns-getting-started
-
-.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
-.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
-
+from __future__ import annotations
 import logging
 from astropy.table import Table
 import astropy.units as u
+from astropy.coordinates import SkyCoord
 import requests
 import json
 import datetime
-from .config import load_config
+from tendrils.utils import load_config
+from typing import Optional, Union
 
 url_tns_api = 'https://www.wis-tns.org/api/get'
 url_tns_search = 'https://www.wis-tns.org/search'
+DateType = Union[datetime.datetime, str]
 
 
-# --------------------------------------------------------------------------------------------------
 class TNSConfigError(RuntimeError):
     pass
 
 
-# --------------------------------------------------------------------------------------------------
-def _load_tns_config():
+def _load_tns_config() -> dict[str, str]:
     logger = logging.getLogger(__name__)
 
     config = load_config()
@@ -52,8 +48,8 @@ def _load_tns_config():
     return {'api-key': api_key, 'user-agent': user_agent}
 
 
-# --------------------------------------------------------------------------------------------------
-def tns_search(coord=None, radius=3 * u.arcsec, objname=None, internal_name=None):
+def tns_search(coord: Optional[SkyCoord] = None, radius: u.Quantity = 3 * u.arcsec, objname: Optional[str] = None,
+               internal_name: Optional[str] = None) -> Optional[dict]:
     """
     Cone-search TNS for object near coordinate.
 
@@ -92,8 +88,7 @@ def tns_search(coord=None, radius=3 * u.arcsec, objname=None, internal_name=None
     return None
 
 
-# --------------------------------------------------------------------------------------------------
-def tns_get_obj(name):
+def tns_get_obj(name:str) -> Optional[dict]:
     """
     Search TNS for object by name.
 
@@ -130,8 +125,9 @@ def tns_get_obj(name):
     return None
 
 
-# --------------------------------------------------------------------------------------------------
-def tns_getnames(months=None, date_begin=None, date_end=None, zmin=None, zmax=None, objtype=[3, 104]):
+def tns_getnames(months: Optional[int] = None, date_begin: Optional[DateType] = None,
+                 date_end: Optional[DateType] = None, zmin: Optional[float] = None,
+                 zmax: Optional[float] = None, objtype: tuple[int] = (3, 104)) -> list[str]:
     """
     Get SN names from TNS.
 

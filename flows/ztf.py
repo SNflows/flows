@@ -1,11 +1,6 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Query ZTF target information using ALeRCE API.
 https://alerceapi.readthedocs.io/
-
-.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
-.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
 import numpy as np
@@ -15,7 +10,7 @@ from astropy.table import Table
 from astropy.time import Time
 import datetime
 import requests
-from . import api
+from tendrils import api
 
 
 # --------------------------------------------------------------------------------------------------

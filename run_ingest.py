@@ -5,7 +5,7 @@ Run ingest of data files in Flows system.
 
 This code is obviously only meant to run on the central
 Flows systems, and will not work outside of that environment.
-
+@TODO: Refactor Database out of this script.
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 

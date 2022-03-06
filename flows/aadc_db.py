@@ -13,7 +13,7 @@ Note:
 import psycopg2 as psql
 from psycopg2.extras import DictCursor
 import getpass
-from .config import load_config
+from tendrils.utils import load_config
 
 
 # --------------------------------------------------------------------------------------------------

@@ -4,7 +4,7 @@
 Query TNS for new targets and upload to candidate marshal.
 https://wis-tns.weizmann.ac.il/
 TNS bot apikey must exist in config
-
+@TODO: Move to flows API
 .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
@@ -16,7 +16,8 @@ import re
 from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from datetime import datetime, timedelta, timezone
-from flows import api, tns
+from tendrils import api
+from tendrils.utils import load_tns_config, tns_getnames, TNSConfigError, tns_get_obj
 
 
 # --------------------------------------------------------------------------------------------------
@@ -57,8 +58,8 @@ def main():
 
     # Try to load TNS config - only used for early stopping
     try:
-        tns._load_tns_config()
-    except tns.TNSConfigError:
+        load_tns_config()
+    except TNSConfigError:
         parser.error("Error in TNS configuration.")
         return
 
@@ -70,7 +71,7 @@ def main():
 
     # Query TNS for SN names
     logger.info('Querying TNS for all targets, this may take awhile')
-    nms = tns.tns_getnames(months=args.limit_months,  # pre-limit TNS search to candidates reported in the last X months
+    nms = tns_getnames(months=args.limit_months,  # pre-limit TNS search to candidates reported in the last X months
                            date_begin=date_begin, date_end=date_end, zmin=args.zmin, zmax=args.zmax,
                            objtype=args.objtype# Relevant TNS SN Ia subtypes.
                            )
@@ -97,7 +98,7 @@ def main():
             logger.debug('querying TNS for: %s', sn)
 
             # make GET request to TNS via API
-            reply = tns.tns_get_obj(sn)
+            reply = tns_get_obj(sn)
 
             # Parse output
             if reply:
