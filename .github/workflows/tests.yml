@@ -114,9 +114,11 @@ jobs:
         pip install codecov pytest-cov
 
     - name: Testing
+      continue-on-error: true
       run: pytest --cov
 
     - name: Upload coverage
+      continue-on-error: true
       uses: codecov/codecov-action@v1
       with:
         env_vars: OS,PYTHON
