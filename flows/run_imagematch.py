@@ -17,10 +17,9 @@ import shutil
 import re
 from astropy.io import fits
 from astropy.wcs.utils import proj_plane_pixel_area
-# from setuptools import Distribution
-# from setuptools.command.install import install
+from tendrils import api
 from .load_image import load_image
-from . import api
+
 
 
 # --------------------------------------------------------------------------------------------------

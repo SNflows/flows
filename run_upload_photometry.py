@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 Upload photometry results to Flows server.
 
@@ -8,10 +6,9 @@ Upload photometry results to Flows server.
 
 import argparse
 import logging
-from flows import api
+from tendrils import api
 
 
-# --------------------------------------------------------------------------------------------------
 def main():
     # Parse command line arguments:
     parser = argparse.ArgumentParser(description='Upload photometry.')

@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Download ZTF photometry from ALERCE API.
-
 https://alerceapi.readthedocs.io/
 """
 
@@ -10,11 +8,11 @@ import argparse
 import logging
 import os
 import numpy as np
-from flows import ztf, api, load_config
-from flows.plots import plt
+import matplotlib.pyplot as plt
+from tendrils import api
+from tendrils.utils import load_config, ztf
 
 
-# --------------------------------------------------------------------------------------------------
 def main():
     # Parse command line arguments:
     parser = argparse.ArgumentParser(description='Download ZTF photometry.')

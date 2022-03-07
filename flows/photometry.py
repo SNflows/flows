@@ -26,6 +26,8 @@ from astropy.modeling import models, fitting
 from astropy.wcs.utils import proj_plane_pixel_area, fit_wcs_from_points
 from astropy.time import Time
 import sep
+from tendrils import api
+from tendrils.utils import load_config
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry  # noqa: E402
@@ -33,9 +35,7 @@ from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_star
 from photutils import Background2D, SExtractorBackground, MedianBackground  # noqa: E402
 from photutils.utils import calc_total_error  # noqa: E402
 
-from . import api  # noqa: E402
 from . import reference_cleaning as refclean  # noqa: E402
-from .config import load_config  # noqa: E402
 from .plots import plt, plot_image  # noqa: E402
 from .version import get_version  # noqa: E402
 from .load_image import load_image  # noqa: E402

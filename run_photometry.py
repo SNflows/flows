@@ -1,9 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Run Flows photometry.
-
-.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+Run Flows photometry. Allows multithreaded operations to be run
 """
 
 import argparse
@@ -13,10 +9,10 @@ import sys
 import shutil
 import functools
 import multiprocessing
-from flows import api, photometry, load_config
+from tendrils import api, utils
+from flows import photometry
 
 
-# --------------------------------------------------------------------------------------------------
 def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False, keep_diff_fixed=False,
                    cm_timeout=None):
     logger = logging.getLogger('flows')
@@ -76,7 +72,6 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
     return photfile
 
 
-# --------------------------------------------------------------------------------------------------
 def main():
     # Parse command line arguments:
     parser = argparse.ArgumentParser(description='Run photometry pipeline.')
@@ -152,7 +147,7 @@ def main():
     fileids = list(set(fileids))
 
     # Ask the config where we should store the output:
-    config = load_config()
+    config = utils.load_config()
     output_folder_root = config.get('photometry', 'output', fallback='.')
 
     # Create function wrapper:
@@ -180,6 +175,5 @@ def main():
             process_fileid_wrapper(fid)
 
 
-# --------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
     main()

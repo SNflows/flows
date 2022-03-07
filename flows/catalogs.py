@@ -20,9 +20,8 @@ from astropy import units as u
 from astropy.table import Table, MaskedColumn
 from astroquery.sdss import SDSS
 from astroquery.simbad import Simbad
-from .config import load_config
+from tendrils.utils import load_config, query_ztf_id
 from .aadc_db import AADC_DB
-from .ztf import query_ztf_id
 
 
 # --------------------------------------------------------------------------------------------------

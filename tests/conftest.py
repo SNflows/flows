@@ -9,7 +9,6 @@ Pytest fixture to create temp copy of input data, shared across all tests.
 import pytest
 import sys
 import os
-# import shutil
 import configparser
 import subprocess
 import shlex

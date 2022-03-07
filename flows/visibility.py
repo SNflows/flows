@@ -16,7 +16,7 @@ from astropy.time import Time
 from datetime import datetime
 from astropy.coordinates import SkyCoord, AltAz, get_sun, get_moon
 from astropy.visualization import quantity_support
-from . import api
+from tendrils import api
 
 
 # --------------------------------------------------------------------------------------------------

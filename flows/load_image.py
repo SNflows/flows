@@ -14,7 +14,7 @@ import astropy.coordinates as coords
 from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS, FITSFixedWarning
-from . import api
+from tendrils import api
 
 
 # --------------------------------------------------------------------------------------------------

@@ -14,7 +14,7 @@ from astropy.time import Time
 import tempfile
 import os
 from conftest import capture_cli
-from flows import ztf
+from tendrils.utils import ztf
 
 
 # --------------------------------------------------------------------------------------------------
