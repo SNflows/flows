@@ -1,12 +1,7 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Flows photometry code.
-
-.. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
-.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+Load image code.
 """
-
+from __future__ import annotations
 import numpy as np
 import warnings
 import logging
