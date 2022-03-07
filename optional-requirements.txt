@@ -1,0 +1,5 @@
+mplcursors == 0.3
+vtk
+jplephem
+git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
+seaborn

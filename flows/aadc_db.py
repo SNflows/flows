@@ -4,8 +4,8 @@
 Connection to the central AADC database.
 
 Note:
-	This function requires the user to be connected to the AADC network
-	at Aarhus University.
+    This function requires the user to be connected to the AADC network
+    at Aarhus University.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
@@ -15,53 +15,54 @@ from psycopg2.extras import DictCursor
 import getpass
 from .config import load_config
 
-#--------------------------------------------------------------------------------------------------
-class AADC_DB(object): # pragma: no cover
-	"""
-	Connection to the central TASOC database.
 
-	Attributes:
-		conn (`psycopg2.Connection` object): Connection to PostgreSQL database.
-		cursor (`psycopg2.Cursor` object): Cursor to use in database.
-	"""
+# --------------------------------------------------------------------------------------------------
+class AADC_DB(object):  # pragma: no cover
+    """
+    Connection to the central TASOC database.
 
-	def __init__(self, username=None, password=None):
-		"""
-		Open connection to central TASOC database.
+    Attributes:
+        conn (`psycopg2.Connection` object): Connection to PostgreSQL database.
+        cursor (`psycopg2.Cursor` object): Cursor to use in database.
+    """
 
-		If ``username`` or ``password`` is not provided or ``None``,
-		the user will be prompted for them.
+    def __init__(self, username=None, password=None):
+        """
+        Open connection to central TASOC database.
 
-		Parameters:
-			username (string or None, optional): Username for AADC database.
-			password (string or None, optional): Password for AADC database.
-		"""
+        If ``username`` or ``password`` is not provided or ``None``,
+        the user will be prompted for them.
 
-		config = load_config()
+        Parameters:
+            username (string or None, optional): Username for AADC database.
+            password (string or None, optional): Password for AADC database.
+        """
 
-		if username is None:
-			username = config.get('database', 'username', fallback=None)
-			if username is None:
-				default_username = getpass.getuser()
-				username = input('Username [%s]: ' % default_username)
-				if username == '':
-					username = default_username
+        config = load_config()
 
-		if password is None:
-			password = config.get('database', 'password', fallback=None)
-			if password is None:
-				password = getpass.getpass('Password: ')
+        if username is None:
+            username = config.get('database', 'username', fallback=None)
+            if username is None:
+                default_username = getpass.getuser()
+                username = input('Username [%s]: ' % default_username)
+                if username == '':
+                    username = default_username
 
-		# Open database connection:
-		self.conn = psql.connect('host=10.28.0.127 user=' + username + ' password=' + password + ' dbname=db_aadc')
-		self.cursor = self.conn.cursor(cursor_factory=DictCursor)
+        if password is None:
+            password = config.get('database', 'password', fallback=None)
+            if password is None:
+                password = getpass.getpass('Password: ')
 
-	def close(self):
-		self.cursor.close()
-		self.conn.close()
+        # Open database connection:
+        self.conn = psql.connect('host=10.28.0.127 user=' + username + ' password=' + password + ' dbname=db_aadc')
+        self.cursor = self.conn.cursor(cursor_factory=DictCursor)
 
-	def __enter__(self):
-		return self
+    def close(self):
+        self.cursor.close()
+        self.conn.close()
 
-	def __exit__(self, *args, **kwargs):
-		self.close()
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self.close()

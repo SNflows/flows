@@ -6,7 +6,7 @@ charset = utf-8
 
 # Python source files
 [*.py]
-indent_style = tab
+indent_style = space
 indent_size = 4
 trim_trailing_whitespace = true
 insert_final_newline = true
@@ -20,7 +20,7 @@ insert_final_newline = true
 
 # Code documentation
 [*.rst]
-indent_style = tab
+indent_style = space
 indent_size = 4
 trim_trailing_whitespace = true
 insert_final_newline = true
