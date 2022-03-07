@@ -1,9 +1,5 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Test loading of images.
-
-.. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
 import pytest
@@ -12,8 +8,8 @@ from astropy.time import Time
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 import os.path
-import conftest # noqa: F401
-from flows.api import get_filters
+import conftest  # noqa: F401
+from tendrils import api
 from flows.load_image import load_image
 
 
@@ -30,8 +26,8 @@ from flows.load_image import load_image
 	#['2021aess_B01_20220207v1.fits.gz', 5],
 ])
 def test_load_image(fpath, siteid):
-	# Get list of all available filters:
-	all_filters = set(get_filters().keys())
+    # Get list of all available filters:
+    all_filters = set(api.get_filters().keys())
 
     # The test input directory containing the test-images:
     INPUT_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'input')
@@ -46,22 +42,23 @@ def test_load_image(fpath, siteid):
     # Load the image from the test-set:
     img = load_image(os.path.join(INPUT_DIR, fpath), target_coord=target_coord)
 
-	# Check the attributes of the image object:
-	assert isinstance(img.image, np.ndarray)
-	assert img.image.dtype in ('float32', 'float64')
-	assert isinstance(img.mask, np.ndarray)
-	assert img.mask.dtype == 'bool'
-	assert isinstance(img.clean, np.ma.MaskedArray)
-	assert img.clean.dtype == img.image.dtype
-	assert isinstance(img.obstime, Time)
-	assert isinstance(img.exptime, float)
-	assert img.exptime > 0
-	assert isinstance(img.wcs, WCS)
-	assert isinstance(img.site, dict)
-	assert img.site['siteid'] == siteid
-	assert isinstance(img.photfilter, str)
-	assert img.photfilter in all_filters
+    # Check the attributes of the image object:
+    assert isinstance(img.image, np.ndarray)
+    assert img.image.dtype in ('float32', 'float64')
+    assert isinstance(img.mask, np.ndarray)
+    assert img.mask.dtype == 'bool'
+    assert isinstance(img.clean, np.ma.MaskedArray)
+    assert img.clean.dtype == img.image.dtype
+    assert isinstance(img.obstime, Time)
+    assert isinstance(img.exptime, float)
+    assert img.exptime > 0
+    assert isinstance(img.wcs, WCS)
+    assert isinstance(img.site, dict)
+    assert img.site['siteid'] == siteid
+    assert isinstance(img.photfilter, str)
+    assert img.photfilter in all_filters
 
-#--------------------------------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
     pytest.main([__file__])

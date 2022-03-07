@@ -16,8 +16,8 @@ from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS, FITSFixedWarning
 from typing import Tuple
+from tendrils import api
 
-from flows import api
 from dataclasses import dataclass  # , field
 import typing
 from abc import ABC, abstractmethod
