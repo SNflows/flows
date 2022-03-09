@@ -15,15 +15,15 @@ from flows.load_image import load_image
 
 #--------------------------------------------------------------------------------------------------
 @pytest.mark.parametrize('fpath,siteid', [
-	['SN2020aatc_K_20201213_495s.fits.gz', 13],
-	['ADP.2021-10-15T11_40_06.553.fits.gz', 2],
-	#['TJO2459406.56826_V_imc.fits.gz', 22],
-	#['lsc1m009-fa04-20210704-0044-e91_v1.fits.gz', 4],
-	#['SN2021rcp_59409.931159242_B.fits.gz', 22],
-	#['SN2021rhu_59465.86130221_B.fits.gz', 22],
-	#['20200613_SN2020lao_u_stacked_meandiff.fits.gz', 1],
-	#['2021aess_20220104_K.fits.gz', 5],
-	#['2021aess_B01_20220207v1.fits.gz', 5],
+    ['SN2020aatc_K_20201213_495s.fits.gz', 13],
+    ['ADP.2021-10-15T11_40_06.553.fits.gz', 2],
+    #['TJO2459406.56826_V_imc.fits.gz', 22],
+    #['lsc1m009-fa04-20210704-0044-e91_v1.fits.gz', 4],
+    #['SN2021rcp_59409.931159242_B.fits.gz', 22],
+    #['SN2021rhu_59465.86130221_B.fits.gz', 22],
+    #['20200613_SN2020lao_u_stacked_meandiff.fits.gz', 1],
+    #['2021aess_20220104_K.fits.gz', 5],
+    #['2021aess_B01_20220207v1.fits.gz', 5],
 ])
 def test_load_image(fpath, siteid):
     # Get list of all available filters:
