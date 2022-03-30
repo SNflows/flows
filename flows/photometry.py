@@ -14,6 +14,7 @@ import warnings
 import gc
 from timeit import default_timer
 import numpy as np
+from astropy.coordinates import SkyCoord
 from scipy.interpolate import UnivariateSpline
 from bottleneck import nansum, allnan, replace
 from astropy.utils.exceptions import AstropyDeprecationWarning, AstropyUserWarning, ErfaWarning
@@ -28,9 +29,12 @@ from astropy.time import Time
 import sep
 from tendrils import api
 from tendrils.utils import load_config
+from configparser import ConfigParser
+from dataclasses import dataclass
+from typing import Dict, List, Tuple, Union, Optional, Protocol, Callable, TypeVar
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry  # noqa: E402
+from photutils import CircularAperture, CircularAnnulus, aperture_photometry, background  # noqa: E402
 from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars  # noqa: E402
 from photutils import Background2D, SExtractorBackground, MedianBackground  # noqa: E402
 from photutils.utils import calc_total_error  # noqa: E402
@@ -38,16 +42,306 @@ from photutils.utils import calc_total_error  # noqa: E402
 from . import reference_cleaning as refclean  # noqa: E402
 from .plots import plt, plot_image  # noqa: E402
 from .version import get_version  # noqa: E402
-from .load_image import load_image  # noqa: E402
+from .load_image import load_image, FlowsImage  # noqa: E402
 from .run_imagematch import run_imagematch  # noqa: E402
 from .zeropoint import bootstrap_outlier, sigma_from_Chauvenet  # noqa: E402
 from .coordinatematch import CoordinateMatch, WCS2  # noqa: E402
-from .epsfbuilder import FlowsEPSFBuilder  # noqa: E402
+from .epsfbuilder import FlowsEPSFBuilder, verify_epsf  # noqa: E402
+from .fileio import DirectoryProtocol, Directories  # noqa: E402
+from .filters import get_reference_filter  # noqa: E402
 
+# @TODO: refactor load_image to separate modules.
 __version__ = get_version(pep440=False)
+logger = logging.getLogger(__name__)
 
 
-# --------------------------------------------------------------------------------------------------
+def get_datafile(fileid: int) -> Dict:
+    """
+    Get datafile from API, log it, return.
+    """
+    # targetid = datafile['targetid']
+    # target_name = datafile['target_name']
+    # photfilter = datafile['photfilter']
+    datafile = api.get_datafile(fileid)
+    logger.debug("Datafile: %s", datafile)
+    return datafile
+
+
+def get_catalog(targetid: int) -> Dict:
+    catalog = api.get_catalog(targetid, output='table')
+    logger.debug(f"catalog obtained for target: {targetid}")
+    return catalog
+
+
+@dataclass
+class Target:
+    ra: u.Quantity
+    dec: u.Quantity
+    name: Optional[str] = None
+    id: Optional[int] = None  # Target id from Flows database
+    photfilter: Optional[str] = None  # Defined if target is associated with an image.
+    coords: Optional[SkyCoord] = None
+
+    def __post_init__(self):
+        if self.coords is None:
+            self.coords = coords.SkyCoord(ra=self.ra, dec=self.dec, unit='deg', frame='icrs')
+
+
+class BackgroundProtocol(Protocol):
+
+    def background(self):
+        ...
+
+
+class FlowsBackground:
+
+    def __init__(self, background_estimator: BackgroundProtocol = Background2D):
+        self.background_estimator = background_estimator()
+        self.background = None
+
+    def estimate_background(self, clean_image: np.ma.MaskedArray):
+        # Estimate image background:
+        # Not using image.clean here, since we are redefining the mask anyway
+        self.background = self.background_estimator(clean_image, (128, 128), filter_size=(5, 5),
+                                         sigma_clip=SigmaClip(sigma=3.0), bkg_estimator=SExtractorBackground(),
+                                         exclude_percentile=50.0)
+
+    def background_subtract(self, clean_image: np.ma.MaskedArray):
+        if self.background is None:
+            self.estimate_background()
+        return clean_image - self.background
+
+    def error(self, clean_image: np.ma.MaskedArray, error_method: Callable = calc_total_error):
+        """
+        Calculate the 2D error using the background RMS.
+        """
+        if self.background is None:
+            raise AttributeError("background must be estimated before calling error")
+        return error_method(clean_image, self.background.background_rms, 1.0)
+
+
+def correct_wcs(image:FlowsImage, references:refclean.References, target:Target,
+                timeout: float = np.inf) -> FlowsImage:
+    """
+    Correct WCS of image to match the reference image.
+    """
+    # Start pre-cleaning
+    sep_cleaner = refclean.ReferenceCleaner(image, references, rsq_min=0.3)
+
+    # Use Source Extractor to make clean references
+    sep_references_clean = sep_cleaner.make_sep_clean_references()
+
+    # Find WCS
+    logger.info("Finding new WCS solution...")
+    head_wcs = str(WCS2.from_astropy_wcs(image.wcs))
+    logger.debug('Head WCS: %s', head_wcs)
+    # Solve for new WCS
+    cm = CoordinateMatch(
+        xy=list(sep_references_clean.masked),
+        rd=list(zip(references.coords.ra.deg, references.coords.dec.deg)),
+        xy_order=np.argsort(np.power(sep_references_clean.masked - np.array(image.shape[::-1]) / 2, 2).sum(axis=1)),
+        rd_order=np.argsort(target.coords.separation(references.coords)),
+        xy_nmax=100, rd_nmax=100, maximum_angle_distance=0.002)
+
+    try:
+        i_xy, i_rd = map(np.array, zip(*cm(5, 1.5, timeout=timeout)))
+    except TimeoutError:
+        logger.warning('TimeoutError: No new WCS solution found')
+    except StopIteration:
+        logger.warning('StopIterationError: No new WCS solution found')
+    else:
+        logger.info('Found new WCS')
+        image.wcs = fit_wcs_from_points(np.array(list(zip(*cm.xy[i_xy]))),
+                                        SkyCoord(*map(list, zip(*cm.rd[i_rd])), unit='deg'))
+        del i_xy, i_rd
+
+    logger.debug(f'Used WCS: {WCS2.from_astropy_wcs(image.wcs)}')
+    return image
+
+# @TODO: make photometry protocol
+class Photometry:
+    init_cutout_size: int = 29
+    min_pixels: int = 15
+
+    def __init__(self, image: FlowsImage, target: Target, fwhm_guess: float,
+                 epsf_builder: FlowsEPSFBuilder = FlowsEPSFBuilder):
+        self.image = image
+        self.target = target
+        self.fwhm = fwhm_guess
+        self.epsf_builder = epsf_builder
+
+    @property
+    def star_size(self) -> int:
+        # Make cutouts of stars using extract_stars:
+        # Scales with FWHM
+        size = int(np.round(self.init_cutout_size * self.fwhm / 6))
+        size += 0 if size % 2 else 1  # Make sure it's odd
+        size = max(size, self.min_pixels)  # Never go below 15 pixels
+        return size
+
+    def extract_star_cutouts(self, star_xys:np.ndarray) -> List[np.ma.MaskedArray]:
+        """
+        Extract star cutouts from the image.
+        """
+        # Extract stars from image
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', AstropyUserWarning)
+            stars = extract_stars(NDData(data=self.image.subclean.data, mask=self.image.mask),
+                                  Table(star_xys, names=('x', 'y')),
+                                  size=self.star_size + 6  # +6 for edge buffer
+                                  )
+        logger.info("Number of stars input to ePSF builder: %d", len(stars))
+        return stars
+
+    def make_ePSF(self, stars):
+        """
+        Make an ePSF from the star cutouts.
+        """
+        # Build ePSF
+        logger.info("Building ePSF...")
+        builder = self.epsf_builder(
+            oversampling=1, shape=1 * self.star_size,
+            fitter=EPSFFitter(fit_boxsize=max(int(np.round(1.5 * self.fwhm)), 5)),
+            recentering_boxsize=max(int(np.round(2 * self.fwhm)), 5),
+            norm_radius=max(self.fwhm, 5), maxiters=100,
+            progress_bar=logger.isEnabledFor(logging.INFO)
+        )
+        epsf, stars = builder(stars)
+
+        logger.info(f"Built PSF model "
+            f"{epsf.fit_info['n_iter']/epsf.fit_info['max_iters']} in {epsf.fit_info['time']} seconds")
+
+        return epsf, stars
+
+
+class PhotometryManager:
+    """
+    Implement a runner to shuffle data.
+    """
+
+    def __init__(self, target: Target,
+                 directories: DirectoryProtocol):
+        self.target = target
+        self.directories = directories
+        self.output_folder = directories.output_folder
+        self.archive_local = directories.archive_local
+
+    def load_science_image(self, image_path: str) -> FlowsImage:
+        # The paths to the science image:
+        science_image = self.directories.image_path(image_path)
+        # Load the image from the FITS file:
+        logger.info("Load image '%s'", science_image)
+        return load_image(science_image, target_coord=self.target.coords)
+
+    def get_filter(self):
+        return get_reference_filter(self.target.photfilter)
+
+    def load_references(self, catalog):
+        use_filter = self.get_filter()
+        references = catalog['references']
+        references.sort(use_filter)
+        # Check that there actually are reference stars in that filter:
+        if allnan(references[use_filter]):
+            raise ValueError("No reference stars found in current photfilter.")
+        return refclean.References(table=references)
+
+def do_phot(fileid: int, cm_timeout: Optional[float] = None):
+    # Load config and set up directories
+    config = load_config()
+    directories = Directories(config)
+
+    # Query API for datafile and catalogs
+    datafile = get_datafile(fileid)
+    catalog = get_catalog(datafile['targetid'])
+
+    target = Target(catalog['target'][0]['ra'],
+                    catalog['target'][0]['decl'],
+                    name=datafile['target_name'],
+                    id=datafile['targetid'],
+                    photfilter=datafile['photfilter'])
+
+    #  set output directories, creating if necessary
+    directories.set_output_dirs(target.name, fileid)
+    science_image = directories.image_path(datafile['path'])
+
+    # Set up photometry runner
+    pr = PhotometryManager(target, directories, Photometry)
+    image = pr.load_science_image()  # FlowsImage
+    references = pr.load_references(catalog)  # Reference catalog
+    references.make_sky_coords()  # Make sky coordinates
+    references.propagate(image.obstime)  # get reference catalog at obstime
+
+    # Estimate background and subtract from cleaned image
+    bkg = FlowsBackground()
+    image.subclean = bkg.background_subtract(image.clean)
+    image.error = bkg.error(image.clean)
+
+    # Correct WCS
+    image = correct_wcs(image, references, timeout=cm_timeout)
+
+    # Calculate pixel-coordinates of references:
+    references.get_xy(image.wcs)
+    references.make_pixel_columns()
+
+    # Clean out the references:
+    cleaner = refclean.ReferenceCleaner(image, references, rsq_min=0.15)
+    # Reject references that are too close to target or edge of the image
+    masked_references = cleaner.mask_edge_and_target(target.coords)
+    if not masked_references.table: raise RuntimeError("No clean references in field")
+
+    # Clean reference star locations
+    clean_references, fwhm = cleaner.clean_references(masked_references) # Clean the masked references
+    gaussian_star_pixels = cleaner.gaussian_xys
+
+    # PSF photometry
+    phot = Photometry(image, target, fwhm)
+    star_cutouts = phot.extract_star_cutouts(gaussian_star_pixels)
+    epsf, stars = phot.make_ePSF(star_cutouts)
+    epsf_ok, epsf_fwhms = verify_epsf(epsf, stars)
+
+    if not epsf_ok:
+        raise RuntimeError("Bad ePSF detected.")
+    fwhm = np.max(epsf_fwhms)  # Use the largest FWHM as new FWHM
+    logger.info(f"Final FWHM based on ePSF: {fwhm}")
+
+    # position in the image including target as row 0:
+    target_pixel_pos = image.wcs.all_world2pix([(target.ra, target.dec)], 0)[0]
+    coordinates = np.array([[ref['pixel_column'], ref['pixel_row']] for ref in clean_references.table])
+    coordinates = np.concatenate(([target_pixel_pos], coordinates), axis=0)
+
+    # Aperture photometry:
+    apertures = CircularAperture(coordinates, r=fwhm)
+    annuli = CircularAnnulus(coordinates, r_in=1.5 * fwhm, r_out=2.5 * fwhm)
+    apphot_tbl = aperture_photometry(image.subclean, [apertures, annuli], mask=image.mask, error=image.error)
+
+    # PSF photometry:
+    photometry_obj = BasicPSFPhotometry(group_maker=DAOGroup(fwhm), bkg_estimator=MedianBackground(), psf_model=epsf,
+                                        fitter=fitting.LevMarLSQFitter(), fitshape=size, aperture_radius=fwhm)
+
+    psfphot_tbl = photometry_obj(image=image.subclean, init_guesses=Table(coordinates, names=['x_0', 'y_0']))
+
+    # Store which stars were used in ePSF in the table:
+    clean_references.table['used_for_epsf'] = False
+    clean_references.table['used_for_epsf'][[star.id_label - 1 for star in stars.all_good_stars]] = True
+    logger.info("Number of stars used for ePSF: %d", np.sum(references.table['used_for_epsf']))
+
+
+
+
+
+
+
+
+
+
+
+
+
+### OLD:
+
+
+
+
 def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fixed=False, cm_timeout=None):
     """
     Run photometry.
@@ -71,7 +365,6 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     # Settings:
     ref_target_dist_limit = 10 * u.arcsec  # Reference star must be further than this away to be included
 
-    logger = logging.getLogger(__name__)
     tic = default_timer()
 
     # Use local copy of archive if configured to do so:
@@ -112,12 +405,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
     #	 api.download_datafile(datafile, archive_local)
 
     # Translate photometric filter into table column:
-    ref_filter = {'up': 'u_mag', 'gp': 'g_mag', 'rp': 'r_mag', 'ip': 'i_mag', 'zp': 'z_mag', 'B': 'B_mag', 'V': 'V_mag',
-                  'J': 'J_mag', 'H': 'H_mag', 'K': 'K_mag', }.get(photfilter, None)
-
-    if ref_filter is None:
-        logger.warning("Could not find filter '%s' in catalogs. Using default gp filter.", photfilter)
-        ref_filter = 'g_mag'
+    ref_filter = get_reference_filter(photfilter)  # Fallback to 'g' if photfilter is not in FILTERS
 
     # Load the image from the FITS file:
     logger.info("Load image '%s'", filepath)
@@ -237,8 +525,9 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Clean out the references:
     hsize = 10
+    ref_target_dist_limit = 10 * u.arcsec  # Reference star must be further than this away to be included
     clean_references = references[(target_coord.separation(refs_coord) > ref_target_dist_limit) & (x > hsize) & (
-            x < (image.shape[1] - 1 - hsize)) & (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
+        x < (image.shape[1] - 1 - hsize)) & (y > hsize) & (y < (image.shape[0] - 1 - hsize))]
 
     if not clean_references:
         raise RuntimeError('No clean references in field')
@@ -523,7 +812,7 @@ def photometry(fileid, output_folder=None, attempt_imagematch=True, keep_diff_fi
 
     # Check that we got valid photometry:
     if np.any(~np.isfinite(tab[indx_main_target]['flux_psf'])) or np.any(
-            ~np.isfinite(tab[indx_main_target]['flux_psf_error'])):
+        ~np.isfinite(tab[indx_main_target]['flux_psf_error'])):
         raise RuntimeError("Target magnitude is undefined.")
 
     # ==============================================================================================

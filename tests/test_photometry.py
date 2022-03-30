@@ -16,6 +16,9 @@ def test_import_photometry():
     pass
 
 
+def test_photometry_calc_mag_error():
+    pass
+
 # assert photometry
 
 # --------------------------------------------------------------------------------------------------
