@@ -380,7 +380,10 @@ def load_image(FILENAME, target_coord=None):
 			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 			image.photfilter = hdr['FILTER']
-
+		elif telescope == "OAN/SPM Harold L. Johnson 1.5-meter":
+			image.site = api.get_site(23) # Hard-coded the siteid for Harold L. Johnson 1.5-meter
+			image.obstime = Time(hdr['DATE-OBS'], format='isot', scale='utc', location=image.site['EarthLocation'])
+			image.photfilter = hdr['FILTER']
 		else:
 			raise RuntimeError("Could not determine origin of image")
 
