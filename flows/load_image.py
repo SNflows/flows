@@ -38,12 +38,15 @@ class FlowsImage:
     mask: Optional[np.ndarray] = None
     peakmax: Optional[float] = None
     exptime: Optional[float] = None
-    clean: Optional[np.ma.MaskedArray] = None
     instrument_defaults: Optional[InstrumentDefaults] = None
     site: Optional[Dict[str, Any]] = None
     obstime: Optional[Time] = None
     photfilter: Optional[str] = None
     wcs: Optional[WCS] = None
+
+    clean: Optional[np.ma.MaskedArray] = None
+    subclean: Optional[np.ma.MaskedArray] = None
+    error: Optional[np.ma.MaskedArray] = None
 
     def __post_init__(self):
         self.shape = self.image.shape

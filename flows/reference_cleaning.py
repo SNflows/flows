@@ -28,10 +28,12 @@ from scipy.spatial import KDTree
 import pandas as pd  # TODO: Convert to pure numpy implementation
 import sep
 from flows.load_image import FlowsImage
+from numpy.typing import ArrayLike
+from .target import Target
 
 logger = logging.getLogger(__name__)
 
-RefTable = TypeVar('Reference_Table', Dict, np.ndarray, Table)
+RefTable = TypeVar('Reference_Table', Dict, ArrayLike, Table)
 
 
 class MinStarError(RuntimeError):
@@ -75,8 +77,15 @@ class References:
         self.xy = img_wcs.all_world2pix(list(zip(self.coords.ra.deg, self.coords.dec.deg)), 0)
 
     def make_pixel_columns(self, column_name: str ='pixel_column', row_name: str = 'pixel_row') -> None:
-        self.x, self.y = list(map(np.array, zip(*self.xy)))
-        self.table[column_name], self.table[row_name] = self.x, self.y
+        self.table[column_name], self.table[row_name] = x, y = list(map(np.array, zip(*self.xy)))
+
+    def _prepend_row(self, row: dict) -> None:
+        self.table = self.table.insert_row(0, row)
+
+    def add_target(self, target: Target, starid: int = 0) -> None:
+        self._prepend_row(target.output_dict(starid=starid))
+        if target.pixel_row and target.pixel_col:
+            self.xy = np.vstack(((target.pixel_col, target.pixel_row), self.xy))
 
 
 def use_sep(image: FlowsImage):

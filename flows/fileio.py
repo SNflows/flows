@@ -16,6 +16,10 @@ class DirectoryProtocol(Protocol):
     def image_path(self, image_path: str) -> str:
         ...
 
+    @property
+    def photometry_path(self) -> str:
+        ...
+
 
 class Directories:
     """
@@ -42,8 +46,8 @@ class Directories:
         # Checking for None allows manual declarations to not be overwritten.
         if self.archive_local is None:
             self.archive_local = self._set_archive()
-        if self.archive_local is None:
-            self.output_folder = self._set_output(target_name, fileid)
+
+        self.output_folder = self._set_output(target_name, fileid)
 
         # Create output folder if necessary.
         os.makedirs(self.output_folder, exist_ok=True)
@@ -67,3 +71,10 @@ class Directories:
 
     def image_path(self, image_path: str) -> str:
         return os.path.join(self.archive_local, image_path)
+
+    @property
+    def photometry_path(self) -> str:
+        return os.path.join(self.output_folder, 'photometry.ecsv')
+
+    def save_as(self, filename: str) -> str:
+        return os.path.join(self.output_folder, filename)
