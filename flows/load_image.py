@@ -399,6 +399,14 @@ class Swope(Instrument):
                                                                         self.image.header['FILTER'])
         return photfilter
 
+class Swope_newheader(Swope):
+
+    def get_obstime(self):
+        obstime = Time(self.image.header['MJD-OBS'], format='mjd', scale='utc',
+                       location=self.image.site['EarthLocation'])
+        obstime += 0.5 * self.image.exptime * u.second
+        return obstime
+
 
 class Dupont(Instrument):
     siteid = 14
@@ -548,10 +556,20 @@ class TJO(Instrument):
         return obstime
 
 
+class RATIR(Instrument):
+    siteid = 23
+
+    def get_obstime(self):
+        obstime =  Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
+                        location=self.image.site['EarthLocation'])
+        return obstime
+
+
 instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
-               'Omega2000': Omega2000, 'Swope': Swope, 'Dupont': Dupont, 'Retrocam': RetroCam, 'Baade': Baade,
+               'Omega2000': Omega2000, 'Swope': Swope, 'Swope_newheader':Swope_newheader, 'Dupont': Dupont, 'Retrocam':
+                   RetroCam, 'Baade': Baade,
                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
-               'PairTel': PairTel, 'TJO': TJO}
+               'PairTel': PairTel, 'TJO': TJO, 'RATIR': RATIR, }
 
 
 def correct_barycentric(obstime: Time, target_coord: coords.SkyCoord) -> Time:
@@ -643,8 +661,12 @@ def load_image(filename: str, target_coord: typing.Union[coords.SkyCoord, typing
                 instrument_name = Omega2000()
                 break
 
-            elif telescope == 'SWO' and hdr.get('SITENAME') == 'LCO':
+            elif telescope.upper().startswith('SWO') and hdr.get('SITENAME') == 'LCO':
                 instrument_name = Swope()
+                break
+
+            elif telescope.upper().startswith('SWO') and origin == 'ziggy':
+                instrument_name = Swope_newheader()
                 break
 
             elif telescope == 'DUP' and hdr.get('SITENAME') == 'LCO' and instrument == 'Direct/SITe2K-1':
@@ -688,6 +710,10 @@ def load_image(filename: str, target_coord: typing.Union[coords.SkyCoord, typing
             elif (origin == 'OAdM' or origin.startswith('NOAO-IRAF')) and telescope == 'TJO' and instrument in (
                     'MEIA3', 'MEIA2'):
                 instrument_name = TJO()
+                break
+
+            elif telescope == "OAN/SPM Harold L. Johnson 1.5-meter":
+                instrument_name = RATIR()
                 break
 
             else:
