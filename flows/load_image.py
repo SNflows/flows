@@ -258,9 +258,14 @@ def load_image(FILENAME, target_coord=None):
 			image.obstime += 0.5*image.exptime * u.second # Make time centre of exposure
 			image.photfilter = hdr['FILTER']
 
-		elif telescope == 'SWO' and hdr.get('SITENAME') == 'LCO':
+		elif telescope.upper().startswith('SWO') and (hdr.get('SITENAME') == 'LCO' or origin == 'ziggy'):
 			image.site = api.get_site(10) # Hard-coded the siteid for Swope, Las Campanas Observatory
-			image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			jd = hdr.get('JD', '')
+			if jd:
+				image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			else:
+				image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+				image.obstime += 0.5 * image.exptime * u.second  # Make time centre of exposure
 			image.photfilter = {
 				'u': 'up',
 				'g': 'gp',
