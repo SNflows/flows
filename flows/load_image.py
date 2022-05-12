@@ -179,6 +179,20 @@ class Instrument(AbstractInstrument):
             raise ValueError("Image exposure time could not be extracted")
         return exptime
 
+		elif telescope.upper().startswith('SWO') and (hdr.get('SITENAME') == 'LCO' or origin == 'ziggy'):
+			image.site = api.get_site(10) # Hard-coded the siteid for Swope, Las Campanas Observatory
+			jd = hdr.get('JD', '')
+			if jd:
+				image.obstime = Time(hdr['JD'], format='jd', scale='utc', location=image.site['EarthLocation'])
+			else:
+				image.obstime = Time(hdr['MJD-OBS'], format='mjd', scale='utc', location=image.site['EarthLocation'])
+				image.obstime += 0.5 * image.exptime * u.second  # Make time centre of exposure
+			image.photfilter = {
+				'u': 'up',
+				'g': 'gp',
+				'r': 'rp',
+				'i': 'ip',
+			}.get(hdr['FILTER'], hdr['FILTER'])
     def get_obstime(self):
         """Default for JD, jd, utc."""
         return Time(self.image.header['JD'], format='jd', scale='utc', location=self.image.site['EarthLocation'])
