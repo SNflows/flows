@@ -88,11 +88,22 @@ class References:
             self.xy = np.vstack(((target.pixel_column, target.pixel_row), self.xy))
 
 
-def use_sep(image: FlowsImage):
+def use_sep(image: FlowsImage, tries: int = 5, thresh: float = 5.):
+
     # Use sep to for soure extraction
     sep_background = sep.Background(image.image, mask=image.mask)
-    objects = sep.extract(image.image - sep_background, thresh=5., err=sep_background.globalrms, mask=image.mask,
-                          deblend_cont=0.1, minarea=9, clean_param=2.0)
+    try:
+        objects = sep.extract(image.image - sep_background, thresh=thresh, err=sep_background.globalrms,
+                              mask=image.mask, deblend_cont=0.1, minarea=9, clean_param=2.0)
+    except KeyboardInterrupt:
+        raise
+    except Exception:
+        logger.warning("SEP failed, trying again...")
+        if tries > 0:
+            thresh += 3
+            return use_sep(image, tries - 1, thresh * 2)
+        else:
+            raise
     return References(table=objects)
 
 
