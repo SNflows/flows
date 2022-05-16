@@ -341,9 +341,11 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
         apphot_tbl.insert_row(0, diff_apphot_tbl[0])
         clean_references.table['starid'][0] = -1
 
+    # TODO: This should be moved to the photometry manager.
     # Build results table:
     results_table = ResultsTable.make_results_table(clean_references.table, apphot_tbl, psfphot_tbl, image)
 
+    # Todo: refactor.
     # Get instrumental magnitude (currently we do too much here).
     results_table, (mag_fig, mag_ax) = instrumental_mag(results_table, target)
 
