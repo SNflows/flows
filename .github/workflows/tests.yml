@@ -27,15 +27,6 @@ jobs:
       with:
         python-version: 3.9
 
-    - name: Cache pip
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-py3.9-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-py3.9-
-          ${{ runner.os }}-pip-
-
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip wheel
@@ -46,9 +37,9 @@ jobs:
       run: |
         # stop the build if there are Python syntax errors or undefined names
         # For some reason we have to specifically ignore G001 as well
-        flake8 --select=E9,F63,F7,F82 --ignore=G001,G004 --show-source
+        flake8 --select=E9,F63,F7,F82 --show-source --ignore=G001,G004
         # exit-zero treats all errors as warnings.
-        flake8 --exit-zero
+        # flake8 --exit-zero
 
   # Run unit tests on Linux, OSX and Windows
   pytest:
