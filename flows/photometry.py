@@ -33,7 +33,7 @@ from .result_model import ResultsTable
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry  # noqa: E402
 from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars  # noqa: E402
-from photutils import Background2D, SExtractorBackground, MedianBackground  # noqa: E402
+from photutils.background import Background2D, SExtractorBackground, MedianBackground  # noqa: E402
 from photutils.utils import calc_total_error  # noqa: E402
 
 from . import reference_cleaning as refclean  # noqa: E402
@@ -69,24 +69,21 @@ def get_catalog(targetid: int) -> Dict:
     return catalog
 
 
-# class BackgroundProtocol(Protocol):
-#
-#     def background(self):
-#         ...
-
-
 class FlowsBackground:
 
     def __init__(self, background_estimator: Background2D = Background2D):
-        self.background_estimator = background_estimator
+        self.background_estimator = Background2D
         self.background: Optional[ArrayLike] = None
+        self.background_rms: Optional[ArrayLike] = None
 
     def estimate_background(self, clean_image: np.ma.MaskedArray) -> None:
         # Estimate image background:
         # Not using image.clean here, since we are redefining the mask anyway
-        self.background = self.background_estimator(clean_image, (128, 128), filter_size=(5, 5),
+        bkg2d = self.background_estimator(clean_image, (128, 128), filter_size=(5, 5),
                                          sigma_clip=SigmaClip(sigma=3.0), bkg_estimator=SExtractorBackground(),
                                          exclude_percentile=50.0)
+        self.background = bkg2d.background
+        self.background_rms = bkg2d.background_rms
 
     def background_subtract(self, clean_image: ArrayLike) -> ArrayLike:
         if self.background is None:
@@ -99,7 +96,7 @@ class FlowsBackground:
         """
         if self.background is None:
             raise AttributeError("background must be estimated before calling error")
-        return error_method(clean_image, self.background.background_rms, 1.0)
+        return error_method(clean_image, self.background_rms, 1.0)
 
 
 def correct_wcs(image: FlowsImage, references: refclean.References, target: Target,
@@ -235,8 +232,9 @@ def calculate_appflux(apphot_tbl: Table, apertures: CircularAperture, annuli: Ci
     # Subtract background estimated from annuli:
     bkg = (apphot_tbl['aperture_sum_1'] / annuli.area) * apertures.area
     apphot_tbl['flux_aperture'] = apphot_tbl['aperture_sum_0'] - bkg
-    apphot_tbl['flux_aperture_error'] = np.sqrt(
-        apphot_tbl['aperture_sum_err_0'] ** 2 + (apphot_tbl['aperture_sum_err_1'] / annuli.area * apertures.area) ** 2)
+
+    apphot_tbl['flux_aperture_error'] = np.sqrt(apphot_tbl['aperture_sum_err_0'] ** 2 +
+                                                (apphot_tbl['aperture_sum_err_1'] / annuli.area * apertures.area) ** 2)
     return apphot_tbl
 
 
@@ -282,6 +280,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
     image.error = bkg.error(image.clean)
 
     # Correct WCS
+    cm_timeout = cm_timeout if cm_timeout is not None else np.inf
     image = correct_wcs(image, references, target=target, timeout=cm_timeout)
 
     # Calculate pixel-coordinates of references:
@@ -307,9 +306,9 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
         raise RuntimeError("Bad ePSF detected.")
 
     # Store which stars were used in ePSF in the table:
-    clean_references.table['used_for_epsf'] = False
+    clean_references.table.add_column(col=[False], name='used_for_epsf')
     clean_references.table['used_for_epsf'][[star.id_label - 1 for star in stars.all_good_stars]] = True
-    logger.info("Number of stars used for ePSF: %d", np.sum(references.table['used_for_epsf']))
+    logger.info("Number of stars used for ePSF: %d", np.sum(clean_references.table['used_for_epsf']))
 
     fwhm = np.max(epsf_fwhms)  # Use the largest FWHM as new FWHM
     logger.info(f"Final FWHM based on ePSF: {fwhm}")
@@ -327,19 +326,23 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
     psfphot_tbl = photometry_obj(image=image.subclean, init_guesses=Table(clean_references.xy, names=['x_0', 'y_0']))
 
     # Difference image photometry:
-    diffimage = datafile.get('diffimage', None)
-    if diffimage:
-        diffimage = load_image(directories.image_path(diffimage), target_coord=target.coords)
-
+    diffimage_df = datafile.get('diffimg', None)
+    if diffimage_df:
+        diffimage_path = diffimage_df.get('path', None)
+        if diffimage_path is None:
+            logger.warning("No diffimage present but without path, skipping diffimage photometry")
+        diffimage = load_image(directories.image_path(diffimage_path), target_coord=target.coords)
+        diffimage.error = image.error
         diff_apphot_tbl = apphot(clean_references.xy[0], diffimage, fwhm, use_raw=True)
         diff_psfphot_tbl = photometry_obj(image=diffimage.clean, init_guesses=Table(clean_references.xy[0],
                                                                                     names=['x_0', 'y_0']))
 
         # Store the difference image photometry on row 0 of the table.
         # This pushes the un-subtracted target photometry to row 1.
+        clean_references.add_target(target, starid=-1)
         psfphot_tbl.insert_row(0, diff_psfphot_tbl[0])
         apphot_tbl.insert_row(0, diff_apphot_tbl[0])
-        clean_references.table['starid'][0] = -1
+
 
     # TODO: This should be moved to the photometry manager.
     # Build results table:
@@ -365,7 +368,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
     results_table.meta['pixel_scale'] = pixel_scale * u.arcsec / u.pixel
     results_table.meta['seeing'] = (fwhm * pixel_scale) * u.arcsec
     results_table.meta['obstime-bmjd'] = float(image.obstime.mjd)
-    results_table.meta['used_wcs'] = image.wcs
+    results_table.meta['used_wcs'] = str(image.wcs)
 
     # Save the results table:
     # TODO: Photometry should RETURN a table, not save it.
@@ -421,16 +424,17 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
         del ax, ax1, ax2, ax3, ax4
 
         # Create two plots of the difference image:
-        fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
-        plot_image(diffimage, ax=ax, cbar='right', title=target.name)
-        ax.plot(target.pixel_column, target.pixel_row, marker='+', markersize=20, color='r')
-        fig.savefig(directories.save_as('diffimg.png'), bbox_inches='tight')
-        #apertures.plot(axes=ax, color='r', lw=2)
-        #annuli.plot(axes=ax, color='r', lw=2)
-        ax.set_xlim(target.pixel_column - 50, target.pixel_column + 50)
-        ax.set_ylim(target.pixel_row - 50, target.pixel_row + 50)
-        fig.savefig(directories.save_as('diffimg_zoom.png'), bbox_inches='tight')
-        plt.close(fig)
+        if diffimage_df is not None:
+            fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
+            plot_image(diffimage.clean, ax=ax, cbar='right', title=target.name)
+            ax.plot(target.pixel_column, target.pixel_row, marker='+', markersize=20, color='r')
+            fig.savefig(directories.save_as('diffimg.png'), bbox_inches='tight')
+            #apertures.plot(axes=ax, color='r', lw=2)
+            #annuli.plot(axes=ax, color='r', lw=2)
+            ax.set_xlim(target.pixel_column - 50, target.pixel_column + 50)
+            ax.set_ylim(target.pixel_row - 50, target.pixel_row + 50)
+            fig.savefig(directories.save_as('diffimg_zoom.png'), bbox_inches='tight')
+            plt.close(fig)
 
         # Calibration (handled in magnitudes.py).
         mag_fig.savefig(directories.save_as('calibration.png'), bbox_inches='tight')

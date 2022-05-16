@@ -52,7 +52,7 @@ class FlowsImage:
         self.shape = self.image.shape
         self.wcs = self.create_wcs()
         # Make empty mask
-        if not self.mask:
+        if self.mask is None:
             self.mask = np.zeros_like(self.image, dtype='bool')
         self.check_finite()
 

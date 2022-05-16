@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 from .target import Target
 from .zeropoint import sigma_from_Chauvenet, bootstrap_outlier
+from .filters import get_reference_filter
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ def instrumental_mag(tab: Table, target: Target) -> Tuple[Table, Tuple[Any, Any]
     mag_inst_err = (2.5 / np.log(10)) * (tab['flux_psf_error'] / tab['flux_psf'])
 
     # Corresponding magnitudes in catalog:
-    mag_catalog = tab[target.photfilter]
+    mag_catalog = tab[get_reference_filter(target.photfilter)]
 
     # Mask out things that should not be used in calibration:
     use_for_calibration = np.ones_like(mag_catalog, dtype='bool')

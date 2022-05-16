@@ -11,11 +11,9 @@ requests
 PyYAML
 psycopg2-binary
 jplephem
-vtk
 scikit-image >= 0.17.2
 tqdm
 pytz
-git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
 sep
 astroalign > 2.3
 networkx

@@ -9,6 +9,7 @@ import sys
 import shutil
 import functools
 import multiprocessing
+import tqdm
 from tendrils import api, utils
 from flows import photometry
 
@@ -43,8 +44,9 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
         logger.addHandler(_filehandler)
         logger_warn.addHandler(_filehandler)
 
-        photfile = photometry(fileid=fid, output_folder=output_folder, attempt_imagematch=attempt_imagematch,
-                              keep_diff_fixed=keep_diff_fixed, cm_timeout=cm_timeout)
+        photfile = photometry(fileid=fid, cm_timeout=cm_timeout, make_plots=True)
+        # photfile = photometry(fileid=fid, output_folder=output_folder, attempt_imagematch=attempt_imagematch,
+        #                       keep_diff_fixed=keep_diff_fixed, cm_timeout=cm_timeout)
 
     except (SystemExit, KeyboardInterrupt):
         logger.error("Aborted by user or system.")
@@ -158,12 +160,14 @@ def main():
     if threads > 1:
         # Disable printing info messages from the parent function.
         # It is going to be all jumbled up anyway.
-        logger.setLevel(logging.WARNING)
+        if not args.debug:
+            logger.setLevel(logging.WARNING)  # Don't silence if debugging.
 
         # There is more than one area to process, so let's start
         # a process pool and process them in parallel:
         with multiprocessing.Pool(threads) as pool:
-            for res in pool.imap_unordered(process_fileid_wrapper, fileids):
+            for result in tqdm.tqdm(pool.imap_unordered(process_fileid_wrapper, fileids), total=len(fileids)):
+                # We can do something with the partial results here (like calculate color terms!).
                 pass
 
     else:

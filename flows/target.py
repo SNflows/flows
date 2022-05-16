@@ -31,13 +31,14 @@ class Target:
         """
         Add pixel coordinates to target.
         """
-        if pixel_pos:
-            self.pixel_column = pixel_pos[0]
-            self.pixel_row = pixel_pos[1]
-        elif pixel_column is not None and pixel_row is not None:
-            self.pixel_column = pixel_column
-            self.pixel_row = pixel_row
-        raise AttributeError("Either pixel_pos or pixel_column and pixel_row must be defined.")
+        if pixel_column is None or pixel_row is None:
+            if pixel_pos is None:
+                raise ValueError('Either pixel_column, pixel_row or pixel_pos must be provided.')
+            pixel_column, pixel_row = pixel_pos
+
+        self.pixel_column = pixel_column
+        self.pixel_row = pixel_row
+
 
     def output_dict(self, starid: Optional[int] = 0) -> Dict:
         """

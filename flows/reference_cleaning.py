@@ -77,15 +77,15 @@ class References:
         self.xy = img_wcs.all_world2pix(list(zip(self.coords.ra.deg, self.coords.dec.deg)), 0)
 
     def make_pixel_columns(self, column_name: str ='pixel_column', row_name: str = 'pixel_row') -> None:
-        self.table[column_name], self.table[row_name] = x, y = list(map(np.array, zip(*self.xy)))
+        self.table[column_name], self.table[row_name] = list(map(np.array, zip(*self.xy)))
 
     def _prepend_row(self, row: dict) -> None:
-        self.table = self.table.insert_row(0, row)
+        self.table.insert_row(0, row)
 
     def add_target(self, target: Target, starid: int = 0) -> None:
         self._prepend_row(target.output_dict(starid=starid))
-        if target.pixel_row and target.pixel_col:
-            self.xy = np.vstack(((target.pixel_col, target.pixel_row), self.xy))
+        if target.pixel_row and target.pixel_column:
+            self.xy = np.vstack(((target.pixel_column, target.pixel_row), self.xy))
 
 
 def use_sep(image: FlowsImage):
@@ -104,7 +104,6 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
         xarray:
         yarray:
         image:
-        get_fwhm (bool, optional):
         rsq_min (float, optional):
         radius (float, optional):
         fwhm_guess=6.0:
@@ -200,7 +199,7 @@ def clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references, min_fwhm_
     rsqvals = np.arange(rsq_min, 0.95, 0.15)[::-1]
     fwhm_found = False
     min_references_achieved = False
-
+    fwhm = np.nan
     # Clean based on R^2 Value
     while not min_references_achieved:
         for rsqval in rsqvals:
@@ -391,7 +390,7 @@ class ReferenceCleaner:
         self.rsq_min = rsq_min
         self.min_references_ideal = min_references_ideal
         self.min_references_abs = min_references_abs
-        self.gaussian_xys: np.ndarray = None  # gaussian pixel positions
+        self.gaussian_xys: Optional[np.ndarray] = None  # gaussian pixel positions
 
     def _clean_extracted_stars(self, x=None, y=None) -> Tuple[np.ma.MaskedArray, ...]:
         """
@@ -468,8 +467,8 @@ class ReferenceCleaner:
 
         # Make mask
         mask = (target_coords.separation(self.references.coords) > target_distance_lim) & (
-            self.references.x > hsize) & (self.references.x < (image_shape[1] - 1 - hsize)) & (
-            self.references.y > hsize) & (self.references.y < (image_shape[0] - 1 - hsize))
+            self.references.table['pixel_column'] > hsize) & (self.references.table['pixel_column'] < (image_shape[1] - 1 - hsize)) & (
+            self.references.table['pixel_row'] > hsize) & (self.references.table['pixel_row'] < (image_shape[0] - 1 - hsize))
         self.references.mask = mask
 
         # Make new clean references
