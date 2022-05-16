@@ -20,9 +20,10 @@ Installation instructions
 
   >>> git clone https://github.com/SNflows/flows.git .
 
-* All dependencies can be installed using the following command. It is recommended to do this in a dedicated `virtualenv <https://virtualenv.pypa.io/en/stable/>`_ or similar:
+* Required dependencies can be installed using the following command. It is recommended to do this in a dedicated `virtualenv <https://virtualenv.pypa.io/en/stable/>`_ or similar:
 
   >>> pip install -r requirements.txt
+  >>> pip install -r requirements_dev.txt  # for tests/development
 
 * Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (``chmod 0600 config.ini``)!
   This file can contain all the settings for running the pipeline. A minimal file for working with the pipeline is
