@@ -10,7 +10,7 @@ import astropy.coordinates as coords
 from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS, FITSFixedWarning
-from typing import Tuple
+from typing import Tuple, Union, Dict, Any, Optional
 from tendrils import api
 
 from dataclasses import dataclass  # , field
@@ -20,21 +20,39 @@ from abc import ABC, abstractmethod
 logger = logging.getLogger(__name__)  # Singleton logger instance
 
 
-# --------------------------------------------------------------------------------------------------
+@dataclass
+class InstrumentDefaults:
+    """
+    Default radius and FWHM for an instrument in arcseconds.
+    """
+    radius: float = 10
+    fwhm: float = 6.0   # Best initial guess
+    fwhm_min: float = 3.5
+    fwhm_max: float = 18.0
+
+
 @dataclass
 class FlowsImage:
     image: np.ndarray
     header: typing.Dict
-    mask: np.ndarray = None
-    peakmax: float = None
-    exptime: float = None
-    clean: np.ma.MaskedArray = None
+    mask: Optional[np.ndarray] = None
+    peakmax: Optional[float] = None
+    exptime: Optional[float] = None
+    instrument_defaults: Optional[InstrumentDefaults] = None
+    site: Optional[Dict[str, Any]] = None
+    obstime: Optional[Time] = None
+    photfilter: Optional[str] = None
+    wcs: Optional[WCS] = None
+
+    clean: Optional[np.ma.MaskedArray] = None
+    subclean: Optional[np.ma.MaskedArray] = None
+    error: Optional[np.ma.MaskedArray] = None
 
     def __post_init__(self):
         self.shape = self.image.shape
         self.wcs = self.create_wcs()
         # Make empty mask
-        if not self.mask:
+        if self.mask is None:
             self.mask = np.zeros_like(self.image, dtype='bool')
         self.check_finite()
 
@@ -169,22 +187,28 @@ class Instrument(AbstractInstrument):
     def __init__(self, image: FlowsImage = None):
         self.image = image
 
-    def get_site(self):
+    def get_site(self) -> Dict[str, Any]:
         if self.siteid is not None:
             return api.get_site(self.siteid)
 
-    def get_exptime(self):
+    def get_exptime(self) -> Union[float, int, str]:
         exptime = self.image.header.get('EXPTIME', None)
         if exptime is None:
             raise ValueError("Image exposure time could not be extracted")
         return exptime
 
-    def get_obstime(self):
+    def get_obstime(self) -> Time:
         """Default for JD, jd, utc."""
         return Time(self.image.header['JD'], format='jd', scale='utc', location=self.image.site['EarthLocation'])
 
     def get_photfilter(self):
         return self.image.header['FILTER']
+
+    def set_instrument_defaults(self):
+        """
+        Set default values for instrument.
+        """
+        self.image.instrument_defaults = InstrumentDefaults()
 
     def _get_clean_image(self):
         self.image.peakmax = self.peakmax
@@ -194,7 +218,7 @@ class Instrument(AbstractInstrument):
         self.image.photfilter = self.get_photfilter()
         self.image.create_masked_image()
 
-    def process_image(self, image: FlowsImage = None):
+    def process_image(self, image: FlowsImage = None) -> FlowsImage:
         """Process existing or new image."""
         if image is not None:
             self.image = image
@@ -202,6 +226,8 @@ class Instrument(AbstractInstrument):
             raise AttributeError('No FlowsImage to be processed. Self.image was None')
 
         self._get_clean_image()
+        self.set_instrument_defaults()
+        return self.image
 
 
 class LCOGT(Instrument):
@@ -373,6 +399,14 @@ class Swope(Instrument):
                                                                         self.image.header['FILTER'])
         return photfilter
 
+class Swope_newheader(Swope):
+
+    def get_obstime(self):
+        obstime = Time(self.image.header['MJD-OBS'], format='mjd', scale='utc',
+                       location=self.image.site['EarthLocation'])
+        obstime += 0.5 * self.image.exptime * u.second
+        return obstime
+
 
 class Dupont(Instrument):
     siteid = 14
@@ -522,10 +556,35 @@ class TJO(Instrument):
         return obstime
 
 
+class RATIR(Instrument):
+    siteid = 23
+
+    def get_obstime(self):
+        obstime =  Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
+                        location=self.image.site['EarthLocation'])
+        return obstime
+
+
 instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
-               'Omega2000': Omega2000, 'Swope': Swope, 'Dupont': Dupont, 'Retrocam': RetroCam, 'Baade': Baade,
+               'Omega2000': Omega2000, 'Swope': Swope, 'Swope_newheader':Swope_newheader, 'Dupont': Dupont, 'Retrocam':
+                   RetroCam, 'Baade': Baade,
                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
-               'PairTel': PairTel, 'TJO': TJO}
+               'PairTel': PairTel, 'TJO': TJO, 'RATIR': RATIR, }
+
+
+def correct_barycentric(obstime: Time, target_coord: coords.SkyCoord) -> Time:
+    """
+    BARYCENTRIC CORRECTION OF TIME
+
+    Parameters:
+        obstime (astropy.time.Time): Midpoint observed image time.
+        target_coord (astropy.coords.SkyCoord): Coordinates of target in image.
+
+    Returns:
+        obstime (astropy.time.Time): Time corrected to barycenter with jpl ephemeris.
+    """
+    ltt_bary = obstime.light_travel_time(target_coord, ephemeris='jpl')
+    return obstime.tdb + ltt_bary
 
 
 def load_image(filename: str, target_coord: typing.Union[coords.SkyCoord, typing.Tuple[float, float]] = None):
@@ -602,8 +661,12 @@ def load_image(filename: str, target_coord: typing.Union[coords.SkyCoord, typing
                 instrument_name = Omega2000()
                 break
 
-            elif telescope == 'SWO' and hdr.get('SITENAME') == 'LCO':
+            elif telescope.upper().startswith('SWO') and hdr.get('SITENAME') == 'LCO':
                 instrument_name = Swope()
+                break
+
+            elif telescope.upper().startswith('SWO') and origin == 'ziggy':
+                instrument_name = Swope_newheader()
                 break
 
             elif telescope == 'DUP' and hdr.get('SITENAME') == 'LCO' and instrument == 'Direct/SITe2K-1':
@@ -649,10 +712,16 @@ def load_image(filename: str, target_coord: typing.Union[coords.SkyCoord, typing
                 instrument_name = TJO()
                 break
 
+            elif telescope == "OAN/SPM Harold L. Johnson 1.5-meter":
+                instrument_name = RATIR()
+                break
+
             else:
                 raise RuntimeError("Could not determine origin of image")
 
         image = FlowsImage(image=np.asarray(hdul[ext].data, dtype='float64'), header=hdr, mask=mask)
-        instrument_name.process_image(image)
+        clean_image = instrument_name.process_image(image)
 
-        return instrument_name.image
+        if target_coord is not None:
+            clean_image.obstime = correct_barycentric(clean_image.obstime, target_coord)
+        return clean_image

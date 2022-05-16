@@ -7,8 +7,12 @@ Photutils hack for EPSF building
 """
 import time
 import numpy as np
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata, UnivariateSpline
 import photutils.psf
+from typing import List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FlowsEPSFBuilder(photutils.psf.EPSFBuilder):
@@ -51,3 +55,31 @@ class FlowsEPSFBuilder(photutils.psf.EPSFBuilder):
         epsf.fit_info = dict(n_iter=len(self._epsf), max_iters=self.maxiters, time=time.time() - t0, )
 
         return epsf, stars
+
+
+def verify_epsf(epsf: photutils.psf.EPSFBuilder) -> Tuple[bool, List[float]]:
+    fwhms = []
+    epsf_ok = True
+    for a in (0, 1):
+        # Collapse the PDF along this axis:
+        profile = epsf.data.sum(axis=a)
+        itop = profile.argmax()
+        poffset = profile[itop] / 2
+
+        # Run a spline through the points, but subtract half of the peak value, and find the roots:
+        # We have to use a cubic spline, since roots() is not supported for other splines
+        # for some reason
+        profile_intp = UnivariateSpline(np.arange(0, len(profile)), profile - poffset, k=3, s=0, ext=3)
+        lr = profile_intp.roots()
+
+        # Do some sanity checks on the ePSF:
+        # It should pass 50% exactly twice and have the maximum inside that region.
+        # I.e. it should be a single gaussian-like peak
+        if len(lr) != 2 or itop < lr[0] or itop > lr[1]:
+            logger.error(f"EPSF is not a single gaussian-like peak along axis {a}")
+            epsf_ok = False
+        else:
+            axis_fwhm = lr[1] - lr[0]
+            fwhms.append(axis_fwhm)
+
+    return epsf_ok, fwhms
