@@ -563,6 +563,12 @@ class RATIR(Instrument):
         obstime =  Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
                         location=self.image.site['EarthLocation'])
         return obstime
+    
+    def get_photfilter(self):
+        ratir_filt = self.image.header['FILTER']
+        if ratir_filt in ['Z', 'r', 'i']:
+            return {'Z': 'zp', 'r': 'rp', 'i': 'ip'}.get(ratir_filt)
+        return ratir_filt
 
 
 instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
