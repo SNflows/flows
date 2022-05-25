@@ -163,7 +163,8 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
         curr_star /= np.nanmax(curr_star)
 
         ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
-        gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
+        nan_filter = np.isfinite(curr_star)  # This shouldn't be necessary if images are properly cleaned?
+        gfit = gfitter(g2d, x=xpos[nan_filter], y=ypos[nan_filter], z=curr_star[nan_filter])
 
         # Center
         xys[i] = np.array([gfit.x_mean + x - radius, gfit.y_mean + y - radius], dtype='float64')
