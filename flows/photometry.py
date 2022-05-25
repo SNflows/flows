@@ -329,6 +329,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
     diffimage_df = datafile.get('diffimg', None)
     if diffimage_df:
         diffimage_path = diffimage_df.get('path', None)
+        logger.info("Found diffimg: %s, running difference photometry.", diffimage_path)
         if diffimage_path is None:
             logger.warning("No diffimage present but without path, skipping diffimage photometry")
         diffimage = load_image(directories.image_path(diffimage_path), target_coord=target.coords)
@@ -340,8 +341,8 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
         # Store the difference image photometry on row 0 of the table.
         # This pushes the un-subtracted target photometry to row 1.
         clean_references.add_target(target, starid=-1)
-        psfphot_tbl.insert_row(0, diff_psfphot_tbl[0])
-        apphot_tbl.insert_row(0, diff_apphot_tbl[0])
+        psfphot_tbl.insert_row(0, dict(diff_psfphot_tbl[0]))
+        apphot_tbl.insert_row(0, dict(diff_apphot_tbl[0]))
 
 
     # TODO: This should be moved to the photometry manager.
