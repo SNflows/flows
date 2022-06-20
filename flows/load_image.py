@@ -17,6 +17,8 @@ from dataclasses import dataclass  # , field
 import typing
 from abc import ABC, abstractmethod
 
+from .filters import FILTERS
+
 logger = logging.getLogger(__name__)  # Singleton logger instance
 
 
@@ -560,10 +562,10 @@ class RATIR(Instrument):
     siteid = 23
 
     def get_obstime(self):
-        obstime =  Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
+        obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
                         location=self.image.site['EarthLocation'])
         return obstime
-    
+
     def get_photfilter(self):
         ratir_filt = self.image.header['FILTER']
         if ratir_filt in ['Z', 'r', 'i']:
@@ -571,11 +573,72 @@ class RATIR(Instrument):
         return ratir_filt
 
 
+class AFOSC(Instrument):
+    siteid = 25
+    peakmax = 50_000
+
+    def get_obstime(self):
+        obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
+                        location=self.image.site['EarthLocation'])
+        obstime += 0.5 * self.image.exptime * u.second  # Make time centre of exposure
+        return obstime
+
+    def get_photfilter(self):
+        filt = self.image.header['FILTER']
+
+        if "sloan" in filt:
+            return filt[0]+'p'  # Return gp,rp,ip,zp for g-sloan, etc.
+        elif filt in FILTERS.keys():
+            return filt
+        elif filt+'p' in FILTERS.keys():
+            return filt+'p'
+        elif filt[0] in FILTERS.keys():
+            return filt[0]
+
+        raise ValueError(f"Could not find filter {filt} in {[f for f in FILTERS.keys()]}")
+
+    @staticmethod
+    def identifier(telescope: str, origin: str, instrument: str, header: fits.header.Header):
+        """Unique identifier"""
+        return "1.82m Reflector" in telescope and "AFOSC" in instrument
+
+
+
+class Schmidt(Instrument):
+    siteid = 26
+    peakmax = 56_000
+
+    def get_obstime(self):
+        obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
+                        location=self.image.site['EarthLocation'])
+        obstime += 0.5 * self.image.exptime * u.second  # Make time centre of exposure
+        return obstime
+
+    def get_photfilter(self):
+        filt = self.image.header['FILTER']
+
+        if "sloan" in filt:
+            return filt[0]+'p'  # Return gp,rp,ip,zp for g-sloan, etc.
+        elif filt in FILTERS.keys():
+            return filt
+        elif filt+'p' in FILTERS.keys():
+            return filt+'p'
+
+        raise ValueError(f"Could not find filter {filt} in {[f for f in FILTERS.keys()]}")
+
+    @staticmethod
+    def identifier(telescope: str, origin: str, instrument: str, header: fits.header.Header):
+        """Unique identifier"""
+        return "Schmidt Telescope" in telescope \
+               and "Moravian" in instrument \
+               and np.round(header.get("SITELAT"), 2) == 45.85
+
+
 instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
                'Omega2000': Omega2000, 'Swope': Swope, 'Swope_newheader':Swope_newheader, 'Dupont': Dupont, 'Retrocam':
                    RetroCam, 'Baade': Baade,
                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
-               'PairTel': PairTel, 'TJO': TJO, 'RATIR': RATIR, }
+               'PairTel': PairTel, 'TJO': TJO, 'RATIR': RATIR, "Schmidt": Schmidt, "AFOSC": AFOSC}
 
 
 def correct_barycentric(obstime: Time, target_coord: coords.SkyCoord) -> Time:
@@ -721,6 +784,13 @@ def load_image(filename: str, target_coord: typing.Union[coords.SkyCoord, typing
             elif telescope == "OAN/SPM Harold L. Johnson 1.5-meter":
                 instrument_name = RATIR()
                 break
+
+            elif AFOSC.identifier(telescope, origin, instrument, hdr):
+                instrument_name = AFOSC()
+                break
+
+            elif Schmidt.identifier(telescope, origin, instrument, hdr):
+                instrument_name = Schmidt()
 
             else:
                 raise RuntimeError("Could not determine origin of image")
