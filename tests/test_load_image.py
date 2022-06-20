@@ -53,10 +53,11 @@ def test_load_image(fpath, siteid):
 def test_instruments():
     for instrument_name, instrument_class in instruments.items():
         instrument = instrument_class()
-        # get site:
-        site = api.get_site(instrument.siteid)
 
-    assert site['siteid'] == instrument.siteid
+        #if instrument.origin != 'LCOGT':
+            # get site:
+        site = instrument.get_site()
+        assert site['siteid'] == instrument.siteid
 
 
 # --------------------------------------------------------------------------------------------------

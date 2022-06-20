@@ -182,12 +182,25 @@ class AbstractInstrument(ABC):
         pass
 
 
+@dataclass
+class UniqueHeader:
+    telescope: str = ''  # Fits Header name of TELESCOP
+    instrument: str = ''  # Fits Header name of Instrument (can be partial)
+    origin: str = ''  # Fits Header value of ORIGIN (if relevant)
+    unique_headers: Optional[Dict[str, Any]] = None  # Unique key value pairs from header for identifying instrument.
+
+
 class Instrument(AbstractInstrument):
     peakmax: int = None
     siteid: int = None
+    telescope: str = ''  # Fits Header name of TELESCOP
+    instrument: str = ''  # Fits Header name of Instrument (can be partial)
+    origin: str = ''  # Fits Header value of ORIGIN (if relevant)
+    unique_headers: Optional[Dict[str, Any]] = None  # Unique key value pairs from header for identifying instrument.
 
-    def __init__(self, image: FlowsImage = None):
+    def __init__(self, image: FlowsImage = None, header: fits.header.Header = None):
         self.image = image
+        self.hdr = header
 
     def get_site(self) -> Dict[str, Any]:
         if self.siteid is not None:
@@ -231,14 +244,40 @@ class Instrument(AbstractInstrument):
         self.set_instrument_defaults()
         return self.image
 
+    @classmethod
+    def identifier(cls, telescope: str, origin: str, instrument: str, hdr: fits.header.Header) -> bool:
+        """Unique identifier"""
+        unique_conds = all([hdr.get(key) == cls.unique_headers.get(key) for key in cls.unique_headers.keys()] if cls.unique_headers is not None else [True])
+
+        return all([cls.telescope in telescope if cls.telescope != '' else True,
+                    cls.origin == origin if cls.origin != '' else True,
+                    cls.instrument in instrument if cls.instrument != '' else True,
+                    unique_conds])
+
+    @staticmethod
+    def get_ext(hdul: fits.HDUList, target_coords: coords.SkyCoord = None) -> int:
+        """Instruments which need a special treatment to find the image extension
+        should overwrite this."""
+        return 0
+
+    @staticmethod
+    def get_mask(hdul: fits.HDUList) -> Optional[Any]:
+        """Instruments which need a special treatment to find the mask should overwrite this."""
+        return None
+
 
 class LCOGT(Instrument):
+    siteid = None  # Can be between 1, 3, 4, 6, 17, 19. @TODO: Refactor to own classes.
     peakmax: int = 60000
+    origin = 'LCOGT'
 
     def get_site(self):
+        nonesite = {'siteid': None}
+        if self.image is None:
+            return nonesite
         sites = api.sites.get_all_sites()
         site_keywords = {s['site_keyword']: s for s in sites}
-        site = site_keywords.get(self.image.header['SITE'], None)
+        site = site_keywords.get(self.image.header['SITE'], nonesite)
         return site
 
     def get_obstime(self):
@@ -253,9 +292,31 @@ class LCOGT(Instrument):
         photfilter = {'zs': 'zp'}.get(self.image.header['FILTER'], self.image.header['FILTER'])
         return photfilter
 
+    @staticmethod
+    def get_mask(hdul: fits.HDUList):
+        if 'BPM' in hdul:
+            return np.asarray(hdul['BPM'].data, dtype='bool')
+
+        logger.warning('LCOGT image does not contain bad pixel map. Not applying mask.')
+        return None
+
+
+def verify_coordinates(target_coords: Union[coords.SkyCoord, Tuple]) -> Optional[coords.SkyCoord]:
+    if target_coords is None:
+        return None
+    if isinstance(target_coords, coords.SkyCoord):
+        return target_coords
+    elif len(target_coords) == 2:
+        return coords.SkyCoord(ra=target_coords[0] * u.deg, dec=target_coords[1] * u.deg, frame='icrs')
+    return None
+
 
 class HAWKI(Instrument):
     siteid = 2  # Hard-coded the siteid for ESO Paranal, VLT, UT4
+    telescope = 'ESO-VLT-U4'  # Fits Header name of TELESCOP
+    instrument = 'HAWKI'  # Fits Header name of Instrument (can be partial)
+    origin = 'ESO-PARANAL'  # Fits Header value of ORIGIN (if relevant)
+    unique_headers = {'PRODCATG': 'SCIENCE.MEFIMAGE'}
 
     def __init__(self, image: FlowsImage = None):
         super().__init__(image)
@@ -277,28 +338,37 @@ class HAWKI(Instrument):
         else:
             raise RuntimeError("Image OB Type not AutoJitter or FixedOffset")
 
+    @staticmethod
+    def get_ext(hdul: fits.HDUList, target_coords: coords.SkyCoord = None,
+                fallback_extension: int = None) -> int:
+        target_coord = verify_coordinates(target_coords)
+        if target_coord is None:
+            raise ValueError("TARGET_COORD is needed for HAWKI images to find the correct extension")
 
-def get_image_extension(hdul: fits.HDUList, target_coord: coords.SkyCoord = None, fallback_extension: int = None):
-    # For HAWKI multi-extension images we search the extensions for which one contains
-    # the target, Create Image from that extension.
-    target_radec = [[target_coord.icrs.ra.deg, target_coord.icrs.dec.deg]]
+        # For HAWKI multi-extension images we search the extensions for which one contains
+        # the target, Create Image from that extension.
+        target_radec = [[target_coord.icrs.ra.deg, target_coord.icrs.dec.deg]]
 
-    for k in range(1, 5):
-        w = WCS(header=hdul[k].header, relax=True)
-        s = [hdul[k].header['NAXIS2'], hdul[k].header['NAXIS1']]
-        pix = w.all_world2pix(target_radec, 0).flatten()
-        if -0.5 <= pix[0] <= s[1] - 0.5 and -0.5 <= pix[1] <= s[0] - 0.5:
-            return k
-    if fallback_extension is not None:
-        return fallback_extension
-    else:
-        raise RuntimeError(f"Could not find image extension that target is on!")
+        for k in range(1, 5):
+            w = WCS(header=hdul[k].header, relax=True)
+            s = [hdul[k].header['NAXIS2'], hdul[k].header['NAXIS1']]
+            pix = w.all_world2pix(target_radec, 0).flatten()
+            if -0.5 <= pix[0] <= s[1] - 0.5 and -0.5 <= pix[1] <= s[0] - 0.5:
+                return k
+        if fallback_extension is not None:
+            return fallback_extension
+        else:
+            raise RuntimeError(f"Could not find image extension that target is on!")
+
 
 
 class ALFOSC(Instrument):
     # Obtained from http://www.not.iac.es/instruments/detectors/CCD14/LED-linearity/20181026-200-1x1.pdf
     peakmax = 80000  # For ALFOSC D, 1x1, 200; the standard for SNe.
     siteid = 5
+    telescope = "NOT"
+    instrument = "ALFOSC"
+    unique_headers = {"OBS_MODE": 'imaging'}
 
     def get_obstime(self):
         return Time(self.image.header['DATE-AVG'], format='isot', scale='utc',
@@ -332,6 +402,9 @@ class ALFOSC(Instrument):
 
 class NOTCAM(Instrument):
     siteid = 5
+    telescope = "NOT"
+    instrument = "NOTCAM"
+    unique_headers = {"OBS_MODE": 'imaging'}
 
     def get_obstime(self):
         return Time(self.image.header['DATE-AVG'], format='isot', scale='utc',
@@ -357,6 +430,7 @@ class NOTCAM(Instrument):
 
 class PS1(Instrument):
     siteid = 6
+    unique_headers = {'FPA.TELESCOPE': 'PS1', 'FPA.INSTRUMENT': 'GPC1'}
 
     def get_obstime(self):
         return Time(self.image.header['MJD-OBS'], format='mjd', scale='utc', location=self.image.site['EarthLocation'])
@@ -369,6 +443,7 @@ class PS1(Instrument):
 
 class Liverpool(Instrument):
     siteid = 8
+    telescope = 'Liverpool Telescope'
 
     def get_obstime(self):
         obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
@@ -385,6 +460,8 @@ class Liverpool(Instrument):
 
 class Omega2000(Instrument):
     siteid = 9
+    telescope = 'CA 3.5m'
+    instrument = 'Omega2000'
 
     def get_obstime(self):
         obstime = Time(self.image.header['MJD-OBS'], format='mjd', scale='utc',
@@ -395,11 +472,18 @@ class Omega2000(Instrument):
 
 class Swope(Instrument):
     siteid = 10
+    telescope = "SWO"
 
     def get_photfilter(self):
         photfilter = {'u': 'up', 'g': 'gp', 'r': 'rp', 'i': 'ip', }.get(self.image.header['FILTER'],
                                                                         self.image.header['FILTER'])
         return photfilter
+
+    @classmethod
+    def identifier(cls, telescope: str, origin: str, instrument: str, hdr: fits.header.Header) -> bool:
+        """Unique identifier"""
+        return telescope.upper().startswith(cls.telescope) and hdr.get('SITENAME') == 'LCO'
+
 
 class Swope_newheader(Swope):
 
@@ -409,9 +493,17 @@ class Swope_newheader(Swope):
         obstime += 0.5 * self.image.exptime * u.second
         return obstime
 
+    @classmethod
+    def identifier(cls, telescope: str, origin: str, instrument: str, hdr: fits.header.Header) -> bool:
+        """Unique identifier"""
+        return telescope.upper().startswith('SWO') and origin == 'ziggy'
+
 
 class Dupont(Instrument):
     siteid = 14
+    telescope = 'DUP'
+    instrument = 'Direct/SITe2K-1'
+    unique_headers = {'SITENAME': 'LCO'}
 
     def get_photfilter(self):
         photfilter = {'u': 'up', 'g': 'gp', 'r': 'rp', 'i': 'ip', }.get(self.image.header['FILTER'],
@@ -421,6 +513,8 @@ class Dupont(Instrument):
 
 class RetroCam(Instrument):
     siteid = 16
+    telescope = 'DUP'
+    instrument = 'RetroCam'
 
     def get_photfilter(self):
         photfilter = {'Yc': 'Y', 'Hc': 'H', 'Jo': 'J', }.get(self.image.header['FILTER'], self.image.header['FILTER'])
@@ -429,6 +523,9 @@ class RetroCam(Instrument):
 
 class Baade(Instrument):
     siteid = 11
+    telescope = 'Baade'
+    instrument = 'FourStar'
+    unique_headers = {'SITENAME': 'LCO'}
 
     def get_exptime(self):
         exptime = super().get_exptime()
@@ -442,6 +539,7 @@ class Baade(Instrument):
 
 class Sofi(Instrument):
     siteid = 12
+    instrument = 'SOFI'
 
     def get_obstime(self):
         if 'TMID' in self.image.header:
@@ -469,9 +567,15 @@ class Sofi(Instrument):
                 raise RuntimeError("Could not determine filter used.")
         return photfilter
 
+    @classmethod
+    def identifier(cls, telescope, origin, instrument, hdr):
+        return instrument == cls.instrument and telescope in ('ESO-NTT', 'other')
+
 
 class EFOSC(Instrument):
     siteid = 15
+    telescope = 'ESO-NTT'
+    instrument = 'EFOSC'
 
     def get_obstime(self):
         obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
@@ -488,9 +592,14 @@ class EFOSC(Instrument):
 
 class AstroNIRCam(Instrument):
     siteid = 13
+    telescope = 'SAI-2.5'
+    instrument = 'ASTRONIRCAM'
 
     def get_exptime(self):
-        return self.image.header.get('FULL_EXP', super().get_exptime())
+        exptime = self.image.header.get('FULL_EXP', None)
+        if exptime is not None:
+            return exptime
+        return super().get_exptime()
 
     def get_obstime(self):
         hdr = self.image.header
@@ -508,6 +617,7 @@ class AstroNIRCam(Instrument):
 
 class OmegaCam(Instrument):
     siteid = 18  # Hard-coded the siteid for ESO VLT Survey telescope
+    instrument = 'OMEGACAM'
 
     def get_obstime(self):
         obstime = Time(self.image.header['MJD-OBS'], format='mjd', scale='utc',
@@ -523,6 +633,8 @@ class OmegaCam(Instrument):
 
 class AndiCam(Instrument):
     siteid = 20  # Hard-coded the siteid for ANDICAM at Cerro Tololo Interamerican Observatory (CTIO)
+    instrument = 'ANDICAM-CCD'
+    unique_headers = {'OBSERVAT': 'CTIO'}
 
     def get_obstime(self):
         obstime = super().get_obstime()
@@ -535,6 +647,8 @@ class AndiCam(Instrument):
 
 class PairTel(Instrument):
     siteid = 21
+    telescope = "1.3m PAIRITEL"
+    instrument = "2MASS Survey cam"
 
     def get_obstime(self):
         hdr = self.image.header
@@ -549,8 +663,22 @@ class PairTel(Instrument):
         return photfilter
 
 
-class TJO(Instrument):
+class TJO_MEIA2(Instrument):
     siteid = 22
+    telescope = 'TJO'
+    instrument = 'MEIA2'
+
+
+    def get_obstime(self):
+        obstime = super().get_obstime()
+        obstime += 0.5 * self.image.exptime * u.second
+        return obstime
+
+
+class TJO_MEIA3(Instrument):
+    siteid = 22
+    telescope = 'TJO'
+    instrument = 'MEIA3'
 
     def get_obstime(self):
         obstime = super().get_obstime()
@@ -560,6 +688,7 @@ class TJO(Instrument):
 
 class RATIR(Instrument):
     siteid = 23
+    telescope = "OAN/SPM Harold L. Johnson 1.5-meter"
 
     def get_obstime(self):
         obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
@@ -576,6 +705,8 @@ class RATIR(Instrument):
 class AFOSC(Instrument):
     siteid = 25
     peakmax = 50_000
+    telescope: '1.82m Reflector'  # Fits Header name of TELESCOP
+    instrument: 'AFOSC'  # Fits Header name of Instrument (can be partial)
 
     def get_obstime(self):
         obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
@@ -597,16 +728,16 @@ class AFOSC(Instrument):
 
         raise ValueError(f"Could not find filter {filt} in {[f for f in FILTERS.keys()]}")
 
-    @staticmethod
-    def identifier(telescope: str, origin: str, instrument: str, header: fits.header.Header):
-        """Unique identifier"""
-        return "1.82m Reflector" in telescope and "AFOSC" in instrument
-
-
 
 class Schmidt(Instrument):
     siteid = 26
     peakmax = 56_000
+    telescope: '67/91 Schmidt Telescope'  # Fits Header name of TELESCOP
+    instrument: 'Moravian G4-16000LC'  # Fits Header name of Instrument (can be partial)
+    origin: ''  # Fits Header value of ORIGIN (if relevant)
+    unique_headers = {
+        'SITELAT': 45.8494444
+    }  # Unique key value pairs from header for identifying instrument.
 
     def get_obstime(self):
         obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
@@ -626,19 +757,13 @@ class Schmidt(Instrument):
 
         raise ValueError(f"Could not find filter {filt} in {[f for f in FILTERS.keys()]}")
 
-    @staticmethod
-    def identifier(telescope: str, origin: str, instrument: str, header: fits.header.Header):
-        """Unique identifier"""
-        return "Schmidt Telescope" in telescope \
-               and "Moravian" in instrument \
-               and np.round(header.get("SITELAT"), 2) == 45.85
 
 
 instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
                'Omega2000': Omega2000, 'Swope': Swope, 'Swope_newheader':Swope_newheader, 'Dupont': Dupont, 'Retrocam':
                    RetroCam, 'Baade': Baade,
                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
-               'PairTel': PairTel, 'TJO': TJO, 'RATIR': RATIR, "Schmidt": Schmidt, "AFOSC": AFOSC}
+               'PairTel': PairTel, 'TJO_Meia2': TJO_MEIA2, 'TJO_Meia3': TJO_MEIA3, 'RATIR': RATIR, "Schmidt": Schmidt, "AFOSC": AFOSC}
 
 
 def correct_barycentric(obstime: Time, target_coord: coords.SkyCoord) -> Time:
@@ -670,9 +795,7 @@ def load_image(filename: str, target_coord: typing.Union[coords.SkyCoord, typing
         FlowsImage: instance of FlowsImage with values populated based on instrument.
 
     """
-    ext = 0  # Default extension in HDUList, individual instruments may override this.
-    mask = None  # Instrument can override, default is to only mask all non-finite values, override is additive.
-
+    ext = 0  # Default extension is  0, individual instruments may override this.
     # Read fits image, Structural Pattern Match to specific instrument.
     with fits.open(filename, mode='readonly') as hdul:
         hdr = hdul[ext].header
@@ -680,124 +803,19 @@ def load_image(filename: str, target_coord: typing.Union[coords.SkyCoord, typing
         telescope = hdr.get('TELESCOP', '')
         instrument = hdr.get('INSTRUME', '')
 
-        instrument_name = None
-        # Pattern matching begins here, ideally we use 3.10 pattern matching, or a dictionary lookup.
-        while instrument_name is None:
-            # LCOGT
-            if origin == "LCOGT":
-                instrument_name = LCOGT()
-                if 'BPM' in hdul:
-                    mask = np.asarray(hdul['BPM'].data, dtype='bool')
-                else:
-                    logger.warning('LCOGT image does not contain bad pixel map. Not applying mask.')
-                break
-            # HAWKI
-            elif origin == 'ESO-PARANAL' and telescope == 'ESO-VLT-U4' and instrument == 'HAWKI' and hdr.get(
-                    'PRODCATG') == 'SCIENCE.MEFIMAGE':
-                instrument_name = HAWKI()
+        for name, inst_cls in instruments.items():
+            if inst_cls.identifier(telescope, origin, instrument, hdr):
+                ext = inst_cls.get_ext(hdul, target_coord)
+                mask = inst_cls.get_mask(hdul)
+                # Default = None is to only mask all non-finite values, override here is additive.
 
-                if target_coord is None:
-                    raise ValueError("TARGET_COORD is needed for HAWKI images to find the correct extension")
-                if not isinstance(target_coord, coords.SkyCoord):
-                    if len(target_coord) == 2:
-                        target_coord = coords.SkyCoord(ra=target_coord[0] * u.deg, dec=target_coord[1] * u.deg,
-                                                       frame='icrs')
-                    else:
-                        raise ValueError("TARGET_COORD is needed for HAWKI images to find the correct extension")
-                ext = get_image_extension(hdul, target_coord)  # Find the one with the SN in it.
-                hdr = hdul[ext].header + hdul[0].header
-                break
+                image = FlowsImage(image=np.asarray(hdul[ext].data, dtype='float64'),
+                                   header=hdr, mask=mask)
+                current_instrument = inst_cls(image)
+                clean_image = current_instrument.process_image()
+                if target_coord is not None:
+                    clean_image.obstime = correct_barycentric(clean_image.obstime, target_coord)
+                return clean_image
 
-            # NOT - ALFOSC
-            elif telescope == 'NOT' and instrument in ('ALFOSC FASU', 'ALFOSC_FASU') \
-                    and hdr.get('OBS_MODE', '').lower() == 'imaging':
-                instrument_name = ALFOSC()
-                break
+        raise RuntimeError("Could not determine origin of image")
 
-            elif telescope == 'NOT' and instrument == 'NOTCAM' and hdr.get('OBS_MODE', '').lower() == 'imaging':
-                instrument_name = NOTCAM()
-                break
-
-            elif hdr.get('FPA.TELESCOPE') == 'PS1' and hdr.get('FPA.INSTRUMENT') == 'GPC1':
-                instrument_name = PS1()
-                break
-
-            elif telescope == 'Liverpool Telescope':
-                instrument_name = Liverpool()
-                break
-
-            elif telescope == 'CA 3.5m' and instrument == 'Omega2000':
-                instrument_name = Omega2000()
-                break
-
-            elif telescope.upper().startswith('SWO') and hdr.get('SITENAME') == 'LCO':
-                instrument_name = Swope()
-                break
-
-            elif telescope.upper().startswith('SWO') and origin == 'ziggy':
-                instrument_name = Swope_newheader()
-                break
-
-            elif telescope == 'DUP' and hdr.get('SITENAME') == 'LCO' and instrument == 'Direct/SITe2K-1':
-                instrument_name = Dupont()
-                break
-
-            elif telescope == 'DUP' and instrument == 'RetroCam':
-                instrument_name = RetroCam()
-                break
-
-            elif telescope == 'Baade' and hdr.get('SITENAME') == 'LCO' and instrument == 'FourStar':
-                instrument_name = Baade()
-                break
-
-            elif instrument == 'SOFI' and telescope in ('ESO-NTT', 'other') and (
-                    origin == 'ESO' or origin.startswith('NOAO-IRAF')):
-                instrument_name = Sofi()
-                break
-
-            elif telescope == 'ESO-NTT' and instrument == 'EFOSC' and (
-                    origin == 'ESO' or origin.startswith('NOAO-IRAF')):
-                instrument_name = EFOSC()
-                break
-
-            elif telescope == 'SAI-2.5' and instrument == 'ASTRONIRCAM':
-                instrument_name = AstroNIRCam()
-                break
-
-            elif instrument == 'OMEGACAM' and (origin == 'ESO' or origin.startswith('NOAO-IRAF')):
-                instrument_name = OmegaCam()
-                break
-
-            elif instrument == 'ANDICAM-CCD' and hdr.get('OBSERVAT') == 'CTIO':
-                instrument_name = AndiCam()
-                break
-
-            elif telescope == '1.3m PAIRITEL' and instrument == '2MASS Survey cam':
-                instrument_name = PairTel()
-                break
-
-            elif (origin == 'OAdM' or origin.startswith('NOAO-IRAF')) and telescope == 'TJO' and instrument in (
-                    'MEIA3', 'MEIA2'):
-                instrument_name = TJO()
-                break
-
-            elif telescope == "OAN/SPM Harold L. Johnson 1.5-meter":
-                instrument_name = RATIR()
-                break
-
-            elif AFOSC.identifier(telescope, origin, instrument, hdr):
-                instrument_name = AFOSC()
-                break
-
-            elif Schmidt.identifier(telescope, origin, instrument, hdr):
-                instrument_name = Schmidt()
-
-            else:
-                raise RuntimeError("Could not determine origin of image")
-
-        image = FlowsImage(image=np.asarray(hdul[ext].data, dtype='float64'), header=hdr, mask=mask)
-        clean_image = instrument_name.process_image(image)
-
-        if target_coord is not None:
-            clean_image.obstime = correct_barycentric(clean_image.obstime, target_coord)
-        return clean_image
