@@ -26,7 +26,7 @@ from bottleneck import nanmedian, nansum, nanmean, replace
 from scipy.spatial import KDTree
 import pandas as pd  # TODO: Convert to pure numpy implementation
 import sep
-from flows.load_image import FlowsImage
+from .image import FlowsImage
 from numpy.typing import ArrayLike
 from .target import Target
 

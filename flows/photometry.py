@@ -39,14 +39,14 @@ from photutils.utils import calc_total_error  # noqa: E402
 from . import reference_cleaning as refclean  # noqa: E402
 from .plots import plt, plot_image  # noqa: E402
 from .version import get_version  # noqa: E402
-from .load_image import load_image, FlowsImage  # noqa: E402
+from .load_image import load_image  # noqa: E402
+from .image import FlowsImage # noqa: E402
 from .coordinatematch import CoordinateMatch, WCS2  # noqa: E402
 from .epsfbuilder import FlowsEPSFBuilder, verify_epsf  # noqa: E402
 from .fileio import DirectoryProtocol, Directories  # noqa: E402
 from .filters import get_reference_filter  # noqa: E402
 from .target import Target  # noqa: E402
 
-# @TODO: refactor load_image to separate modules.
 __version__ = get_version(pep440=False)
 logger = logging.getLogger(__name__)
 
