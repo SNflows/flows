@@ -94,15 +94,15 @@ def use_sep(image: FlowsImage, tries: int = 5, thresh: float = 5.):
     try:
         objects = sep.extract(image.image - sep_background, thresh=thresh, err=sep_background.globalrms,
                               mask=image.mask, deblend_cont=0.1, minarea=9, clean_param=2.0)
-    except KeyboardInterrupt:
-        raise
-    except Exception:
+    except KeyboardInterrupt as e:
+        raise e
+    except Exception as e:
         logger.warning("SEP failed, trying again...")
         if tries > 0:
             thresh += 3
             return use_sep(image, tries - 1, thresh * 2)
         else:
-            raise
+            raise e
     return References(table=objects)
 
 
