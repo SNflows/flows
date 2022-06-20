@@ -6,7 +6,7 @@ Clean bad source extraction, find and correct WCS.
 .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
-from typing import Dict, Optional, TypeVar, Tuple, Any, List
+from typing import Dict, Optional, TypeVar, Tuple
 from dataclasses import dataclass
 import warnings
 import logging
@@ -19,7 +19,6 @@ from astropy.stats import sigma_clip, gaussian_fwhm_to_sigma
 from astropy.modeling import models, fitting
 from astropy.time import Time
 from astropy.utils.exceptions import ErfaWarning
-from astropy.utils import lazyproperty
 import astropy.units as u
 from astropy.table import Table
 from copy import deepcopy
@@ -33,7 +32,7 @@ from .target import Target
 
 logger = logging.getLogger(__name__)
 
-RefTable = TypeVar('Reference_Table', Dict, ArrayLike, Table)
+RefTable = TypeVar('RefTable', Dict, ArrayLike, Table)
 
 
 class MinStarError(RuntimeError):
@@ -310,6 +309,7 @@ def min_to_max_astroalign(source, target, fwhm=5, fwhm_min=1, fwhm_max=4, knn_mi
     pixeltols = np.linspace(int(fwhm * fwhm_min), int(fwhm * fwhm_max), 4, dtype=int)
     nearest_neighbors = np.linspace(knn_min, min(knn_max, nstars), 4, dtype=int)
 
+    success = False
     for max_stars_n in max_stars_list:
         for pixeltol in pixeltols:
             for nnearest in nearest_neighbors:

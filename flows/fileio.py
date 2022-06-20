@@ -53,7 +53,7 @@ class Directories:
         os.makedirs(self.output_folder, exist_ok=True)
         logger.info("Placing output in '%s'", self.output_folder)
 
-    def _set_archive(self) -> str:
+    def _set_archive(self) -> Optional[str]:
         archive_local = self.config.get('photometry', 'archive_local', fallback=None)
         if archive_local is not None and not os.path.isdir(archive_local):
             raise FileNotFoundError("ARCHIVE is not available: " + archive_local)

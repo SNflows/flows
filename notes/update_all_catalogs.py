@@ -5,11 +5,11 @@ import logging
 import sys
 import os.path
 import tqdm
-from astropy.coordinates import SkyCoord
 
 if os.path.abspath('..') not in sys.path:
     sys.path.insert(0, os.path.abspath('..'))
 import flows
+from tendrils import api
 
 
 # --------------------------------------------------------------------------------------------------
@@ -42,7 +42,7 @@ if __name__ == '__main__':
 
     # Do it by status, just to prioritize things a bit:
     for tgtstatus in ('target', 'candidate', 'rejected'):
-        targetids = sorted([tgt['targetid'] for tgt in flows.api.get_targets() if tgt['target_status'] == tgtstatus])[
+        targetids = sorted([tgt['targetid'] for tgt in api.get_targets() if tgt['target_status'] == tgtstatus])[
                     ::-1]
 
         for targetid in tqdm.tqdm(targetids, desc=tgtstatus):

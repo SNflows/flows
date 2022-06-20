@@ -44,6 +44,7 @@ def bootstrap_outlier(x, y, yerr, n=500, model='None', fitter='None', outlier='N
     bootinds = bootstraps.astype(int)
 
     # Prepare fitter
+    fitter = fitting.LinearLSQFitter if fitter == "None" else fitter
     fitter_instance = fitting.FittingWithOutlierRemoval(fitter(), outlier, **outlier_kwargs)
     # Fit each bootstrap with model and fitter using outlier rejection at each step.
     # Then obtain summary statistic for each parameter in parnames

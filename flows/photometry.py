@@ -327,6 +327,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
 
     # Difference image photometry:
     diffimage_df = datafile.get('diffimg', None)
+    diffimage = None
     if diffimage_df:
         diffimage_path = diffimage_df.get('path', None)
         logger.info("Found diffimg: %s, running difference photometry.", diffimage_path)
@@ -425,7 +426,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
         del ax, ax1, ax2, ax3, ax4
 
         # Create two plots of the difference image:
-        if diffimage_df is not None:
+        if diffimage_df is not None and diffimage is not None:
             fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
             plot_image(diffimage.clean, ax=ax, cbar='right', title=target.name)
             ax.plot(target.pixel_column, target.pixel_row, marker='+', markersize=20, color='r')

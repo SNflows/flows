@@ -119,6 +119,7 @@ def plot_image(image, ax=None, scale='log', cmap=None, origin='lower', xlabel=No
 
     # Backward compatible settings:
     make_cbar = kwargs.pop('make_cbar', None)
+    # noinspection PyUnreachableCode
     if make_cbar:
         raise FutureWarning("'make_cbar' is deprecated. Use 'cbar' instead.")
         if not cbar:
