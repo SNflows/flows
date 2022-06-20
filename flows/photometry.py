@@ -246,13 +246,15 @@ def apphot(coordinates: ArrayLike, image: FlowsImage, fwhm: float, use_raw: bool
     return calculate_appflux(apphot_tbl, apertures, annuli)
 
 
-def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = True):
+def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = True,
+            directories: Optional[DirectoryProtocol] = None):
     # TODO: Timer should be moved out of this function.
     tic = default_timer()
 
     # Load config and set up directories
-    config = load_config()
-    directories = Directories(config)
+    if directories is None:
+        config = load_config()
+        directories = Directories(config)
 
     # Query API for datafile and catalogs
     datafile = get_datafile(fileid)
@@ -325,6 +327,16 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
                                         fitter=fitting.LevMarLSQFitter(), fitshape=phot.star_size, aperture_radius=fwhm)
     psfphot_tbl = photometry_obj(image=image.subclean, init_guesses=Table(clean_references.xy, names=['x_0', 'y_0']))
 
+    # Trial smaller fitshape for better error.
+    fitshape_small = int(1.5*phot.fwhm)
+    fitshape_small = fitshape_small+1 if (fitshape_small % 2) == 0 else fitshape_small
+    logger.info(f" initial: {phot.star_size}, small: {fitshape_small}, fwhm:{phot.fwhm}")
+    photometry_obj_small = BasicPSFPhotometry(group_maker=DAOGroup(fwhm), bkg_estimator=MedianBackground(),
+                                              psf_model=epsf, fitter=fitting.LevMarLSQFitter(),
+                                              fitshape=fitshape_small, aperture_radius=fwhm)
+    psfphot_tbl_small = photometry_obj_small(image=image.subclean, init_guesses=Table(clean_references.xy, names=['x_0', 'y_0']))
+
+
     # Difference image photometry:
     diffimage_df = datafile.get('diffimg', None)
     diffimage = None
@@ -338,6 +350,8 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
         diff_apphot_tbl = apphot(clean_references.xy[0], diffimage, fwhm, use_raw=True)
         diff_psfphot_tbl = photometry_obj(image=diffimage.clean, init_guesses=Table(clean_references.xy[0],
                                                                                     names=['x_0', 'y_0']))
+        diff_psfphot_tbl_small = photometry_obj_small(image=diffimage.clean, init_guesses=Table(clean_references.xy[0],
+                                                                                    names=['x_0', 'y_0']))
 
         # Store the difference image photometry on row 0 of the table.
         # This pushes the un-subtracted target photometry to row 1.
@@ -345,43 +359,59 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
         psfphot_tbl.insert_row(0, dict(diff_psfphot_tbl[0]))
         apphot_tbl.insert_row(0, dict(diff_apphot_tbl[0]))
 
+        # Small
+        psfphot_tbl_small.insert_row(0, dict(diff_psfphot_tbl_small[0]))
 
     # TODO: This should be moved to the photometry manager.
     # Build results table:
     results_table = ResultsTable.make_results_table(clean_references.table, apphot_tbl, psfphot_tbl, image)
+    results_table_small = ResultsTable.make_results_table(clean_references.table, apphot_tbl, psfphot_tbl_small, image)
 
     # Todo: refactor.
     # Get instrumental magnitude (currently we do too much here).
     results_table, (mag_fig, mag_ax) = instrumental_mag(results_table, target)
+    results_table_small, (_, _) = instrumental_mag(results_table_small, target)
 
-    # Add metadata to the results table:
-    results_table.meta['fileid'] = fileid
-    results_table.meta['target_name'] = target.name
-    results_table.meta['version'] = __version__
-    results_table.meta['template'] = None if datafile.get('template') is None else datafile['template']['fileid']
-    results_table.meta['diffimg'] = None if datafile.get('diffimg') is None else datafile['diffimg']['fileid']
-    results_table.meta['photfilter'] = target.photfilter
-    results_table.meta['fwhm'] = fwhm * u.pixel
-    # Find the pixel-scale of the science image
-    pixel_area = proj_plane_pixel_area(image.wcs.celestial)
-    pixel_scale = np.sqrt(pixel_area) * 3600  # arcsec/pixel
-    logger.info("Science image pixel scale: %f", pixel_scale)
-    # Keep adding metadata now that we have the pixel scale.
-    results_table.meta['pixel_scale'] = pixel_scale * u.arcsec / u.pixel
-    results_table.meta['seeing'] = (fwhm * pixel_scale) * u.arcsec
-    results_table.meta['obstime-bmjd'] = float(image.obstime.mjd)
-    results_table.meta['used_wcs'] = str(image.wcs)
+
+    def supplement_results_table(_results_table):
+        # Add metadata to the results table:
+        _results_table.meta['fileid'] = fileid
+        _results_table.meta['target_name'] = target.name
+        _results_table.meta['version'] = __version__
+        _results_table.meta['template'] = None if datafile.get('template') is None else datafile['template']['fileid']
+        _results_table.meta['diffimg'] = None if datafile.get('diffimg') is None else datafile['diffimg']['fileid']
+        _results_table.meta['photfilter'] = target.photfilter
+        _results_table.meta['fwhm'] = fwhm * u.pixel
+        # Find the pixel-scale of the science image
+        pixel_area = proj_plane_pixel_area(image.wcs.celestial)
+        pixel_scale = np.sqrt(pixel_area) * 3600  # arcsec/pixel
+        logger.info("Science image pixel scale: %f", pixel_scale)
+        # Keep adding metadata now that we have the pixel scale.
+        _results_table.meta['pixel_scale'] = pixel_scale * u.arcsec / u.pixel
+        _results_table.meta['seeing'] = (fwhm * pixel_scale) * u.arcsec
+        _results_table.meta['obstime-bmjd'] = float(image.obstime.mjd)
+        _results_table.meta['used_wcs'] = str(image.wcs)
+        return _results_table
+
+    results_table = supplement_results_table(results_table)
+    results_table_small = supplement_results_table(results_table_small)
+
+
+
 
     # Save the results table:
     # TODO: Photometry should RETURN a table, not save it.
     # TODO: Saving should be offloaded to the caller or to a parameter at least.
     results_table.write(directories.photometry_path, format='ascii.ecsv', delimiter=',', overwrite=True)
+    results_table_small.write(f"{directories.photometry_path[:-5]}_small.ecsv", format='ascii.ecsv', delimiter=',',
+                              overwrite=True)
 
     # Log result and time taken:
     # TODO: This should be logged by the calling function.
     logger.info("------------------------------------------------------")
     logger.info("Success!")
     logger.info("Main target: %f +/- %f", results_table[0]['mag'], results_table[0]['mag_error'])
+    logger.info("Main target small: %f +/- %f", results_table_small[0]['mag'], results_table_small[0]['mag_error'])
     logger.info("Photometry took: %.1f seconds", default_timer() - tic)
 
     # Plotting. TODO: refactor.

@@ -20,6 +20,9 @@ class DirectoryProtocol(Protocol):
     def photometry_path(self) -> str:
         ...
 
+    def save_as(self, filename: str) -> str:
+        ...
+
 
 class Directories:
     """
@@ -78,3 +81,30 @@ class Directories:
 
     def save_as(self, filename: str) -> str:
         return os.path.join(self.output_folder, filename)
+
+
+class DirectoriesDuringTest:
+    """
+    Directory class in testing config.
+    """
+    archive_local = None
+    output_folder = None
+    def __init__(self, input_dir, output_dir):
+        self.input_dir = input_dir
+        self.output_dir = output_dir
+
+    def set_output_dirs(self, target_name: str, fileid: int) -> None:
+        self.output_folder = os.path.join(self.output_dir, target_name, f'{fileid:05d}')
+        os.makedirs(self.output_folder, exist_ok=True)
+
+    def image_path(self, image_path: str) -> str:
+        return os.path.join(self.input_dir+image_path)
+
+    @property
+    def photometry_path(self) -> str:
+        return os.path.join(self.output_folder, 'photometry.ecsv')
+
+    def save_as(self, filename: str) -> str:
+        return os.path.join(self.output_folder, filename)
+
+
