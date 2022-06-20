@@ -586,7 +586,7 @@ class AFOSC(Instrument):
     def get_photfilter(self):
         filt = self.image.header['FILTER']
 
-        if "sloan" in filt:
+        if "sloan" in filt.lower():
             return filt[0]+'p'  # Return gp,rp,ip,zp for g-sloan, etc.
         elif filt in FILTERS.keys():
             return filt
@@ -617,7 +617,7 @@ class Schmidt(Instrument):
     def get_photfilter(self):
         filt = self.image.header['FILTER']
 
-        if "sloan" in filt:
+        if "sloan" in filt.lower():
             return filt[0]+'p'  # Return gp,rp,ip,zp for g-sloan, etc.
         elif filt in FILTERS.keys():
             return filt
