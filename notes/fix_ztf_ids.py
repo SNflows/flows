@@ -9,11 +9,12 @@ from astropy.coordinates import SkyCoord
 if os.path.abspath('..') not in sys.path:
     sys.path.insert(0, os.path.abspath('..'))
 import flows
+from tendrils import api
 
 # --------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
     with flows.aadc_db.AADC_DB() as db:
-        for target in tqdm(flows.api.get_targets()):
+        for target in tqdm(api.get_targets()):
             if target['target_status'] == 'rejected':
                 continue
 

@@ -18,7 +18,9 @@ if sys.path[0] != os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 
 # --------------------------------------------------------------------------------------------------
-def capture_cli(script, params=[], mpiexec=False):
+def capture_cli(script, params=None, mpiexec=False):
+    if params == None:
+        params = []
     if isinstance(params, str):
         params = shlex.split(params)
 

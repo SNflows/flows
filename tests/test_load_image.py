@@ -4,13 +4,12 @@ Test loading of images.
 
 import pytest
 import numpy as np
-from astropy.time import Time
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 import os.path
 import conftest  # noqa: F401
 from tendrils import api
-from flows.load_image import load_image, FlowsImage, instruments
+from flows.load_image import load_image
 
 # Get list of all available filters:
 ALL_FILTERS = set(api.get_filters().keys())
@@ -50,15 +49,5 @@ def test_load_image(fpath, siteid):
     assert img.photfilter in ALL_FILTERS
 
 
-def test_instruments():
-    for instrument_name, instrument_class in instruments.items():
-        instrument = instrument_class()
-        # get site:
-        site = api.get_site(instrument.siteid)
-
-    assert site['siteid'] == instrument.siteid
-
-
-# --------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
     pytest.main([__file__])

@@ -39,14 +39,14 @@ from photutils.utils import calc_total_error  # noqa: E402
 from . import reference_cleaning as refclean  # noqa: E402
 from .plots import plt, plot_image  # noqa: E402
 from .version import get_version  # noqa: E402
-from .load_image import load_image, FlowsImage  # noqa: E402
+from .load_image import load_image  # noqa: E402
+from .image import FlowsImage # noqa: E402
 from .coordinatematch import CoordinateMatch, WCS2  # noqa: E402
 from .epsfbuilder import FlowsEPSFBuilder, verify_epsf  # noqa: E402
 from .fileio import DirectoryProtocol, Directories  # noqa: E402
 from .filters import get_reference_filter  # noqa: E402
 from .target import Target  # noqa: E402
 
-# @TODO: refactor load_image to separate modules.
 __version__ = get_version(pep440=False)
 logger = logging.getLogger(__name__)
 
@@ -327,6 +327,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
 
     # Difference image photometry:
     diffimage_df = datafile.get('diffimg', None)
+    diffimage = None
     if diffimage_df:
         diffimage_path = diffimage_df.get('path', None)
         logger.info("Found diffimg: %s, running difference photometry.", diffimage_path)
@@ -425,7 +426,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
         del ax, ax1, ax2, ax3, ax4
 
         # Create two plots of the difference image:
-        if diffimage_df is not None:
+        if diffimage_df is not None and diffimage is not None:
             fig, ax = plt.subplots(1, 1, squeeze=True, figsize=(20, 20))
             plot_image(diffimage.clean, ax=ax, cbar='right', title=target.name)
             ax.plot(target.pixel_column, target.pixel_row, marker='+', markersize=20, color='r')

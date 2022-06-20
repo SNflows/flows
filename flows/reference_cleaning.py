@@ -6,7 +6,7 @@ Clean bad source extraction, find and correct WCS.
 .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
-from typing import Dict, Optional, TypeVar, Tuple, Any, List
+from typing import Dict, Optional, TypeVar, Tuple
 from dataclasses import dataclass
 import warnings
 import logging
@@ -19,7 +19,6 @@ from astropy.stats import sigma_clip, gaussian_fwhm_to_sigma
 from astropy.modeling import models, fitting
 from astropy.time import Time
 from astropy.utils.exceptions import ErfaWarning
-from astropy.utils import lazyproperty
 import astropy.units as u
 from astropy.table import Table
 from copy import deepcopy
@@ -27,13 +26,13 @@ from bottleneck import nanmedian, nansum, nanmean, replace
 from scipy.spatial import KDTree
 import pandas as pd  # TODO: Convert to pure numpy implementation
 import sep
-from flows.load_image import FlowsImage
+from .image import FlowsImage
 from numpy.typing import ArrayLike
 from .target import Target
 
 logger = logging.getLogger(__name__)
 
-RefTable = TypeVar('Reference_Table', Dict, ArrayLike, Table)
+RefTable = TypeVar('RefTable', Dict, ArrayLike, Table)
 
 
 class MinStarError(RuntimeError):
@@ -95,15 +94,15 @@ def use_sep(image: FlowsImage, tries: int = 5, thresh: float = 5.):
     try:
         objects = sep.extract(image.image - sep_background, thresh=thresh, err=sep_background.globalrms,
                               mask=image.mask, deblend_cont=0.1, minarea=9, clean_param=2.0)
-    except KeyboardInterrupt:
-        raise
-    except Exception:
+    except KeyboardInterrupt as e:
+        raise e
+    except Exception as e:
         logger.warning("SEP failed, trying again...")
         if tries > 0:
             thresh += 3
             return use_sep(image, tries - 1, thresh * 2)
         else:
-            raise
+            raise e
     return References(table=objects)
 
 
@@ -310,6 +309,7 @@ def min_to_max_astroalign(source, target, fwhm=5, fwhm_min=1, fwhm_max=4, knn_mi
     pixeltols = np.linspace(int(fwhm * fwhm_min), int(fwhm * fwhm_max), 4, dtype=int)
     nearest_neighbors = np.linspace(knn_min, min(knn_max, nstars), 4, dtype=int)
 
+    success = False
     for max_stars_n in max_stars_list:
         for pixeltol in pixeltols:
             for nnearest in nearest_neighbors:

@@ -1,6 +1,6 @@
 from astropy.table import Table
 import astropy.units as u
-from .load_image import FlowsImage
+from .image import FlowsImage
 
 
 class ResultsTable(Table):

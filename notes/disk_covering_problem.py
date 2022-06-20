@@ -8,9 +8,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from astropy.coordinates import SkyCoord, SkyOffsetFrame
+from astropy.coordinates import SkyCoord
 from matplotlib.patches import Circle
-import astropy.units as u
 
 # --------------------------------------------------------------------------------------------------
 if __name__ == '__main__':
