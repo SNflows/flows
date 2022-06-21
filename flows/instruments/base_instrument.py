@@ -13,8 +13,8 @@ from astropy.time import Time
 # First party
 from tendrils import api
 from flows.image import FlowsImage, InstrumentDefaults
-
-logger = logging.getLogger(__name__)  # Singleton logger instance
+from flows.utilities import create_logger
+logger = create_logger()
 
 
 class AbstractInstrument(ABC):

@@ -12,14 +12,17 @@ import multiprocessing
 import tqdm
 from tendrils import api, utils
 from flows import photometry
-
+from flows.utilities import create_logger
 
 def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False, keep_diff_fixed=False,
                    cm_timeout=None):
-    logger = logging.getLogger('flows')
+    #process = multiprocessing.current_process()
+    #process.name = str(fid)
+    #logger = logging.getLogger('flows')
+    logger = create_logger(str(fid))
     logging.captureWarnings(True)
     logger_warn = logging.getLogger('py.warnings')
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s -%(module)s - %(message)s', "%Y-%m-%d %H:%M:%S")
 
     datafile = api.get_datafile(fid)
     target_name = datafile['target_name']
@@ -116,16 +119,6 @@ def main():
     if threads <= 0:
         threads = multiprocessing.cpu_count()
 
-    # Setup logging:
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', "%Y-%m-%d %H:%M:%S")
-    console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(formatter)
-    logger = logging.getLogger('flows')
-    if not logger.hasHandlers():
-        logger.addHandler(console)
-    logger.propagate = False
-    logger.setLevel(logging_level)
-
     # If we have started a new processing, perform a cleanup of the
     # photometry status indicator. This will change all processes
     # still marked as "running" to "abort" if they have been running
@@ -158,21 +151,23 @@ def main():
                                                keep_diff_fixed=args.fixposdiff, cm_timeout=args.wcstimeout)
 
     if threads > 1:
-        # Disable printing info messages from the parent function.
-        # It is going to be all jumbled up anyway.
-        if not args.debug:
-            logger.setLevel(logging.WARNING)  # Don't silence if debugging.
-
+        # Setup logging:
+        logger = create_logger()
+        logger.setLevel(logging_level)
         # There is more than one area to process, so let's start
         # a process pool and process them in parallel:
         with multiprocessing.Pool(threads) as pool:
             for result in tqdm.tqdm(pool.imap_unordered(process_fileid_wrapper, fileids), total=len(fileids)):
+                logger.info(f'finished:{result}')
                 # We can do something with the partial results here (like calculate color terms!).
                 pass
 
     else:
         # Only single thread so simply run it directly:
         for fid in fileids:
+            # Setup logging:
+            logger = create_logger(str(fid))
+            logger.setLevel(logging_level)
             logger.info("=" * 72)
             logger.info(fid)
             logger.info("=" * 72)

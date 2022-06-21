@@ -46,9 +46,11 @@ from .epsfbuilder import FlowsEPSFBuilder, verify_epsf  # noqa: E402
 from .fileio import DirectoryProtocol, Directories  # noqa: E402
 from .filters import get_reference_filter  # noqa: E402
 from .target import Target  # noqa: E402
+from .utilities import create_logger
 
 __version__ = get_version(pep440=False)
-logger = logging.getLogger(__name__)
+logger = create_logger()
+
 
 
 def get_datafile(fileid: int) -> Dict:

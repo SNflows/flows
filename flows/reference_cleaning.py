@@ -9,7 +9,6 @@ Clean bad source extraction, find and correct WCS.
 from typing import Dict, Optional, TypeVar, Tuple
 from dataclasses import dataclass
 import warnings
-import logging
 
 import numpy as np
 import astroalign as aa
@@ -29,8 +28,8 @@ import sep
 from .image import FlowsImage
 from numpy.typing import ArrayLike
 from .target import Target
-
-logger = logging.getLogger(__name__)
+from .utilities import create_logger
+logger = create_logger()
 
 RefTable = TypeVar('RefTable', Dict, ArrayLike, Table)
 
