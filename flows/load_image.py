@@ -39,7 +39,6 @@ def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, 
 
         for inst_name, inst_cls in INSTRUMENTS:
             if inst_cls.identifier(telescope, origin, instrument, hdr):
-                print(inst_name, telescope, instrument, inst_cls.identifier(telescope, origin, instrument, hdr))
                 logger.info(f"Image is using instrument {inst_name}")
                 ext = inst_cls.get_ext(hdul, target_coord)
                 mask = inst_cls.get_mask(hdul)
@@ -53,7 +52,7 @@ def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, 
                     clean_image.obstime = correct_barycentric(clean_image.obstime, target_coord)
                 return clean_image
 
-        raise RuntimeError("Could not determine origin of image")
+        raise RuntimeError(f"Could not determine origin of image: {filename}")
 
 def correct_barycentric(obstime: Time, target_coord: coords.SkyCoord) -> Time:
     """
