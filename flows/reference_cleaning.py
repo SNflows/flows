@@ -145,6 +145,7 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
     fwhms = np.full((N, 2), np.NaN)
     xys = np.full((N, 2), np.NaN)
     rsqs = np.full(N, np.NaN)
+    warn = False
     for i, (x, y) in enumerate(zip(xarray, yarray)):
         x = int(np.round(x))
         y = int(np.round(y))
@@ -162,8 +163,14 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
         curr_star /= np.nanmax(curr_star)
 
         ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
-        nan_filter = np.isfinite(curr_star)  # This shouldn't be necessary if images are properly cleaned?
-        gfit = gfitter(g2d, x=xpos[nan_filter], y=ypos[nan_filter], z=curr_star[nan_filter])
+
+        try:
+            nan_filter = np.isfinite(curr_star)  # This shouldn't be necessary if images are properly cleaned?
+            gfit = gfitter(g2d, x=xpos[nan_filter], y=ypos[nan_filter], z=curr_star[nan_filter])
+        except TypeError:
+            warn = True
+            gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
+
 
         # Center
         xys[i] = np.array([gfit.x_mean + x - radius, gfit.y_mean + y - radius], dtype='float64')
@@ -176,6 +183,9 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
         # FWHM
         fwhms[i] = gfit.x_fwhm
 
+    if warn:
+        logger.warning("Nan-masked gaussian fit to star failed due to size mismatch, "
+                       "but we succeeded by not masking.")
     masked_xys = np.ma.masked_array(xys, ~np.isfinite(xys))
     masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
     mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)  # Reject Rsq < rsq_min
