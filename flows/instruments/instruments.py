@@ -124,7 +124,7 @@ class ALFOSC(Instrument):
     siteid = 5
     telescope = "NOT"
     instrument = "ALFOSC"
-    unique_headers = {"OBS_MODE": 'imaging'}
+    unique_headers = {"OBS_MODE": 'IMAGING'}
 
     def get_obstime(self):
         return Time(self.image.header['DATE-AVG'], format='isot', scale='utc',
@@ -160,7 +160,7 @@ class NOTCAM(Instrument):
     siteid = 5
     telescope = "NOT"
     instrument = "NOTCAM"
-    unique_headers = {"OBS_MODE": 'imaging'}
+    unique_headers = {"OBS_MODE": 'IMAGING'}
 
     def get_obstime(self):
         return Time(self.image.header['DATE-AVG'], format='isot', scale='utc',
