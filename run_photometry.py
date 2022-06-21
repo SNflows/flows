@@ -15,7 +15,7 @@ from flows import photometry
 
 
 def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False, keep_diff_fixed=False,
-                   cm_timeout=None):
+                   cm_timeout=None, noplots=False):
     logger = logging.getLogger('flows')
     logging.captureWarnings(True)
     logger_warn = logging.getLogger('py.warnings')
@@ -44,7 +44,7 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
         logger.addHandler(_filehandler)
         logger_warn.addHandler(_filehandler)
 
-        photfile = photometry(fileid=fid, cm_timeout=cm_timeout, make_plots=True)
+        photfile = photometry(fileid=fid, cm_timeout=cm_timeout, make_plots=not noplots)
         # photfile = photometry(fileid=fid, output_folder=output_folder, attempt_imagematch=attempt_imagematch,
         #                       keep_diff_fixed=keep_diff_fixed, cm_timeout=cm_timeout)
 
@@ -92,6 +92,7 @@ def main():
 
     group = parser.add_argument_group('Processing settings')
     group.add_argument('--threads', type=int, default=1, help="Number of parallel threads to use.")
+    group.add_argument('--noplots', action='store_true', help="Disable plots")
     group.add_argument('--no-imagematch', action='store_true', help="Disable ImageMatch.")
     group.add_argument('--autoupload', action='store_true',
                        help="Automatically upload completed photometry to Flows website. Only do this, if you know what you are doing!")
@@ -155,7 +156,8 @@ def main():
     # Create function wrapper:
     process_fileid_wrapper = functools.partial(process_fileid, output_folder_root=output_folder_root,
                                                attempt_imagematch=not args.no_imagematch, autoupload=args.autoupload,
-                                               keep_diff_fixed=args.fixposdiff, cm_timeout=args.wcstimeout)
+                                               keep_diff_fixed=args.fixposdiff, cm_timeout=args.wcstimeout,
+                                               noplots=args.noplots)
 
     if threads > 1:
         # Disable printing info messages from the parent function.
