@@ -184,7 +184,7 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
         fwhms[i] = gfit.x_fwhm
 
     if warn:
-        logger.warning("Nan-masked gaussian fit to star failed due to size mismatch, "
+        logger.debug("Nan-masked gaussian fit to star failed due to size mismatch, "
                        "but we succeeded by not masking.")
     masked_xys = np.ma.masked_array(xys, ~np.isfinite(xys))
     masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
