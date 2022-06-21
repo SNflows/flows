@@ -18,8 +18,8 @@ from tendrils import api
 from flows.filters import FILTERS
 from flows.image import FlowsImage
 from flows.instruments.base_instrument import Instrument
-
-logger = logging.getLogger(__name__)  # Singleton logger instance
+from flows.utilities import create_logger
+logger = create_logger()
 
 
 class LCOGT(Instrument):

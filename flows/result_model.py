@@ -1,9 +1,8 @@
 from astropy.table import Table
 import astropy.units as u
 from .image import FlowsImage
-import logging
-
-logger = logging.getLogger(__name__)
+from .utilities import create_logger
+logger = create_logger()
 
 
 class ResultsTable(Table):

@@ -1,5 +1,5 @@
-import logging
-
+from .utilities import create_logger
+logger = create_logger()
 FILTERS = {
     'up': 'u_mag',
     'gp': 'g_mag',
@@ -14,7 +14,6 @@ FILTERS = {
 }
 
 FALLBACK_FILTER = 'gp'
-logger = logging.getLogger(__name__)
 
 
 def get_reference_filter(photfilter: str) -> str:
