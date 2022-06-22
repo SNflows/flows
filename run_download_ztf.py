@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tendrils import api
 from tendrils.utils import load_config, ztf
-
+from flows.utilities import create_logger
 
 def main():
     # Parse command line arguments:
@@ -33,7 +33,8 @@ def main():
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     console = logging.StreamHandler()
     console.setFormatter(formatter)
-    logger = logging.getLogger(__name__)
+    #logger = logging.getLogger(__name__)
+    logger = create_logger()
     if not logger.hasHandlers():
         logger.addHandler(console)
     logger.setLevel(logging_level)

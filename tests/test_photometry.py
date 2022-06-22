@@ -75,7 +75,7 @@ def test_photometry_mag_fast(photometry_fast):
     assert 0.11 < sn_row['mag_error'] < 0.18
 
 
-# ------------------ SLOW TESTS ------------------------------------------------
+# ------------------ EVEN SLOWER TESTS ------------------------------------------------
 @pytest.mark.slow
 @pytest.fixture(scope='session', autouse=True)
 def photometry_slow_optical(fid=1446):

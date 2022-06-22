@@ -1,7 +1,13 @@
 import os
-from typing import Optional, Protocol
+from typing import Optional, Protocol, Dict
 from configparser import ConfigParser
+from bottleneck import allnan
+from .load_image import load_image
 from .utilities import create_logger
+from .target import Target
+from .image import FlowsImage
+from . import reference_cleaning as refclean
+from .filters import get_reference_filter
 logger = create_logger()
 
 
@@ -15,6 +21,7 @@ class DirectoryProtocol(Protocol):
     def image_path(self, image_path: str) -> str:
         ...
 
+    # noinspection PyPropertyDefinition
     @property
     def photometry_path(self) -> str:
         ...
@@ -109,3 +116,57 @@ class DirectoriesDuringTest:
         return os.path.join(self.output_folder, filename)
 
 
+class IOManager:
+    """
+    Implement a runner to shuffle data.
+    """
+
+    def __init__(self, target: Target,
+                 directories: DirectoryProtocol,
+                 datafile: Dict):
+        self.target = target
+        self.directories = directories
+        self.output_folder = directories.output_folder
+        self.archive_local = directories.archive_local
+        self.datafile = datafile
+        self.diff_image_exists = False
+
+    def _load_image(self, image_path: str) -> FlowsImage:
+        """
+        Load an image from a file.
+        """
+        # Load the image from the FITS file:
+        image = load_image(self.directories.image_path(image_path), target_coord=self.target.coords)
+        return image
+
+    def load_science_image(self, image_path: str) -> FlowsImage:
+        image = self._load_image(image_path)
+        logger.info("Load image '%s'", self.directories.image_path(image_path))
+        image.fid = self.datafile['fileid']
+        image.template_fid = None if self.datafile.get('template') is None else self.datafile['template']['fileid']
+        return image
+
+    def get_filter(self):
+        return get_reference_filter(self.target.photfilter)
+
+    def load_references(self, catalog) -> refclean.References:
+        use_filter = self.get_filter()
+        references = catalog['references']
+        references.sort(use_filter)
+        # Check that there actually are reference stars in that filter:
+        if allnan(references[use_filter]):
+            raise ValueError("No reference stars found in current photfilter.")
+        return refclean.References(table=references)
+
+    def load_diff_image(self) -> Optional[FlowsImage]:
+        diffimage_df = self.datafile.get('diffimg', None)
+        diffimage_path = diffimage_df.get('path', None) if diffimage_df else None
+        self.diff_image_exists = diffimage_path is not None
+        if diffimage_df and not self.diff_image_exists:
+            logger.warning("Diff image present but without path, skipping diff image photometry")
+        if self.diff_image_exists:
+            diffimage = self._load_image(diffimage_path)
+            logger.info("Load difference image '%s'", self.directories.image_path(diffimage_path))
+            diffimage.fid = diffimage_df['fileid']
+            return diffimage
+        return None

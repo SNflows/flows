@@ -56,7 +56,7 @@ class FlowsEPSFBuilder(photutils.psf.EPSFBuilder):
         return epsf, stars
 
 
-def verify_epsf(epsf: photutils.psf.EPSFBuilder) -> Tuple[bool, List[float]]:
+def verify_epsf(epsf: photutils.psf.EPSFModel) -> Tuple[bool, List[float]]:
     fwhms = []
     epsf_ok = True
     for a in (0, 1):

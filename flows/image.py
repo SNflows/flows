@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from enum import Enum
-
 import numpy as np
-import logging
-from dataclasses import dataclass  # , field
+from dataclasses import dataclass
 import warnings
 from typing import Union
 from astropy.time import Time

@@ -3,7 +3,6 @@ Base instrument class
 """
 # Standard lib
 from __future__ import annotations
-import logging
 from typing import Union, Dict, Any, Optional
 from abc import ABC, abstractmethod
 # Third party

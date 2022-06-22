@@ -39,7 +39,6 @@ class Target:
         self.pixel_column = pixel_column
         self.pixel_row = pixel_row
 
-
     def output_dict(self, starid: Optional[int] = 0) -> Dict:
         """
         Return target as output dictionary. starid = -1 means difference image.

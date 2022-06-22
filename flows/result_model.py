@@ -37,7 +37,7 @@ class ResultsTable(Table):
                                                       'photometry'
         self['pixel_row_psf_fit_error'].unit = u.pixel
 
-    def add_metadata(tab):
+    def add_metadata(self, tab):
         raise NotImplementedError()
         # # Meta-data:
         # tab.meta['fileid'] = fileid

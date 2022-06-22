@@ -44,8 +44,4 @@ def create_logger(worker_name=None):
     if not len(logger.handlers):
         logger.addHandler(handler)
 
-
-    #    logger.level = level_name
-
-
     return logger

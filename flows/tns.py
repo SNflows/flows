@@ -88,7 +88,7 @@ def tns_search(coord: Optional[SkyCoord] = None, radius: u.Quantity = 3 * u.arcs
     return None
 
 
-def tns_get_obj(name:str) -> Optional[dict]:
+def tns_get_obj(name: str) -> Optional[dict]:
     """
     Search TNS for object by name.
 

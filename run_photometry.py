@@ -3,20 +3,21 @@ Run Flows photometry. Allows multithreaded operations to be run
 """
 
 import argparse
-import logging
-import os
-import sys
-import shutil
 import functools
+import logging
 import multiprocessing
+import os
+import shutil
+
 import tqdm
 from tendrils import api, utils
+
 from flows import photometry, fileio, result_model
 from flows.utilities import create_logger
 
+
 def process_fileid(fid, output_folder_root=None, autoupload=False, cm_timeout=None,
                    no_plots=False) -> result_model.ResultsTable:
-
     logger = create_logger(str(fid))
     logging.captureWarnings(True)
     logger_warn = logging.getLogger('py.warnings')
@@ -93,9 +94,11 @@ def main():
     group.add_argument('--noplots', action='store_true', help="Disable plots")
     group.add_argument('--no-imagematch', action='store_true', help="Disable ImageMatch.")
     group.add_argument('--autoupload', action='store_true',
-                       help="Automatically upload completed photometry to Flows website. Only do this, if you know what you are doing!")
+                       help="Automatically upload completed photometry to Flows website. "
+                            "Only do this, if you know what you are doing!")
     group.add_argument('--fixposdiff', action='store_true',
-                       help="Fix SN position during PSF photometry of difference image. Useful when difference image is noisy.")
+                       help="Fix SN position during PSF photometry of difference image. "
+                            "Useful when difference image is noisy.")
     group.add_argument('--wcstimeout', type=int, default=None, help="Timeout in Seconds for WCS.")
     args = parser.parse_args()
 

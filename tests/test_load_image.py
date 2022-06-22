@@ -14,11 +14,11 @@ from flows.load_image import load_image
 # Get list of all available filters:
 ALL_FILTERS = set(api.get_filters().keys())
 
+
 @pytest.mark.parametrize('fpath,siteid', [
     ['2020aatc/SN2020aatc_K_20201213_495s.fits.gz', 13],
-    ['2021wyw/ADP.2021-10-15T11_40_06.553.fits.gz', 2],])
+    ['2021wyw/ADP.2021-10-15T11_40_06.553.fits.gz', 2], ])
 def test_load_image(fpath, siteid):
-
     # The test input directory containing the test-images:
     INPUT_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'input')
 

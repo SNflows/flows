@@ -15,7 +15,9 @@ from matplotlib.ticker import MaxNLocator
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import astropy.visualization as viz
+from .utilities import create_logger
 
+logger = create_logger()
 # Change to a non-GUI backend since this
 # should be able to run on a cluster:
 plt.switch_backend('Agg')
