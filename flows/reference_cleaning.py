@@ -496,3 +496,29 @@ class ReferenceCleaner:
         return References(table=self.references.masked, mask=mask,
                           coords=self.references.coords[mask],
                           xy=self.references.xy[mask])
+
+
+@dataclass(frozen=True)
+class InitGuess:
+    clean_references: References
+    target_row: int = 0
+    diff_row: Optional[int] = None
+
+    @property
+    def init_guess_full(self) -> Table:
+        return Table(self.clean_references.xy, names=['x_0', 'y_0'])
+
+    @property
+    def init_guess_target(self) -> Table:
+        return Table(self.init_guess_full[self.target_row])
+
+    @property
+    def init_guess_diff(self) -> Table:
+        if self.diff_row is None:
+            raise ValueError('`diff_row` is None, I cannot calculate the initial guesses for the difference image row.')
+        return Table(self.init_guess_full[self.diff_row])
+
+    @property
+    def init_guess_references(self) -> Table:
+        ref_begin = max(self.diff_row, self.target_row) + 1 if self.diff_row is not None else self.target_row + 1
+        return self.init_guess_full[ref_begin:]

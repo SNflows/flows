@@ -15,6 +15,7 @@ from .wcs import WCS2
 
 
 # --------------------------------------------------------------------------------------------------
+# noinspection PyArgumentList
 class CoordinateMatch(object):
     def __init__(self, xy, rd, xy_order=None, rd_order=None, xy_nmax=None, rd_nmax=None, n_triangle_packages=10,
                  triangle_package_size=10000, maximum_angle_distance=0.001, distance_factor=1):

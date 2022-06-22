@@ -12,8 +12,7 @@ from scipy.optimize import minimize
 from scipy.spatial.transform import Rotation
 
 
-# --------------------------------------------------------------------------------------------------
-class WCS2():
+class WCS2:
     """
     Manipulate WCS solution.
 

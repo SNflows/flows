@@ -1,7 +1,8 @@
 from __future__ import annotations
+
+from enum import Enum
 import numpy as np
-import logging
-from dataclasses import dataclass  # , field
+from dataclasses import dataclass
 import warnings
 from typing import Union
 from astropy.time import Time
@@ -34,6 +35,9 @@ class FlowsImage:
     obstime: Optional[Time] = None
     photfilter: Optional[str] = None
     wcs: Optional[WCS] = None
+    fwhm: Optional[float] = None
+    fid: Optional[int] = None  # FileID of this image
+    template_fid: Optional[int] = None  # Template file ID if exists in same band.
 
     clean: Optional[np.ma.MaskedArray] = None
     subclean: Optional[np.ma.MaskedArray] = None
@@ -141,3 +145,8 @@ class FlowsImage:
 
         self.mask = self.get_edge_mask(self.image)
         self.create_masked_image()
+
+
+class ImageType(Enum):
+    raw = 'raw'
+    diff = 'diff'

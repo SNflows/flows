@@ -3,8 +3,8 @@ Load image code.
 """
 # Standard lib
 from __future__ import annotations
-import logging
-import sys, inspect
+import sys
+import inspect
 from typing import Tuple, Union, Optional
 # Third party
 import numpy as np

@@ -139,3 +139,6 @@ dmypy.json
 
 # OSX stuff:
 .DS_Store
+
+# Ignore test output 
+tests/output/
