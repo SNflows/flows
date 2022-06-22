@@ -26,13 +26,13 @@ class ResultsTable(Table):
         self['pixel_row'].unit = u.pixel
         self['pixel_column_psf_fit'].description = 'Measured location on image pixel columns from PSF photometry'
         self['pixel_column_psf_fit'].unit = u.pixel
-        self[
-            'pixel_column_psf_fit_error'].description = 'Error on measured location on image pixel columns from PSF photometry'
+        self['pixel_column_psf_fit_error'].description = 'Error on measured location on image pixel columns from PSF ' \
+                                                         'photometry'
         self['pixel_column_psf_fit_error'].unit = u.pixel
         self['pixel_row_psf_fit'].description = 'Measured location on image pixel rows from PSF photometry'
         self['pixel_row_psf_fit'].unit = u.pixel
-        self[
-            'pixel_row_psf_fit_error'].description = 'Error on measured location on image pixel rows from PSF photometry'
+        self['pixel_row_psf_fit_error'].description = 'Error on measured location on image pixel rows from PSF ' \
+                                                      'photometry'
         self['pixel_row_psf_fit_error'].unit = u.pixel
 
     def add_metadata(tab):

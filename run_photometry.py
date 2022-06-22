@@ -11,11 +11,11 @@ import functools
 import multiprocessing
 import tqdm
 from tendrils import api, utils
-from flows import photometry
+from flows import photometry, fileio, result_model
 
 
-def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoupload=False, keep_diff_fixed=False,
-                   cm_timeout=None, noplots=False):
+def process_fileid(fid, output_folder_root=None, autoupload=False, cm_timeout=None,
+                   no_plots=False) -> result_model.ResultsTable:
     logger = logging.getLogger('flows')
     logging.captureWarnings(True)
     logger_warn = logging.getLogger('py.warnings')
@@ -25,40 +25,38 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
     target_name = datafile['target_name']
 
     # Folder to save output:
-    output_folder = os.path.join(output_folder_root, target_name, f'{fid:05d}')
+    config = utils.load_config()
+    directories = fileio.Directories(config)
+    # Create the output directory if it doesn't exist:
+    directories.set_output_dirs(target_name, fid, output_folder_root)
 
-    photfile = None
     _filehandler = None
     try:
         # Set the status to indicate that we have started processing:
         if autoupload:
             api.set_photometry_status(fid, 'running')
 
-        # Create the output directory if it doesn't exist:
-        os.makedirs(output_folder, exist_ok=True)
-
         # Also write any logging output to the
-        _filehandler = logging.FileHandler(os.path.join(output_folder, 'photometry.log'), mode='w')
+        _filehandler = logging.FileHandler(os.path.join(directories.output_folder, 'photometry.log'), mode='w')
         _filehandler.setFormatter(formatter)
         _filehandler.setLevel(logging.INFO)
         logger.addHandler(_filehandler)
         logger_warn.addHandler(_filehandler)
 
-        photfile = photometry(fileid=fid, cm_timeout=cm_timeout, make_plots=not noplots)
-        # photfile = photometry(fileid=fid, output_folder=output_folder, attempt_imagematch=attempt_imagematch,
-        #                       keep_diff_fixed=keep_diff_fixed, cm_timeout=cm_timeout)
+        table = photometry(fileid=fid, cm_timeout=cm_timeout, make_plots=not no_plots,
+                           directories=directories, datafile=datafile)
 
     except (SystemExit, KeyboardInterrupt):
         logger.error("Aborted by user or system.")
-        if os.path.exists(output_folder):
-            shutil.rmtree(output_folder, ignore_errors=True)
-        photfile = None
+        if os.path.exists(directories.output_folder):
+            shutil.rmtree(directories.output_folder, ignore_errors=True)
+        table = None
         if autoupload:
             api.set_photometry_status(fid, 'abort')
 
     except:  # noqa: E722, pragma: no cover
         logger.exception("Photometry failed")
-        photfile = None
+        table = None
         if autoupload:
             api.set_photometry_status(fid, 'error')
 
@@ -66,12 +64,11 @@ def process_fileid(fid, output_folder_root=None, attempt_imagematch=True, autoup
         logger.removeHandler(_filehandler)
         logger_warn.removeHandler(_filehandler)
 
-    if photfile is not None:
-        if autoupload:
-            api.upload_photometry(fid, delete_completed=True)
-            api.set_photometry_status(fid, 'ingest')
+    if table is not None and autoupload:
+        api.upload_photometry(fid, delete_completed=True)
+        api.set_photometry_status(fid, 'ingest')
 
-    return photfile
+    return table
 
 
 def main():
@@ -155,9 +152,8 @@ def main():
 
     # Create function wrapper:
     process_fileid_wrapper = functools.partial(process_fileid, output_folder_root=output_folder_root,
-                                               attempt_imagematch=not args.no_imagematch, autoupload=args.autoupload,
-                                               keep_diff_fixed=args.fixposdiff, cm_timeout=args.wcstimeout,
-                                               noplots=args.noplots)
+                                               autoupload=args.autoupload, cm_timeout=args.wcstimeout,
+                                               no_plots=args.noplots)
 
     if threads > 1:
         # Disable printing info messages from the parent function.

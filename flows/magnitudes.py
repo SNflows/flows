@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, Any
+from typing import Tuple, Any, Optional
 from astropy.table import Table
 import numpy as np
 from bottleneck import nansum
@@ -14,7 +14,8 @@ from .filters import get_reference_filter
 logger = logging.getLogger(__name__)
 
 
-def instrumental_mag(tab: Table, target: Target) -> Tuple[Table, Tuple[Any, Any]]:
+def instrumental_mag(tab: Table, target: Target, make_fig: bool = False) -> Tuple[Table, Optional[plt.Figure],
+                                                                                  Optional[plt.Axes]]:
     target_rows = tab['starid'] <= 0
 
     # Check that we got valid flux photometry:
@@ -93,7 +94,6 @@ def instrumental_mag(tab: Table, target: Target) -> Tuple[Table, Tuple[Any, Any]
     if not np.isfinite(tab[0]['mag']) or not np.isfinite(tab[0]['mag_error']):
         raise RuntimeError(f"Target:{target.name} magnitude is undefined.")
 
-
     # Update Meta-data:
     tab.meta['zp'] = zp_bs
     tab.meta['zp_error'] = zp_error_bs
@@ -101,11 +101,13 @@ def instrumental_mag(tab: Table, target: Target) -> Tuple[Table, Tuple[Any, Any]
     tab.meta['zp_error_weights'] = zp_error
 
     # Plot:
-    mag_fig, mag_ax = plt.subplots(1, 1)
-    mag_ax.errorbar(x, y, yerr=yerr, fmt='k.')
-    mag_ax.scatter(x[sigma_clipped], y[sigma_clipped], marker='x', c='r')
-    mag_ax.plot(x, best_fit(x), color='g', linewidth=3)
-    mag_ax.set_xlabel('Catalog magnitude')
-    mag_ax.set_ylabel('Instrumental magnitude')
+    if make_fig:
+        mag_fig, mag_ax = plt.subplots(1, 1)
+        mag_ax.errorbar(x, y, yerr=yerr, fmt='k.')
+        mag_ax.scatter(x[sigma_clipped], y[sigma_clipped], marker='x', c='r')
+        mag_ax.plot(x, best_fit(x), color='g', linewidth=3)
+        mag_ax.set_xlabel('Catalog magnitude')
+        mag_ax.set_ylabel('Instrumental magnitude')
 
-    return (tab, (mag_fig, mag_ax))
+        return tab, mag_fig, mag_ax
+    return tab, None, None
