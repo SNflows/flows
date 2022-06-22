@@ -1,9 +1,8 @@
 import os
-import logging
 from typing import Optional, Protocol
 from configparser import ConfigParser
-
-logger = logging.getLogger(__name__)
+from .utilities import create_logger
+logger = create_logger()
 
 
 class DirectoryProtocol(Protocol):

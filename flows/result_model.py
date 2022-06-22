@@ -1,6 +1,8 @@
 from astropy.table import Table
 import astropy.units as u
 from .image import FlowsImage
+from .utilities import create_logger
+logger = create_logger()
 
 
 class ResultsTable(Table):
@@ -60,6 +62,11 @@ class ResultsTable(Table):
         results_table = cls(ref_table)
         if len(ref_table) - len(apphot_tbl) == 1:
             results_table.add_row(0)
+
+        if not ResultsTable.uncertainty_column_exists(psfphot_tbl):
+            psfphot_tbl['flux_unc'] = psfphot_tbl['flux_fit'] * 0.02  # Assume 2% errors
+            logger.warning("Flux uncertainty not found from PSF fit, assuming 2% error.")
+
         results_table['flux_aperture'] = apphot_tbl['flux_aperture'] / image.exptime
         results_table['flux_aperture_error'] = apphot_tbl['flux_aperture_error'] / image.exptime
         results_table['flux_psf'] = psfphot_tbl['flux_fit'] / image.exptime
@@ -70,3 +77,7 @@ class ResultsTable(Table):
         results_table['pixel_row_psf_fit_error'] = psfphot_tbl['y_0_unc']
 
         return results_table
+
+    @staticmethod
+    def uncertainty_column_exists(tab):
+        return "flux_unc" in tab.colnames

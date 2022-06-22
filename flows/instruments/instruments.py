@@ -18,8 +18,8 @@ from tendrils import api
 from flows.filters import FILTERS
 from flows.image import FlowsImage
 from flows.instruments.base_instrument import Instrument
-
-logger = logging.getLogger(__name__)  # Singleton logger instance
+from flows.utilities import create_logger
+logger = create_logger()
 
 
 class LCOGT(Instrument):
@@ -124,7 +124,7 @@ class ALFOSC(Instrument):
     siteid = 5
     telescope = "NOT"
     instrument = "ALFOSC"
-    unique_headers = {"OBS_MODE": 'imaging'}
+    unique_headers = {"OBS_MODE": 'IMAGING'}
 
     def get_obstime(self):
         return Time(self.image.header['DATE-AVG'], format='isot', scale='utc',
@@ -160,7 +160,7 @@ class NOTCAM(Instrument):
     siteid = 5
     telescope = "NOT"
     instrument = "NOTCAM"
-    unique_headers = {"OBS_MODE": 'imaging'}
+    unique_headers = {"OBS_MODE": 'IMAGING'}
 
     def get_obstime(self):
         return Time(self.image.header['DATE-AVG'], format='isot', scale='utc',
@@ -490,7 +490,7 @@ class Schmidt(Instrument):
     peakmax = 56_000
     telescope = '67/91 Schmidt Telescope'  # Fits Header name of TELESCOP
     instrument = 'Moravian G4-16000LC'  # Fits Header name of Instrument (can be partial)
-    origin =  ''  # Fits Header value of ORIGIN (if relevant)
+    origin = ''  # Fits Header value of ORIGIN (if relevant)
     unique_headers = {
         'SITELAT': 45.8494444
     }  # Unique key value pairs from header for identifying instrument.

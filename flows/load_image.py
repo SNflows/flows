@@ -3,7 +3,6 @@ Load image code.
 """
 from __future__ import annotations
 import numpy as np
-import logging
 from typing import Union, Tuple
 import astropy.coordinates as coords
 from astropy.io import fits
@@ -11,8 +10,8 @@ from astropy.time import Time
 
 from .instruments import INSTRUMENTS
 from .image import FlowsImage
-
-logger = logging.getLogger(__name__)  # Singleton logger instance
+from .utilities import create_logger
+logger = create_logger()
 
 
 def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, float]] = None):
@@ -52,7 +51,7 @@ def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, 
                     clean_image.obstime = correct_barycentric(clean_image.obstime, target_coord)
                 return clean_image
 
-        raise RuntimeError("Could not determine origin of image")
+        raise RuntimeError(f"Could not determine origin of image: {filename}")
 
 def correct_barycentric(obstime: Time, target_coord: coords.SkyCoord) -> Time:
     """

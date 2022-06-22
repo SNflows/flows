@@ -10,9 +10,8 @@ import numpy as np
 from scipy.interpolate import griddata, UnivariateSpline
 import photutils.psf
 from typing import List, Tuple
-import logging
-
-logger = logging.getLogger(__name__)
+from flows.utilities import create_logger
+logger = create_logger()
 
 
 class FlowsEPSFBuilder(photutils.psf.EPSFBuilder):

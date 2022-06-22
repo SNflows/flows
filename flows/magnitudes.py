@@ -1,4 +1,3 @@
-import logging
 from typing import Tuple, Any, Optional
 from astropy.table import Table
 import numpy as np
@@ -10,8 +9,9 @@ import matplotlib.pyplot as plt
 from .target import Target
 from .zeropoint import sigma_from_Chauvenet, bootstrap_outlier
 from .filters import get_reference_filter
-
-logger = logging.getLogger(__name__)
+from .utilities import create_logger
+logger = create_logger()
+#logger = logging.getLogger(__name__)
 
 
 def instrumental_mag(tab: Table, target: Target, make_fig: bool = False) -> Tuple[Table, Optional[plt.Figure],
