@@ -5,7 +5,7 @@ Flows Pipeline
    :target: https://zenodo.org/badge/latestdoi/241705955
 .. image:: https://github.com/SNflows/flows/actions/workflows/tests.yml/badge.svg?branch=devel
     :target: https://github.com/SNflows/flows/actions/workflows/tests.yml
-.. image:: https://img.shields.io/codecov/c/github/SNflows/flows
+.. image:: https://codecov.io/github/SNflows/flows/branch/devel/graph/badge.svg?token=H8CQGPG0U6
     :target: https://codecov.io/github/SNflows/flows
 .. image:: https://hitsofcode.com/github/SNflows/flows?branch=devel
     :alt: Hits-of-Code
