@@ -113,6 +113,7 @@ jobs:
       uses: codecov/codecov-action@v2
       with:
         env_vars: OS,PYTHON
+        verbose: true
 
   # Release tagged commits to:
   release:

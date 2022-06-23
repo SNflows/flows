@@ -11,8 +11,7 @@ import conftest  # noqa: F401
 from flows import photometry  # noqa: F401
 import os
 from pathlib import Path
-from flows.fileio import DirectoriesDuringTest
-from typing import Union
+from flows.fileio import DirectoriesDuringTest, del_dir
 
 
 def test_import_photometry():
@@ -26,32 +25,9 @@ def run_phot(fid):
     # The test input directory containing the test-images:
     input_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'input/')
     output_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'output/')
-    tdir = DirectoriesDuringTest(input_dir, output_dir)
+    tdir = DirectoriesDuringTest.from_fid(fid, input_dir=input_dir, output_dir=output_dir)
     results_table = photometry(fileid=fid, make_plots=False, directories=tdir)
-    tdir.set_output_dirs(results_table.meta['target_name'], fid)
     return results_table, tdir
-
-
-def del_dir(target: Union[Path, str], only_if_empty: bool = False):
-    """
-    Delete a given directory and its subdirectories.
-
-    :param target: The directory to delete
-    :param only_if_empty: Raise RuntimeError if any file is found in the tree
-    """
-    target = Path(target).expanduser()
-    assert target.is_dir()
-    for p in sorted(target.glob('**/*'), reverse=True):
-        if not p.exists():
-            continue
-        p.chmod(0o666)
-        if p.is_dir():
-            p.rmdir()
-        else:
-            if only_if_empty:
-                raise RuntimeError(f'{p.parent} is not empty!')
-            p.unlink()
-    target.rmdir()
 
 
 def clean_up_phot(filename):

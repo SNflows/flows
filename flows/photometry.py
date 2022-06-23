@@ -7,8 +7,6 @@ Flows photometry code.
 .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 .. codeauthor:: Simon Holmbo <sholmbo@phys.au.dk>
 """
-
-import logging
 import warnings
 from copy import copy
 from timeit import default_timer
@@ -22,9 +20,8 @@ from astropy.table import Table
 from astropy.nddata import NDData
 from astropy.modeling import fitting
 from astropy.wcs.utils import proj_plane_pixel_area
-
+import multiprocessing
 from tendrils import api
-from tendrils.utils import load_config
 
 from .magnitudes import instrumental_mag
 from .result_model import ResultsTable
@@ -41,7 +38,7 @@ from .version import get_version  # noqa: E402
 from .image import FlowsImage  # noqa: E402
 from .coordinatematch import correct_wcs  # noqa: E402
 from .epsfbuilder import FlowsEPSFBuilder, verify_epsf  # noqa: E402
-from .fileio import DirectoryProtocol, Directories, IOManager  # noqa: E402
+from .fileio import DirectoryProtocol, IOManager  # noqa: E402
 from .target import Target  # noqa: E402
 from .background import FlowsBackground  # noqa: E402
 from .utilities import create_logger  # noqa: E402
@@ -116,7 +113,7 @@ class PSFBuilder:
             fitter=EPSFFitter(fit_boxsize=max(int(np.round(1.5 * self.fwhm)), 5)),
             recentering_boxsize=max(int(np.round(2 * self.fwhm)), 5),
             norm_radius=max(self.fwhm, 5), maxiters=100,
-            progress_bar=logger.isEnabledFor(logging.INFO)
+            progress_bar=multiprocessing.parent_process() is None and logger.getEffectiveLevel() <= 20
         )
         epsf, stars = builder(stars)
 
@@ -353,8 +350,8 @@ class PhotometryManager:
             fit_shape = dynamic_fit_shape if dynamic_fit_shape != 0 else fit_shape
 
         # Recalculate all reference uncertainties using new fitsize:
-        logger.info(f"Recalculating all reference uncertainties using new fitsize"
-                    f"{fit_shape} pixels, ({fit_shape / self.fwhm} * FWHM).")
+        logger.info(f"Recalculating all reference uncertainties using new fitsize:"
+                    f" {fit_shape} pixels, ({fit_shape/self.fwhm if dynamic else static_fwhm :.2} * FWHM).")
         psfphot_tbl_rescaled = self.psfphot(fit_shape)
         psfphot_tbl['flux_unc'] = psfphot_tbl_rescaled['flux_unc']
         return psfphot_tbl
@@ -386,7 +383,7 @@ class PhotometryManager:
         self.results_table.meta['fileid'] = self.image.fid
         self.results_table.meta['target_name'] = self.target.name
         self.results_table.meta['version'] = __version__
-        self.results_table.meta['template'] = self.image.image
+        self.results_table.meta['template'] = self.image.template_fid
         self.results_table.meta['diffimg'] = self.diffimage.fid if self.diff_im_exists else None
         self.results_table.meta['photfilter'] = self.target.photfilter
         self.results_table.meta['fwhm'] = self.fwhm * u.pixel
@@ -396,33 +393,23 @@ class PhotometryManager:
         self.results_table.meta['obstime-bmjd'] = float(self.image.obstime.mjd)
         self.results_table.meta['used_wcs'] = str(self.image.wcs)
 
+    @classmethod
+    def create_from_fid(cls, fid: int, directories: Optional[DirectoryProtocol] = None,
+                        create_directories: bool = True, datafile: Optional[Dict] = None) -> 'PhotometryManager':
+        """
+        Create a Photometry object from a fileid.
+        """
+        io = IOManager.from_fid(fid, directories=directories, create_directories=create_directories, datafile=datafile)
+        return PhotometryManager(target=io.target, image=io.load_science_image(), bkg=FlowsBackground(),
+                                 references=io.load_references(), directories=io.directories,
+                                 diffimage=io.load_diff_image())
+
 
 def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = True,
-            directories: Optional[DirectoryProtocol] = None, datafile: Optional[Dict[str, Any]] = None) -> ResultsTable:
-    # Load config and set up directories
-    if directories is None:
-        config = load_config()
-        directories = Directories(config)
-
-    # Query API for datafile and catalogs
-    datafile = get_datafile(fileid) if datafile is None else datafile
-    catalog = get_catalog(datafile['targetid'])
-    target = Target(catalog['target'][0]['ra'],
-                    catalog['target'][0]['decl'],
-                    name=datafile['target_name'],
-                    id=datafile['targetid'],
-                    photfilter=datafile['photfilter'])
-
-    #  set output directories, creating if necessary
-    directories.set_output_dirs(target.name, fileid)
-    # science_image = directories.image_path(datafile['path'])
-
+            directories: Optional[DirectoryProtocol] = None, datafile: Optional[Dict[str, Any]] = None,
+            rescale_dynamic: bool = True) -> ResultsTable:
     # Set up photometry runner
-    io = IOManager(target, directories, datafile)
-
-    pm = PhotometryManager(target=target, image=io.load_science_image(io.datafile['path']), bkg=FlowsBackground(),
-                           references=io.load_references(catalog), directories=directories,
-                           diffimage=io.load_diff_image())
+    pm = PhotometryManager.create_from_fid(fileid, directories=directories, datafile=datafile, create_directories=True)
 
     # Set up photometry
     pm.propogate_references()
@@ -436,9 +423,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
     # Do photometry
     apphot_tbl = pm.apphot()
     psfphot_tbl = pm.psfphot()
-
-    # Rescale uncertainties
-    psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl)
+    psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl, dynamic=rescale_dynamic)  # Rescale uncertainties
 
     # Build results table and calculate magnitudes
     pm.make_result_table(psfphot_tbl, apphot_tbl)
@@ -452,10 +437,10 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
 
 def timed_photometry(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = True,
                      directories: Optional[DirectoryProtocol] = None, save: bool = True,
-                     datafile: Optional[Dict[str, Any]] = None) -> ResultsTable:
+                     datafile: Optional[Dict[str, Any]] = None, rescale_dynamic: bool = True) -> ResultsTable:
     # TODO: Timer should be moved out of this function.
     tic = default_timer()
-    results_table = do_phot(fileid, cm_timeout, make_plots, directories, datafile)
+    results_table = do_phot(fileid, cm_timeout, make_plots, directories, datafile, rescale_dynamic)
 
     # Save the results table:
     if save:
