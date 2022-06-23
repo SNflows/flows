@@ -63,9 +63,7 @@ class ResultsTable(Table):
         if len(ref_table) - len(apphot_tbl) == 1:
             results_table.add_row(0)
 
-        if not ResultsTable.uncertainty_column_exists(psfphot_tbl):
-            psfphot_tbl['flux_unc'] = psfphot_tbl['flux_fit'] * 0.02  # Assume 2% errors
-            logger.warning("Flux uncertainty not found from PSF fit, assuming 2% error.")
+        psfphot_tbl = ResultsTable.verify_uncertainty_column(psfphot_tbl)
 
         results_table['flux_aperture'] = apphot_tbl['flux_aperture'] / image.exptime
         results_table['flux_aperture_error'] = apphot_tbl['flux_aperture_error'] / image.exptime
@@ -79,5 +77,8 @@ class ResultsTable(Table):
         return results_table
 
     @staticmethod
-    def uncertainty_column_exists(tab):
-        return "flux_unc" in tab.colnames
+    def verify_uncertainty_column(tab):
+        if "flux_unc" in tab.colnames:
+            return tab
+        tab['flux_unc'] = tab['flux_fit'] * 0.04  # Assume 4% errors
+        logger.warning("Flux uncertainty not found from PSF fit, assuming 4% error.")

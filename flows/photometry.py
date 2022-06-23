@@ -342,12 +342,20 @@ class PhotometryManager:
                 if self.diff_im_exists:
                     _table = self.diff_psf_phot()
                 _table = self.raw_psf_phot(self.init_guesses.init_guess_target)
-                _phot_tables_dict[fitshape] = _table
-            flux = psfphot_tbl[0]['flux_fit']
-            flux_err = psfphot_tbl[0]['flux_unc']
-            exptime = self.image.exptime
-            dynamic_fit_shape, new_err = self.photometry.rescale_flux_error(_phot_tables_dict, flux, flux_err, exptime)
-            fit_shape = dynamic_fit_shape if dynamic_fit_shape != 0 else fit_shape
+                if "flux_unc" in _table.colnames:
+                    _phot_tables_dict[fitshape] = _table
+
+            if len(_phot_tables_dict) == 0:
+                logger.warning("No PSF errors found for dynamic rescaling, trying static.")
+                dynamic = False
+            else:
+                # Find the fit shape elbow:
+                flux = psfphot_tbl[0]['flux_fit']
+                flux_err = psfphot_tbl[0]['flux_unc']
+                exptime = self.image.exptime
+                dynamic_fit_shape, new_err = self.photometry.rescale_flux_error(_phot_tables_dict, flux, flux_err,
+                                                                                exptime)
+                fit_shape = dynamic_fit_shape if dynamic_fit_shape != 0 else fit_shape
 
         # Recalculate all reference uncertainties using new fitsize:
         logger.info(f"Recalculating all reference uncertainties using new fitsize:"
@@ -422,7 +430,7 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
 
     # Do photometry
     apphot_tbl = pm.apphot()
-    psfphot_tbl = pm.psfphot()
+    psfphot_tbl = ResultsTable.verify_uncertainty_column(pm.psfphot())  # Verify uncertainty exists after PSF phot.
     psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl, dynamic=rescale_dynamic)  # Rescale uncertainties
 
     # Build results table and calculate magnitudes
