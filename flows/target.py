@@ -5,7 +5,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
-
+from tendrils import api
 
 @dataclass
 class Target:
@@ -45,3 +45,19 @@ class Target:
         """
         return {'starid': starid, 'ra': self.ra, 'decl': self.dec, 'pixel_column': self.pixel_column,
                 'pixel_row': self.pixel_row, 'used_for_epsf': False}
+
+    @classmethod
+    def from_dict(cls, d: Dict) -> 'Target':
+        """
+        Create target from dictionary.
+        """
+        return cls(ra=d['ra'], dec=d['decl'], name=d['target_name'], id=d['targetid'], photfilter=d['photfilter'],)
+
+    @classmethod
+    def from_fid(cls, fid: int, datafile: Optional[Dict] = None) -> 'Target':
+        """
+        Create target from fileid.
+        """
+        datafile = datafile or api.get_datafile(fid)
+        d = api.get_target(datafile['target_name']) | datafile
+        return cls.from_dict(d)
