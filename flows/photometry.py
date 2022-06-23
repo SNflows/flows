@@ -353,8 +353,8 @@ class PhotometryManager:
             fit_shape = dynamic_fit_shape if dynamic_fit_shape != 0 else fit_shape
 
         # Recalculate all reference uncertainties using new fitsize:
-        logger.info(f"Recalculating all reference uncertainties using new fitsize"
-                    f"{fit_shape} pixels, ({fit_shape / self.fwhm} * FWHM).")
+        logger.info(f"Recalculating all reference uncertainties using new fitsize:"
+                    f" {fit_shape} pixels, ({fit_shape / self.fwhm} * FWHM).")
         psfphot_tbl_rescaled = self.psfphot(fit_shape)
         psfphot_tbl['flux_unc'] = psfphot_tbl_rescaled['flux_unc']
         return psfphot_tbl

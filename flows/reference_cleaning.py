@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import warnings
 
 import numpy as np
+from numpy.typing import ArrayLike
 import astroalign as aa
 from astropy.coordinates import SkyCoord
 from astropy import wcs
@@ -26,7 +27,6 @@ from scipy.spatial import KDTree
 import pandas as pd  # TODO: Convert to pure numpy implementation
 import sep
 from .image import FlowsImage
-from numpy.typing import ArrayLike
 from .target import Target
 from .utilities import create_logger
 logger = create_logger()

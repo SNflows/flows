@@ -157,7 +157,7 @@ def main():
         # a process pool and process them in parallel:
         with multiprocessing.Pool(threads) as pool:
             for result in tqdm.tqdm(pool.imap_unordered(process_fileid_wrapper, fileids), total=len(fileids)):
-                logger.info(f'finished:{result}')
+                logger.info(f"finished:{result.meta['fileid']}")
                 # We can do something with the partial results here (like calculate color terms!).
                 pass
 
