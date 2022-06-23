@@ -35,7 +35,7 @@ def process_fileid(fid, autoupload=False, cm_timeout=None, no_plots=False,
             api.set_photometry_status(fid, 'abort')
 
     except Exception as e:  # noqa: E722, pragma: no cover
-        logger.exception("Photometry failed:" + str(e))
+        logger.exception(f"Photometry failed:{str(e)}")
         table = None
         if autoupload:
             api.set_photometry_status(fid, 'error')
