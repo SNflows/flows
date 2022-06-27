@@ -136,7 +136,6 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
     g2d.x_stddev.bounds = (fwhm_min * gaussian_fwhm_to_sigma, fwhm_max * gaussian_fwhm_to_sigma)
     g2d.y_stddev.tied = lambda model: model.x_stddev
     g2d.theta.fixed = True
-
     gfitter = fitting.LevMarLSQFitter()
 
     # Stars reject
@@ -144,7 +143,6 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
     fwhms = np.full((N, 2), np.NaN)
     xys = np.full((N, 2), np.NaN)
     rsqs = np.full(N, np.NaN)
-    warn = False
     for i, (x, y) in enumerate(zip(xarray, yarray)):
         x = int(np.round(x))
         y = int(np.round(y))
@@ -161,15 +159,16 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
         curr_star -= nanmedian(curr_star[edge])
         curr_star /= np.nanmax(curr_star)
 
-        ypos, xpos = np.mgrid[:curr_star.shape[0], :curr_star.shape[1]]
+        ypos, xpos = np.indices(curr_star.shape)
+        nan_filter = np.ones_like(curr_star, dtype='bool')
+        nan_filter = nan_filter & np.isfinite(curr_star)
+        if len(curr_star[nan_filter]) < 3:  # Not enough pixels to fit
+            logger.debug(f"Not enough pixels to fit star, curr_star[nan_filter]:{curr_star[nan_filter]}")
+            rsqs[i] = np.NaN
+            fwhms[i] = np.NaN
+            continue
 
-        try:
-            nan_filter = np.isfinite(curr_star)  # This shouldn't be necessary if images are properly cleaned?
-            gfit = gfitter(g2d, x=xpos[nan_filter], y=ypos[nan_filter], z=curr_star[nan_filter])
-        except TypeError:
-            warn = True
-            gfit = gfitter(g2d, x=xpos, y=ypos, z=curr_star)
-
+        gfit = gfitter(g2d, x=xpos[nan_filter], y=ypos[nan_filter], z=curr_star[nan_filter])
 
         # Center
         xys[i] = np.array([gfit.x_mean + x - radius, gfit.y_mean + y - radius], dtype='float64')
@@ -182,9 +181,6 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
         # FWHM
         fwhms[i] = gfit.x_fwhm
 
-    if warn:
-        logger.debug("Nan-masked gaussian fit to star failed due to size mismatch, "
-                       "but we succeeded by not masking.")
     masked_xys = np.ma.masked_array(xys, ~np.isfinite(xys))
     masked_rsqs = np.ma.masked_array(rsqs, ~np.isfinite(rsqs))
     mask = (masked_rsqs >= rsq_min) & (masked_rsqs < 1.0)  # Reject Rsq < rsq_min
