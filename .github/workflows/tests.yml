@@ -63,6 +63,7 @@ jobs:
       OS: ${{ matrix.os }}
       PYTHON: ${{ matrix.python-version }}
       FLOWS_CONFIG: ${{ secrets.FLOWS_CONFIG }}
+      FLOWS_API_KEY: ${{ secrets.FLOWS_API_KEY }}
 
     steps:
     - name: Checkout code
@@ -155,10 +156,14 @@ jobs:
           ${{ runner.os }}-pip-
 
     - name: Install dependencies
+      env:
+        FLOWS_API_KEY: ${{ secrets.FLOWS_API_KEY }}
+        FLOWS_CONFIG: ${{ secrets.FLOWS_CONFIG }}
       run: |
         python -m pip install --upgrade pip wheel
         pip install -r requirements.txt
         pip install -r dev_requirements.txt
+        python tests/setup_tendrils.py
 
     - name: Update VERSION file
       run: python -c "from flows import version; version.update_release_version();"
