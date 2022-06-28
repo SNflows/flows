@@ -12,7 +12,6 @@ import os
 import configparser
 import subprocess
 import shlex
-from tendrils import utils
 
 if sys.path[0] != os.path.abspath(os.path.join(os.path.dirname(__file__), '..')):
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
