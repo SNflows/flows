@@ -104,8 +104,7 @@ jobs:
         pip install -r dev_requirements.txt
         pip install codecov pytest-cov
 
-    - name: Coverage testing
-      continue-on-error: true
+    - name: Testing
       run: pytest --cov
 
     - name: Upload coverage
