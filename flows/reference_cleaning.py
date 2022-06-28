@@ -6,12 +6,12 @@ Clean bad source extraction, find and correct WCS.
 .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
-from typing import Dict, Optional, TypeVar, Tuple
+from typing import Dict, Optional, TypeVar, Tuple, Union
 from dataclasses import dataclass
 import warnings
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 import astroalign as aa
 from astropy.coordinates import SkyCoord
 from astropy import wcs
@@ -42,7 +42,7 @@ class MinStarError(RuntimeError):
 class References:
     table: RefTable
     coords: Optional[SkyCoord] = None
-    mask: Optional[np.ndarray] = None
+    mask: Optional[np.ndarray] = None  # positive mask ie True where we want it.
     xy: Optional[RefTable] = None
 
     def replace_nans_pm(self) -> None:
@@ -62,13 +62,21 @@ class References:
             warnings.simplefilter("ignore", ErfaWarning)
             self.coords = self.coords.apply_space_motion(new_obstime=obstime)
 
+    def copy(self) -> 'References':
+        return References(self.__dataclass_fields__)
+
     @property
-    def masked(self, mask: Optional[np.ndarray] = None) -> RefTable:
+    def masked(self, mask: Optional[np.ndarray] = None) -> "References":
         if self.mask is None:
             if mask is None:
                 raise AttributeError("No mask defined.")
             self.mask = mask
-        return self.table[self.mask]
+
+        copy = self.copy()
+        for name in self.__dataclass_fields__:
+            if getattr(self, name) is not None:
+                setattr(copy, name, getattr(self, name)[self.mask])
+        return copy
 
     def get_xy(self, img_wcs: wcs.WCS) -> None:
         """get pixel coordinates of reference stars"""
@@ -102,31 +110,36 @@ def use_sep(image: FlowsImage, tries: int = 5, thresh: float = 5.):
             return use_sep(image, tries - 1, thresh * 2)
         else:
             raise e
-    return References(table=objects)
+    sep_references = References(table=Table(objects))
+    sep_references.xy = sep_references.table[['x', 'y']]
+    sep_references.make_pixel_columns()
+    return sep_references
 
 
-def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, fwhm_guess=6.0, fwhm_min=3.5,
-                     fwhm_max=18.0) -> Tuple[np.ma.MaskedArray, ...]:
+def force_reject_g2d(xarray: ArrayLike, yarray: ArrayLike, image: Union[NDArray, np.ma.MaskedArray],
+                     rsq_min: float = 0.5, radius: float = 10, fwhm_guess: float = 6.0, fwhm_min: float = 3.5,
+                     fwhm_max: float = 18.0) -> Tuple[np.ma.MaskedArray, ...]:
     """
+    It takes a list of x and y coordinates, and a 2D image, and returns a list of x and y coordinates,
+    a list of r-squared values, and a boolean mask
 
-    Parameters:
-        xarray:
-        yarray:
-        image:
-        rsq_min (float, optional):
-        radius (float, optional):
-        fwhm_guess=6.0:
-        fwhm_min=3.5:
-        fwhm_max=18.0:
-
-    Returns:
-        tuple:
-            - masked_xys:
-            - mask:
-            - masked_rsqs:
-
-    .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
-    .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
+    :param xarray: x-coordinates of the stars
+    :type xarray: ArrayLike
+    :param yarray: y-coordinates of the stars
+    :type yarray: ArrayLike
+    :param image: the image to be processed
+    :type image: Union[NDArray, np.ma.MaskedArray]
+    :param rsq_min: The minimum r-squared value for a star to be considered good
+    :type rsq_min: float
+    :param radius: The radius of the box around the star to fit, defaults to 10
+    :type radius: float (optional)
+    :param fwhm_guess: The initial guess for the FWHM of the star
+    :type fwhm_guess: float
+    :param fwhm_min: The minimum FWHM allowed for a star
+    :type fwhm_min: float
+    :param fwhm_max: The maximum FWHM allowed for a star to be considered good
+    :type fwhm_max: float
+    :return: masked_fwhms, masked_xys, mask, masked_rsqs
     """
     # Set up 2D Gaussian model for fitting to reference stars:
     g2d = models.Gaussian2D(amplitude=1.0, x_mean=radius, y_mean=radius, x_stddev=fwhm_guess * gaussian_fwhm_to_sigma)
@@ -151,7 +164,7 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
         ymin = max(y - radius, 0)
         ymax = min(y + radius + 1, image.shape[0])
 
-        curr_star = deepcopy(image.subclean[ymin:ymax, xmin:xmax])
+        curr_star = deepcopy(image[ymin:ymax, xmin:xmax])
 
         edge = np.zeros_like(curr_star, dtype='bool')
         edge[(0, -1), :] = True
@@ -192,7 +205,7 @@ def force_reject_g2d(xarray, yarray, image: FlowsImage, rsq_min=0.5, radius=10, 
     # len(masked_xys) != len(masked_rsqs) FIXME
     masked_fwhms = np.ma.masked_array(fwhms, ~np.isfinite(fwhms))
 
-    return masked_fwhms, masked_xys, mask, masked_rsqs
+    return masked_fwhms, masked_xys, mask.data, masked_rsqs
 
 
 # --------------------------------------------------------------------------------------------------
@@ -204,7 +217,7 @@ def clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references, min_fwhm_
     Parameters:
         masked_fwhms (np.ma.maskedarray): array of fwhms
         masked_rsqs (np.ma.maskedarray): array of rsq values
-        references (astropy.table.Table): table or reference stars
+        references (astropy.table.Table): table of reference stars
         min_fwhm_references: (Default 2) min stars to get a fwhm
         min_references: (Default 6) min stars to aim for when cutting by R2
         rsq_min: (Default 0.15) min rsq value
@@ -409,7 +422,8 @@ class ReferenceCleaner:
         self.min_references_abs = min_references_abs
         self.gaussian_xys: Optional[np.ndarray] = None  # gaussian pixel positions
 
-    def _clean_extracted_stars(self, x=None, y=None) -> Tuple[np.ma.MaskedArray, ...]:
+    def _clean_extracted_stars(self, x: Optional[ArrayLike] = None,
+                               y: Optional[ArrayLike] = None) -> Tuple[np.ma.MaskedArray, ...]:
         """
         Clean extracted stars.
         :return: Tuple of masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs
@@ -419,9 +433,12 @@ class ReferenceCleaner:
         fwhm_guess = self.image.instrument_defaults.fwhm
         fwhm_min = self.image.instrument_defaults.fwhm_min
         fwhm_max = self.image.instrument_defaults.fwhm_max
+        useimage = self.image.subclean if self.image.subclean is not None else self.image.clean
 
         # Clean the references
-        return force_reject_g2d(x, y, self.image, radius=radius, fwhm_guess=fwhm_guess, rsq_min=self.rsq_min,
+        x = x if x is not None else self.references.table['pixel_column']
+        y = y if y is not None else self.references.table['pixel_row']
+        return force_reject_g2d(x, y, useimage, radius=radius, fwhm_guess=fwhm_guess, rsq_min=self.rsq_min,
                                 fwhm_max=fwhm_max, fwhm_min=fwhm_min)
 
     def set_gaussian_xys(self, masked_ref_xys: np.ma.MaskedArray, old_references: RefTable,
@@ -448,12 +465,12 @@ class ReferenceCleaner:
 
         # Final clean of wcs corrected references
         logger.info("Number of references before final cleaning: %d", len(references.table))
-        logger.debug('Masked R^2 values: %s', masked_rsqs[rsq_mask])
+        logger.debug('Masked R^2 values: %s', masked_rsqs[rsq_mask].data)
         # Get references cleaned and ordered by R^2:
         ordered_cleaned_references, order_index = get_clean_references(references.table, masked_rsqs, rsq_ideal=0.8)
-        ordered_cleaned_references = References(table=ordered_cleaned_references,
-                                                coords=references.coords[order_index],
-                                                xy=references.xy[order_index])
+        ordered_coords = None if references.coords is None else references.coords[order_index]
+        ordered_xy = None if references.xy is None else references.xy[order_index]
+        ordered_cleaned_references = References(table=ordered_cleaned_references, coords=ordered_coords, xy=ordered_xy)
         logger.info("Number of references after final cleaning: %d", len(ordered_cleaned_references.table))
 
         # Save Gaussian XY positions before returning
@@ -465,15 +482,15 @@ class ReferenceCleaner:
         Make a clean reference catalog using SExtractor.
         """
         image = self.image
+        # Get the SExtractor references from the image
         sep_references = use_sep(image)
 
         # Clean extracted stars
         _, masked_sep_xy, sep_mask, masked_sep_rsqs = self._clean_extracted_stars(
             sep_references.table['x'], sep_references.table['y'])
 
-        sep_references_clean = References(table=masked_sep_xy, mask=sep_mask)
-
-        return sep_references_clean
+        sep_references.mask = sep_mask
+        return sep_references.masked
 
     def mask_edge_and_target(self, target_coords: SkyCoord, hsize: int = 10,
                          target_distance_lim: u.quantity.Quantity = 10 * u.arcsec) -> References:
@@ -489,9 +506,10 @@ class ReferenceCleaner:
         self.references.mask = mask
 
         # Make new clean references
-        return References(table=self.references.masked, mask=mask,
-                          coords=self.references.coords[mask],
-                          xy=self.references.xy[mask])
+        return self.references.masked
+        # return References(table=self.references.masked, mask=mask,
+        #                  coords=self.references.coords[mask],
+        #                  xy=self.references.xy[mask])
 
 
 @dataclass(frozen=True)

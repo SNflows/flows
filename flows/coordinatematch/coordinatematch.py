@@ -33,16 +33,16 @@ def correct_wcs(image: FlowsImage, references: refclean.References, target: Targ
 
     # Use Source Extractor to make clean references
     sep_references_clean = sep_cleaner.make_sep_clean_references()
-
+    xy = np.lib.recfunctions.structured_to_unstructured(np.array(sep_references_clean.xy))
     # Find WCS
     logger.info("Finding new WCS solution...")
     head_wcs = str(WCS2.from_astropy_wcs(image.wcs))
     logger.debug('Head WCS: %s', head_wcs)
     # Solve for new WCS
     cm = CoordinateMatch(
-        xy=list(sep_references_clean.masked),
-        rd=list(zip(references.coords.ra.deg, references.coords.dec.deg)),
-        xy_order=np.argsort(np.power(sep_references_clean.masked - np.array(image.shape[::-1]) / 2, 2).sum(axis=1)),
+        xy=xy,
+        rd=np.array(list(zip(references.coords.ra.deg, references.coords.dec.deg))),
+        xy_order=np.argsort(np.power(xy - np.array(image.shape[::-1]) / 2, 2).sum(axis=1)),
         rd_order=np.argsort(target.coords.separation(references.coords)),
         xy_nmax=100, rd_nmax=100, maximum_angle_distance=0.002)
 
