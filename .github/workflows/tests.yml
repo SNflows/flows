@@ -6,7 +6,7 @@ on:
   push:
     branches: [master, devel]
     tags: 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
-  pull_request:
+  pull_request_target:
     branches: [master, devel]
   schedule:
     - cron: '0 6 1 * *'  # once a month in the morning
@@ -19,34 +19,27 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+          persist-credentials: true
 
-    - name: Setup Python 3.7
+    - name: Setup Python 3.9
       uses: actions/setup-python@v2
       with:
-        python-version: 3.7
-
-    - name: Cache pip
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-py3.7-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-py3.7-
-          ${{ runner.os }}-pip-
+        python-version: 3.9
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip wheel
-        grep "numpy" requirements.txt | xargs -I {} pip install "{}"
         pip install -r requirements.txt
+        pip install -r dev_requirements.txt
 
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
         # For some reason we have to specifically ignore G001 as well
-        flake8 --select=E9,F63,F7,F82 --ignore=G001 --show-source
+        flake8 --select=E9,F63,F7,F82 --show-source --ignore=G001,G004
         # exit-zero treats all errors as warnings.
-        flake8 --exit-zero
+        # flake8 --exit-zero
 
   # Run unit tests on Linux, OSX and Windows
   pytest:
@@ -55,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: [3.6, 3.7, 3.8]
+        python-version: [3.9, '3.10']
         include:
         - os: ubuntu-latest
           pippath: ~/.cache/pip
@@ -107,17 +100,20 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip wheel
-        grep "numpy" requirements.txt | xargs -I {} pip install "{}"
         pip install -r requirements.txt
+        pip install -r dev_requirements.txt
         pip install codecov pytest-cov
 
-    - name: Testing
+    - name: Coverage testing
+      continue-on-error: true
       run: pytest --cov
 
     - name: Upload coverage
-      uses: codecov/codecov-action@v1
+      continue-on-error: true
+      uses: codecov/codecov-action@v2
       with:
         env_vars: OS,PYTHON
+        verbose: true
 
   # Release tagged commits to:
   release:
@@ -144,25 +140,25 @@ jobs:
     - name: Git LFS Pull
       run: git lfs pull
 
-    - name: Setup Python 3.7
+    - name: Setup Python 3.9
       uses: actions/setup-python@v2
       with:
-        python-version: 3.7
+        python-version: 3.9
 
     - name: Cache pip
       uses: actions/cache@v2
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-py3.7-${{ hashFiles('requirements.txt') }}
+        key: ${{ runner.os }}-pip-py3.9-${{ hashFiles('requirements.txt') }}
         restore-keys: |
-          ${{ runner.os }}-pip-py3.7-
+          ${{ runner.os }}-pip-py3.9-
           ${{ runner.os }}-pip-
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip wheel
-        grep "numpy" requirements.txt | xargs -I {} pip install "{}"
         pip install -r requirements.txt
+        pip install -r dev_requirements.txt
 
     - name: Update VERSION file
       run: python -c "from flows import version; version.update_release_version();"
