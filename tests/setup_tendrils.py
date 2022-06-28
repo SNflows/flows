@@ -10,8 +10,10 @@ def set_up_tendrils_in_ci():
         if token not in [None, '', 'None', 'test']:  # if not, we probably have a token.
             return
 
-    os.environ.get('FLOWS_API_TOKEN')
-    utils.set_api_token(token=os.environ.get('FLOWS_API_TOKEN'), overwrite=True)
+    token = os.environ.get('FLOWS_API_TOKEN')
+    if token is None:
+        raise RuntimeError("API token can not be set up.")
+    utils.set_api_token(token=token, overwrite=True)
 
 
 if __name__ == '__main__':
