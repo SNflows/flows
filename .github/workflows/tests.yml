@@ -103,7 +103,7 @@ jobs:
         pip install -r requirements.txt
         pip install -r dev_requirements.txt
         pip install codecov pytest-cov
-        python -m tests/setup_tendrils.py
+        python -m tests/setup_tendrils
 
     - name: Testing
       run: pytest --cov
