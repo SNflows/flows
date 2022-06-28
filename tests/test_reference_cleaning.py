@@ -78,3 +78,12 @@ def test_get_clean_references(references, maskedref):
     masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs = maskedref
     ordered_cleaned_references, order_index = refclean.get_clean_references(references.table, masked_rsqs)
     assert len(order_index) == FID1['n_get_clean_references']
+
+
+def test_init_guess(references):
+    guess = refclean.InitGuess(references)
+    assert len(guess.init_guess_full) == len(references.table)
+    assert len(guess.init_guess_full) == len(references.table)
+    with pytest.raises(ValueError):
+        len(guess.init_guess_diff)
+    assert len(guess.init_guess_references) == len(references.table) - 1
