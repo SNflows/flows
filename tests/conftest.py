@@ -65,11 +65,11 @@ def SETUP_CONFIG():
         os.remove(config_file)
 
 
-@pytest.fixture(scope='session', autouse=True)
-def config(SETUP_CONFIG):
-    from tendrils import utils
-    utils.copy_from_other_config(SETUP_CONFIG)
-    yield utils.load_config()
+# @pytest.fixture(scope='session', autouse=True)
+# def config(SETUP_CONFIG):
+#     from tendrils import utils
+#     utils.copy_from_other_config(SETUP_CONFIG)
+#     yield utils.load_config()
 
 
 def pytest_addoption(parser):
