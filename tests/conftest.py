@@ -12,6 +12,7 @@ import os
 import configparser
 import subprocess
 import shlex
+from tendrils import utils
 
 if sys.path[0] != os.path.abspath(os.path.join(os.path.dirname(__file__), '..')):
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -61,9 +62,15 @@ def SETUP_CONFIG():
         with open(config_file, 'w') as fid:
             config.write(fid)
             fid.flush()
-
         yield config_file
         os.remove(config_file)
+
+
+@pytest.fixture(scope='session', autouse=True)
+def config(SETUP_CONFIG):
+    from tendrils import utils
+    utils.copy_from_other_config(SETUP_CONFIG)
+    yield utils.load_config()
 
 
 def pytest_addoption(parser):
