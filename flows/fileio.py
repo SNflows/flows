@@ -50,7 +50,6 @@ class Directories:
     def __init__(self, config: Optional[ConfigParser] = None):
         self.config = config or utils.load_config()
 
-
     def set_output_dirs(self, target_name: str, fileid: int, create: bool = True,
                         output_folder_root: Optional[str] = None) -> None:
         """

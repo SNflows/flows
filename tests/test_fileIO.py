@@ -1,8 +1,10 @@
-import pytest
+import pytest  # noqa: F401
 import os
 from flows.fileio import DirectoriesDuringTest, Directories, IOManager
 from flows.target import Target
 from tendrils import utils
+import conftest  # noqa: F401
+import configparser
 
 
 def delete_directories(directories):
@@ -10,6 +12,7 @@ def delete_directories(directories):
         return
     if os.path.exists(directories.output_folder):
         os.rmdir(directories.output_folder)
+
 
 def test_import_fileio():
     assert True
@@ -24,8 +27,12 @@ def test_DirectoriesDuringTest():
     delete_directories(tdir)
 
 
-def test_Directories():
-    config = utils.load_config()
+def test_Directories(SETUP_CONFIG):
+    try:
+        config = utils.load_config(SETUP_CONFIG)
+    except FileNotFoundError:
+        config = configparser.ConfigParser()
+        config['photometry'] = {'archive_local': os.path.abspath(os.path.dirname(__file__))}
     directories = Directories(config)
     output_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'output/')
     directories.set_output_dirs('test', 0, output_folder_root=output_dir)
