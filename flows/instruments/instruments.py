@@ -1,5 +1,32 @@
 """
-Load image code.
+Instrument classes that inherit from the base class.
+Modify to add your own instrument.
+
+Identifying relevant image properties:
+
+`site` = required, add manually.
+`peakmax` = optional, add manually or provide header.
+The rest of `exptime`, `obstime`, `photfilter` use the
+following (overrideable) base functions. Override
+if the default one from the baseclass does not fit
+your instrument. See:
+    ```
+    self.image.peakmax = self.peakmax
+    self.image.site = self.get_site()
+    self.image.exptime = self.get_exptime()
+    self.image.obstime = self.get_obstime()
+    self.image.photfilter = self.get_photfilter()
+    ```
+
+Identifying the instrument for an image:
+
+Each instrument can define (one or many) of `origin`, 
+`telescope`, `instrument` fields correspinding to the 
+standard fits headers to help uniquely identify itself.
+More advanced logic is possible using `unique_headers`
+field as a dict of key,value pairs in the header. Ex:
+unique_headers = {'PRODCATG': 'SCIENCE.MEFIMAGE'}.
+These are all optional, defaults are set in baseclass.
 """
 # Standard lib
 from __future__ import annotations
