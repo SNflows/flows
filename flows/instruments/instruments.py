@@ -12,7 +12,7 @@ if the default one from the baseclass does not fit
 your instrument. See:
     ```
     self.image.peakmax = self.peakmax
-    self.image.site = self.get_site()
+    self.image.site = self.get_site() 
     self.image.exptime = self.get_exptime()
     self.image.obstime = self.get_obstime()
     self.image.photfilter = self.get_photfilter()
@@ -99,7 +99,7 @@ class HAWKI(Instrument):
     telescope = 'ESO-VLT-U4'  # Fits Header name of TELESCOP
     instrument = 'HAWKI'  # Fits Header name of Instrument (can be partial)
     origin = 'ESO-PARANAL'  # Fits Header value of ORIGIN (if relevant)
-    unique_headers = {'PRODCATG': 'SCIENCE.MEFIMAGE'}
+    #unique_headers = {'PRODCATG': 'SCIENCE.MEFIMAGE'}
 
     def __init__(self, image: FlowsImage = None):
         super().__init__(image)
@@ -127,6 +127,10 @@ class HAWKI(Instrument):
         target_coord = verify_coordinates(target_coords)
         if target_coord is None:
             raise ValueError("TARGET_COORD is needed for HAWKI images to find the correct extension")
+
+        # Incase this is not a multi-extension imageL
+        if len(hdul) == 1:
+            return 0
 
         # For HAWKI multi-extension images we search the extensions for which one contains
         # the target, Create Image from that extension.
