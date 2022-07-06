@@ -8,7 +8,7 @@ import astropy.coordinates as coords
 from astropy.io import fits
 from astropy.time import Time
 
-from .instruments import INSTRUMENTS
+from .instruments import INSTRUMENTS, verify_coordinates
 from .image import FlowsImage
 from .utilities import create_logger
 logger = create_logger()
@@ -39,6 +39,7 @@ def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, 
         for inst_name, inst_cls in INSTRUMENTS:
             if inst_cls.identifier(telescope, origin, instrument, hdr):
                 logger.info(f"Image is using instrument {inst_name}")
+                target_coord = verify_coordinates(target_coord)
                 ext = inst_cls.get_ext(hdul, target_coord)
                 mask = inst_cls.get_mask(hdul)
                 # Default = None is to only mask all non-finite values, override here is additive.
