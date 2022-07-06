@@ -488,12 +488,9 @@ class AFOSC(Instrument):
 class Schmidt(Instrument):
     siteid = 26
     peakmax = 56_000
-    telescope = '67/91 Schmidt Telescope'  # Fits Header name of TELESCOP
-    instrument = 'Moravian G4-16000LC'  # Fits Header name of Instrument (can be partial)
-    origin = ''  # Fits Header value of ORIGIN (if relevant)
-    unique_headers = {
-        'SITELAT': 45.8494444
-    }  # Unique key value pairs from header for identifying instrument.
+    telescope = '67/91 Schmidt Telescope' 
+    instrument = 'Moravian G4-16000LC'
+    origin = '' 
 
     def get_obstime(self):
         obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
