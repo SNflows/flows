@@ -17,7 +17,8 @@ from astropy.coordinates import SkyCoord
 from astropy.time import Time
 from datetime import datetime, timedelta, timezone
 from tendrils import api
-from tendrils.utils import load_tns_config, tns_getnames, TNSConfigError, tns_get_obj
+from flows.tns import tns_getnames, TNSConfigError, tns_get_obj, _load_tns_config
+#from tendrils.utils import load_tns_config, tns_getnames, TNSConfigError, tns_get_obj
 
 
 # --------------------------------------------------------------------------------------------------
@@ -58,7 +59,7 @@ def main():
 
     # Try to load TNS config - only used for early stopping
     try:
-        load_tns_config()
+        _load_tns_config()
     except TNSConfigError:
         parser.error("Error in TNS configuration.")
         return
