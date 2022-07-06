@@ -367,7 +367,7 @@ class AstroNIRCam(Instrument):
 
     def get_photfilter(self):
         hdr = self.image.header
-        photfilter = {'H_Open': 'H', 'K_Open': 'K', }.get(hdr['FILTER'], hdr['FILTER'])
+        photfilter = {'H_Open': 'H', 'K_Open': 'K', 'J_Open': 'J'}.get(hdr['FILTER'], hdr['FILTER'])
         return photfilter
 
 
