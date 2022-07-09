@@ -415,7 +415,7 @@ class PhotometryManager:
 
 def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = True,
             directories: Optional[DirectoryProtocol] = None, datafile: Optional[Dict[str, Any]] = None,
-            rescale_dynamic: bool = True) -> ResultsTable:
+            rescale: bool = True, rescale_dynamic: bool = True) -> ResultsTable:
     # Set up photometry runner
     pm = PhotometryManager.create_from_fid(fileid, directories=directories, datafile=datafile, create_directories=True)
 
@@ -430,8 +430,10 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
 
     # Do photometry
     apphot_tbl = pm.apphot()
-    psfphot_tbl = ResultsTable.verify_uncertainty_column(pm.psfphot())  # Verify uncertainty exists after PSF phot.
-    psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl, dynamic=rescale_dynamic)  # Rescale uncertainties
+    # Verify uncertainty exists after PSF phot:
+    psfphot_tbl = ResultsTable.verify_uncertainty_column(pm.psfphot())  
+    if rescale:  # Rescale uncertainties
+        psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl, dynamic=rescale_dynamic) 
 
     # Build results table and calculate magnitudes
     pm.make_result_table(psfphot_tbl, apphot_tbl)
@@ -445,10 +447,11 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
 
 def timed_photometry(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = True,
                      directories: Optional[DirectoryProtocol] = None, save: bool = True,
-                     datafile: Optional[Dict[str, Any]] = None, rescale_dynamic: bool = True) -> ResultsTable:
+                     datafile: Optional[Dict[str, Any]] = None, rescale: bool = True,
+                     rescale_dynamic: bool = True) -> ResultsTable:
     # TODO: Timer should be moved out of this function.
     tic = default_timer()
-    results_table = do_phot(fileid, cm_timeout, make_plots, directories, datafile, rescale_dynamic)
+    results_table = do_phot(fileid, cm_timeout, make_plots, directories, datafile, rescale, rescale_dynamic)
 
     # Save the results table:
     if save:
