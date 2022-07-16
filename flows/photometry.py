@@ -316,10 +316,11 @@ class PhotometryManager:
                                              init_table=self.init_guesses_diff.init_guess_diff)
         return psf_tbl
 
-    def rescale_uncertainty(self, psfphot_tbl: Table, dynamic: bool = True, static_fwhm: float = 2.5):
+    def rescale_uncertainty(self, psfphot_tbl: Table, dynamic: bool = True, 
+                            static_fwhm: float = 2.5, epsilon_mag: float = 0.004,
+                            ensure_greater: bool = True):
         """
-        Rescale the uncertainty of the PSF photometry to match the uncertainty of the
-        photometry.
+        Rescale the uncertainty of the PSF photometry using a variable fitsize.
 
         Parameters
         ----------
@@ -329,6 +330,9 @@ class PhotometryManager:
             Dynamically decide FWHM multiple for rescaling.
         static_fwhm : float
             FWHM multiple to use incase dynamic fails or don't want to use it. Default 2.5 determined empirically.
+        epsilon_mag : float
+            Small magnitude change within which new and old uncertainties are considered the same. 
+            Should be smaller than ~1/2 the expected uncertainty.
         """
         # Rescale psf errors from fit iteratively
         fit_shapes = self.photometry.get_fit_shapes(self.fwhm, self.psf_builder.star_size)
@@ -361,6 +365,12 @@ class PhotometryManager:
         logger.info(f"Recalculating all reference uncertainties using new fitsize:"
                     f" {fit_shape} pixels, ({fit_shape/self.fwhm if dynamic else static_fwhm :.2} * FWHM).")
         psfphot_tbl_rescaled = self.psfphot(fit_shape)
+        if psfphot_tbl['flux_unc'][0] > psfphot_tbl_rescaled['flux_unc'][0] + epsilon_mag and ensure_greater:
+            logger.info("Recalculated uncertainties were smaller than original and ``ensure_greater`` was True:"
+                        "Not using rescaled uncertainties for the SN.")
+            psfphot_tbl['flux_unc'][1:] = psfphot_tbl_rescaled['flux_unc'][1:]
+            return psfphot_tbl
+
         psfphot_tbl['flux_unc'] = psfphot_tbl_rescaled['flux_unc']
         return psfphot_tbl
 
@@ -415,7 +425,7 @@ class PhotometryManager:
 
 def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = True,
             directories: Optional[DirectoryProtocol] = None, datafile: Optional[Dict[str, Any]] = None,
-            rescale_dynamic: bool = True) -> ResultsTable:
+            rescale: bool = True, rescale_dynamic: bool = True) -> ResultsTable:
     # Set up photometry runner
     pm = PhotometryManager.create_from_fid(fileid, directories=directories, datafile=datafile, create_directories=True)
 
@@ -430,8 +440,10 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
 
     # Do photometry
     apphot_tbl = pm.apphot()
-    psfphot_tbl = ResultsTable.verify_uncertainty_column(pm.psfphot())  # Verify uncertainty exists after PSF phot.
-    psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl, dynamic=rescale_dynamic)  # Rescale uncertainties
+    # Verify uncertainty exists after PSF phot:
+    psfphot_tbl = ResultsTable.verify_uncertainty_column(pm.psfphot())  
+    if rescale:  # Rescale uncertainties
+        psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl, dynamic=rescale_dynamic) 
 
     # Build results table and calculate magnitudes
     pm.make_result_table(psfphot_tbl, apphot_tbl)
@@ -445,10 +457,11 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
 
 def timed_photometry(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = True,
                      directories: Optional[DirectoryProtocol] = None, save: bool = True,
-                     datafile: Optional[Dict[str, Any]] = None, rescale_dynamic: bool = True) -> ResultsTable:
+                     datafile: Optional[Dict[str, Any]] = None, rescale: bool = True,
+                     rescale_dynamic: bool = True) -> ResultsTable:
     # TODO: Timer should be moved out of this function.
     tic = default_timer()
-    results_table = do_phot(fileid, cm_timeout, make_plots, directories, datafile, rescale_dynamic)
+    results_table = do_phot(fileid, cm_timeout, make_plots, directories, datafile, rescale, rescale_dynamic)
 
     # Save the results table:
     if save:

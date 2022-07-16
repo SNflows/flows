@@ -11,8 +11,8 @@ from flows import photometry, fileio, result_model
 from flows.utilities import create_logger, parse_log_level, create_warning_logger, remove_file_handlers
 
 
-def process_fileid(fid, autoupload=False, cm_timeout=None, no_plots=False,
-                   rescale_dynamic=True) -> result_model.ResultsTable:
+def process_fileid(fid, autoupload: bool = False, cm_timeout=None, no_plots: bool = False,
+                   rescale: bool = True, rescale_dynamic: bool = True) -> result_model.ResultsTable:
     # Create the output directory if it doesn't exist:
     datafile = api.get_datafile(fid)
     directories = fileio.Directories.from_fid(fid, datafile=datafile)
@@ -25,7 +25,8 @@ def process_fileid(fid, autoupload=False, cm_timeout=None, no_plots=False,
             api.set_photometry_status(fid, 'running')
 
         table = photometry(fileid=fid, cm_timeout=cm_timeout, make_plots=not no_plots,
-                           directories=directories, datafile=datafile, rescale_dynamic=rescale_dynamic)
+                           directories=directories, datafile=datafile, rescale=rescale, 
+                           rescale_dynamic=rescale_dynamic)
 
     except (SystemExit, KeyboardInterrupt):
         logger.error("Aborted by user or system.")
@@ -79,6 +80,8 @@ def main():
     group.add_argument('--fixposdiff', action='store_true',
                        help="Fix SN position during PSF photometry of difference image. "
                             "Useful when difference image is noisy.")
+    group.add_argument('--rescale-off', action='store_false',
+                        help='Turn off uncertainty rescaling.')
     group.add_argument('--wcstimeout', type=int, default=None, help="Timeout in Seconds for WCS.")
     args = parser.parse_args()
 
@@ -118,8 +121,9 @@ def main():
     fileids = list(set(fileids))
 
     # Create function wrapper:
-    process_fileid_wrapper = functools.partial(process_fileid, autoupload=args.autoupload, cm_timeout=args.wcstimeout,
-                                               no_plots=args.noplots, rescale_dynamic=not args.rescale_static)
+    process_fileid_wrapper = functools.partial(process_fileid, autoupload=args.autoupload,
+                                               cm_timeout=args.wcstimeout, no_plots=args.noplots,
+                                               rescale=args.rescale_off, rescale_dynamic=not args.rescale_static)
 
     if threads > 1:
         # process in parallel:

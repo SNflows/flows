@@ -1,5 +1,32 @@
 """
-Load image code.
+Instrument classes that inherit from the base class.
+Modify to add your own instrument.
+
+Identifying relevant image properties:
+
+`site` = required, add manually.
+`peakmax` = optional, add manually or provide header.
+The rest of `exptime`, `obstime`, `photfilter` use the
+following (overrideable) base functions. Override
+if the default one from the baseclass does not fit
+your instrument. See:
+    ```
+    self.image.peakmax = self.peakmax
+    self.image.site = self.get_site() 
+    self.image.exptime = self.get_exptime()
+    self.image.obstime = self.get_obstime()
+    self.image.photfilter = self.get_photfilter()
+    ```
+
+Identifying the instrument for an image:
+
+Each instrument can define (one or many) of `origin`, 
+`telescope`, `instrument` fields correspinding to the 
+standard fits headers to help uniquely identify itself.
+More advanced logic is possible using `unique_headers`
+field as a dict of key,value pairs in the header. Ex:
+unique_headers = {'PRODCATG': 'SCIENCE.MEFIMAGE'}.
+These are all optional, defaults are set in baseclass.
 """
 # Standard lib
 from __future__ import annotations
@@ -72,7 +99,7 @@ class HAWKI(Instrument):
     telescope = 'ESO-VLT-U4'  # Fits Header name of TELESCOP
     instrument = 'HAWKI'  # Fits Header name of Instrument (can be partial)
     origin = 'ESO-PARANAL'  # Fits Header value of ORIGIN (if relevant)
-    unique_headers = {'PRODCATG': 'SCIENCE.MEFIMAGE'}
+    #unique_headers = {'PRODCATG': 'SCIENCE.MEFIMAGE'}
 
     def __init__(self, image: FlowsImage = None):
         super().__init__(image)
@@ -100,6 +127,10 @@ class HAWKI(Instrument):
         target_coord = verify_coordinates(target_coords)
         if target_coord is None:
             raise ValueError("TARGET_COORD is needed for HAWKI images to find the correct extension")
+
+        # Incase this is not a multi-extension imageL
+        if len(hdul) == 1:
+            return 0
 
         # For HAWKI multi-extension images we search the extensions for which one contains
         # the target, Create Image from that extension.
@@ -367,7 +398,7 @@ class AstroNIRCam(Instrument):
 
     def get_photfilter(self):
         hdr = self.image.header
-        photfilter = {'H_Open': 'H', 'K_Open': 'K', }.get(hdr['FILTER'], hdr['FILTER'])
+        photfilter = {'H_Open': 'H', 'K_Open': 'K', 'J_Open': 'J'}.get(hdr['FILTER'], hdr['FILTER'])
         return photfilter
 
 
@@ -488,12 +519,9 @@ class AFOSC(Instrument):
 class Schmidt(Instrument):
     siteid = 26
     peakmax = 56_000
-    telescope = '67/91 Schmidt Telescope'  # Fits Header name of TELESCOP
-    instrument = 'Moravian G4-16000LC'  # Fits Header name of Instrument (can be partial)
-    origin = ''  # Fits Header value of ORIGIN (if relevant)
-    unique_headers = {
-        'SITELAT': 45.8494444
-    }  # Unique key value pairs from header for identifying instrument.
+    telescope = '67/91 Schmidt Telescope' 
+    instrument = 'Moravian G4-16000LC'
+    origin = '' 
 
     def get_obstime(self):
         obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
