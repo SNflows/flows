@@ -76,3 +76,10 @@ Text coming soon...
     [database]
     username =
     password =
+
+# Making a release
+Bump sem-version when Devel is ready to merge.
+Merge Devel into Master, and ensure tests are passing.
+Create tag on Master corresponding to right semversion.
+Merge Master into devel to propagate tag.
+Create release on GH releases tab if all tests passing.
