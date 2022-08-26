@@ -191,7 +191,7 @@ class NOTCAM(Instrument):
     siteid = 5
     telescope = "NOT"
     instrument = "NOTCAM"
-    unique_headers = {"OBS_MODE": 'IMAGING'}
+    # unique_headers = {"OBS_MODE": 'IMAGING'}  # not needed.
 
     def get_obstime(self):
         return Time(self.image.header['DATE-AVG'], format='isot', scale='utc',
