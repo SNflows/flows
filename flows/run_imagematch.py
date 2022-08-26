@@ -6,7 +6,9 @@ Flows photometry code.
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
+from typing import Dict, AnyStr, Any, Optional
 import numpy as np
+from numpy.typing import NDArray
 import logging
 import os
 import subprocess
@@ -18,7 +20,9 @@ import re
 from astropy.io import fits
 from astropy.wcs.utils import proj_plane_pixel_area
 from tendrils import api
+
 from .load_image import load_image
+from .target import Target
 
 
 
@@ -38,7 +42,8 @@ from .load_image import load_image
 #	return dist.install_scripts
 
 # --------------------------------------------------------------------------------------------------
-def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scale=None):
+def run_imagematch(datafile: Dict[str, Any], target: Target, fwhm: float = 9, 
+                   pixel_scale: Optional[float] = None) -> NDArray:
     """
     Run ImageMatch on a datafile.
 
@@ -60,9 +65,9 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
 
     # If the target was not provided in the function call,
     # use the API to get the target information:
-    if target is None:
-        catalog = api.get_catalog(datafile['targetid'], output='table')
-        target = catalog['target'][0]
+    #if target is None:
+    #    catalog = api.get_catalog(datafile['targetid'], output='table')
+    #    target = catalog['target'][0]
 
     # Find the path to where the ImageMatch program is installed.
     # This is to avoid problems with it not being on the users PATH
@@ -75,7 +80,10 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
     else:
         out = subprocess.check_output(["whereis", "ImageMatch"], universal_newlines=True)
         out = re.match('ImageMatch: (.+)', out.strip())
-        imgmatch = out.group(1)
+        imgmatch = "None"
+        if out is not None:
+            imgmatch = out.group(1)
+        
 
     if not os.path.isfile(imgmatch):
         raise FileNotFoundError("ImageMatch not found")
@@ -93,16 +101,16 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
     if not os.path.isfile(config_file):
         raise FileNotFoundError(config_file)
 
+
     if pixel_scale is None:
-        if datafile['site'] in (1, 3, 4, 6):
-            # LCOGT provides the pixel scale directly in the header
-            pixel_scale = 'PIXSCALE'
-        else:
-            image = load_image(science_image)
+        image = load_image(science_image)
+        pixel_scale = image.header.get("PIXSCALE", None)
+        if pixel_scale is None:
             pixel_area = proj_plane_pixel_area(image.wcs)
             pixel_scale = np.sqrt(pixel_area) * 3600  # arcsec/pixel
             logger.info("Calculated science image pixel scale: %f", pixel_scale)
 
+            
     if datafile['template']['site'] in (1, 3, 4, 6):
         # LCOGT provides the pixel scale directly in the header
         mscale = 'PIXSCALE'
@@ -134,7 +142,7 @@ def run_imagematch(datafile, target=None, star_coord=None, fwhm=None, pixel_scal
             cmd = '"{python:s}" "{imgmatch:s}" -cfg "{config_file:s}" -snx {target_ra:.10f}d -sny {target_dec:.10f}d -p {kernel_radius:d} -o {order:d} -s {match:f} -scale {pixel_scale:} -mscale {mscale:} -m "{reference_image:s}" "{science_image:s}"'.format(
                 python=sys.executable, imgmatch=imgmatch, config_file=config_file,
                 reference_image=os.path.basename(reference_image), science_image=os.path.basename(science_image),
-                target_ra=target['ra'], target_dec=target['decl'], match=match_threshold, kernel_radius=kernel_radius,
+                target_ra=target.ra, target_dec=target.dec, match=match_threshold, kernel_radius=kernel_radius,
                 pixel_scale=pixel_scale, mscale=mscale, order=1)
             logger.info("Executing command: %s", cmd)
 
