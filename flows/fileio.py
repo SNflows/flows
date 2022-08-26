@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Optional, Protocol, Dict, Union
+from typing import Optional, Protocol, Dict, TypeVar, Union
 from configparser import ConfigParser
 from bottleneck import allnan
 from tendrils import api, utils
@@ -12,6 +12,7 @@ from . import reference_cleaning as refclean
 from .filters import get_reference_filter
 logger = create_logger()
 
+DataFileType = TypeVar("DataFileType", bound=dict)
 
 class DirectoryProtocol(Protocol):
     archive_local: str

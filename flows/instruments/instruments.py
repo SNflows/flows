@@ -50,7 +50,7 @@ logger = create_logger()
 
 
 class LCOGT(Instrument):
-    siteid = None  # Can be between 1, 3, 4, 6, 17, 19. @TODO: Refactor to own classes.
+    siteid = 1  # Can be between 1, 3, 4, 6, 17, 19. @TODO: Refactor to own classes.
     peakmax: int = 60000
     origin = 'LCOGT'
 

@@ -10,7 +10,7 @@ import pytest
 import os
 import datetime
 from astropy.coordinates import SkyCoord
-from flows import tns
+from tendrils.utils import tns
 
 
 # --------------------------------------------------------------------------------------------------
@@ -20,7 +20,8 @@ def test_tns_search():
     coo_centre = SkyCoord(ra=191.283890127, dec=-0.45909033652, unit='deg', frame='icrs')
     res = tns.tns_search(coo_centre)
 
-    print(res)
+    if res is None:
+        raise ValueError("No results found.")
     assert res[0]['objname'] == '2019yvr'
     assert res[0]['prefix'] == 'SN'
 
@@ -31,7 +32,9 @@ def test_tns_search():
 def test_tns_get_obj():
     res = tns.tns_get_obj('2019yvr')
 
-    print(res)
+    if res is None:
+        raise ValueError("No results found.")
+
     assert res['objname'] == '2019yvr'
     assert res['name_prefix'] == 'SN'
 
@@ -41,7 +44,6 @@ def test_tns_get_obj():
                     reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 def test_tns_get_obj_noexist():
     res = tns.tns_get_obj('1892doesnotexist')
-    print(res)
     assert res is None
 
 
