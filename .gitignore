@@ -142,3 +142,5 @@ dmypy.json
 
 # Ignore test output 
 tests/output/
+
+typings/astropy/units/
