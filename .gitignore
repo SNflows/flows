@@ -143,4 +143,5 @@ dmypy.json
 # Ignore test output 
 tests/output/
 
-typings/astropy/units/
+# Ignore VSCode typing clutter
+typings/
