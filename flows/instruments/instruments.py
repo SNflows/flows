@@ -541,6 +541,23 @@ class Schmidt(Instrument):
 
         raise ValueError(f"Could not find filter {filt} in {[f for f in FILTERS.keys()]}")
 
+class TNGLRS(Instrument):
+
+    siteid = 5
+    telescope = 'TNG'
+    instrument = 'LRS'
+
+    def get_obstime(self):
+        return Time(self.image.header['DATE-OBS'], format='jd', scale='utc', location=self.image.site['EarthLocation'])
+
+    def get_photfilter(self):
+    #    B  = ‘B_John_10’
+    #    g  = ‘g_sdss_30’
+    #    i  = ‘i_sdss_32’
+    #    r  = ‘r_sdss_31’
+    #    u  = ‘u_sdss_29’
+    #    V  = ‘V_John_11’
+        {"B_John_10":"B"}
 
 INSTRUMENTS = inspect.getmembers(sys.modules[__name__],
                                  lambda member: inspect.isclass(member) and member.__module__ == __name__)
