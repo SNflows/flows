@@ -77,7 +77,8 @@ Text coming soon...
     username =
     password =
 
-# Making a release
+# Making a release      
+
 Bump sem-version when Devel is ready to merge.
 Merge Devel into Master, and ensure tests are passing.
 Create tag on Master corresponding to right semversion.
