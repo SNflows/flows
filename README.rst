@@ -25,7 +25,7 @@ Installation instructions
   >>> pip install -r requirements.txt
   >>> pip install -r requirements_dev.txt  # for tests/development
 
-* Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (``chmod 0600 config.ini``)!
+* **Changed with ``tendrils`` API.** If using ``tendrils``, follow the steps below, but then let ``tendrils`` know of the config file location. Alternatively, individual config file elements can be set programatically using `tendrils` and will be saved to a config file automatically. Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (``chmod 0600 config.ini``)!
   This file can contain all the settings for running the pipeline. A minimal file for working with the pipeline is
 
   .. code-block:: ini
@@ -36,7 +36,7 @@ Installation instructions
       [TNS]
       api_key = <AUFLOWS_BOT API key>
 
-  Where your API token can be found on the Flows webpage.
+  Where your API token can be found on the Flows webpage. 
 
 
 How to run tests
