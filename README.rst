@@ -78,9 +78,10 @@ Text coming soon...
     password =
 
 Making a release      
-================
-Bump sem-version when Devel is ready to merge.
-Merge Devel into Master, and ensure tests are passing.
-Create tag on Master corresponding to right semversion.
-Merge Master into devel to propagate tag.
-Create release on GH releases tab if all tests passing.
+================     
+
+ - Bump sem-version when Devel is ready to merge in file = VERSION (v1.0.0). Checkout devel. Edit Version. Push devel.
+ - Merge Devel into Master (Create PR from Devel -> Master), wait until tests are passing. Create issues if not. Then Merge.
+ - Create tag on Master corresponding to right semversion. This means, checkout master. Pull master locally. Create tag using git tag called "v1.0.0" or whatever the sem-version. Push local tag to GitHub.
+ - Merge Master into devel to propagate tag (Create PR on GitHub).
+ - Create release on GH releases tab if all tests passing.
