@@ -550,3 +550,34 @@ INSTRUMENTS = inspect.getmembers(sys.modules[__name__],
 #                    RetroCam, 'Baade': Baade,
 #                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
 #                'PairTel': PairTel, 'TJO_Meia2': TJO_MEIA2, 'TJO_Meia3': TJO_MEIA3, 'RATIR': RATIR, "Schmidt": Schmidt, "AFOSC": AFOSC}
+
+class TNG(Instrument):
+    siteid = 5  # same as NOT
+    peakmax = None # Lluis did not provide this so it is in header??
+    #instrument = 'LRS'
+    #telescope = 'TNG'
+    
+    unique_headers = {'TELESCOP':'TNG', 'INSTRUME':'LRS'} # assume we use unique headers?
+
+
+    def get_obstime(self):
+        return Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
+                    location=self.image.site['EarthLocation'])
+
+
+    def get_exptime(self):
+        exptime = super().get_exptime()
+        exptime *= int(self.image.header['EXPTIME'])  
+        return exptime
+
+    def get_photfilter(self):
+        ratir_filt = self.image.header['FLT_ID']
+        if ratir_filt in ['B_John_10', 'g_sdss_30', 'r_sdss_31', 'i_sdss_32',
+        'u_sdss_29', 'V_John_11']:
+            return {'B_John_10': 'B', 'g_sdss_30':'g', 'r':'r_sdss_31',
+            'i_sdss_32':'i', 'u_sdss_29':'u', 'V_John_11':'V_John_11' }.get(ratir_filt)
+        return ratir_filt
+
+
+
+

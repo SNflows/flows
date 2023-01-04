@@ -25,7 +25,7 @@ Installation instructions
   >>> pip install -r requirements.txt
   >>> pip install -r requirements_dev.txt  # for tests/development
 
-* Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (``chmod 0600 config.ini``)!
+* **Changed with ``tendrils`` API.** If using ``tendrils``, follow the steps below, but then let ``tendrils`` know of the config file location. Alternatively, individual config file elements can be set programatically using `tendrils` and will be saved to a config file automatically. Last step is to create a config-file. Create a file named "config.ini" and place it in the "flows" directory. Make sure that the file can only be read by you (``chmod 0600 config.ini``)!
   This file can contain all the settings for running the pipeline. A minimal file for working with the pipeline is
 
   .. code-block:: ini
@@ -36,7 +36,7 @@ Installation instructions
       [TNS]
       api_key = <AUFLOWS_BOT API key>
 
-  Where your API token can be found on the Flows webpage.
+  Where your API token can be found on the Flows webpage. 
 
 
 How to run tests
@@ -77,9 +77,11 @@ Text coming soon...
     username =
     password =
 
-# Making a release
-Bump sem-version when Devel is ready to merge.
-Merge Devel into Master, and ensure tests are passing.
-Create tag on Master corresponding to right semversion.
-Merge Master into devel to propagate tag.
-Create release on GH releases tab if all tests passing.
+Making a release      
+================     
+
+ - Bump sem-version when Devel is ready to merge in file = VERSION (v1.0.0). Checkout devel. Edit Version. Push devel.
+ - Merge Devel into Master (Create PR from Devel -> Master), wait until tests are passing. Create issues if not. Then Merge.
+ - Create tag on Master corresponding to right semversion. This means, checkout master. Pull master locally. Create tag using git tag called "v1.0.0" or whatever the sem-version. Push local tag to GitHub.
+ - Merge Master into devel to propagate tag (Create PR on GitHub).
+ - Create release on GH releases tab if all tests passing.
