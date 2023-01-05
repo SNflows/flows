@@ -30,22 +30,26 @@ These are all optional, defaults are set in baseclass.
 """
 # Standard lib
 from __future__ import annotations
-import sys
+
 import inspect
-from typing import Tuple, Union, Optional
+import sys
+from typing import List, Optional, Tuple, Union
+
+import astropy.coordinates as coords
+import astropy.units as u
 # Third party
 import numpy as np
-import astropy.units as u
-import astropy.coordinates as coords
 from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS
 # First party
 from tendrils import api
+
 from flows.filters import FILTERS
 from flows.image import FlowsImage
 from flows.instruments.base_instrument import Instrument
 from flows.utilities import create_logger
+
 logger = create_logger()
 
 
@@ -542,15 +546,6 @@ class Schmidt(Instrument):
         raise ValueError(f"Could not find filter {filt} in {[f for f in FILTERS.keys()]}")
 
 
-INSTRUMENTS = inspect.getmembers(sys.modules[__name__],
-                                 lambda member: inspect.isclass(member) and member.__module__ == __name__)
-
-# instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
-#                'Omega2000': Omega2000, 'Swope': Swope, 'Swope_newheader':Swope_newheader, 'Dupont': Dupont, 'Retrocam':
-#                    RetroCam, 'Baade': Baade,
-#                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
-#                'PairTel': PairTel, 'TJO_Meia2': TJO_MEIA2, 'TJO_Meia3': TJO_MEIA3, 'RATIR': RATIR, "Schmidt": Schmidt, "AFOSC": AFOSC}
-
 class TNG(Instrument):
     siteid = 5  # same as NOT
     peakmax = None # Lluis did not provide this so it is in header??
@@ -579,5 +574,6 @@ class TNG(Instrument):
         return ratir_filt
 
 
-
-
+INSTRUMENTS: list[tuple[str, Instrument]] = inspect.getmembers(sys.modules[__name__],
+                                 lambda member: inspect.isclass(member) and member.__module__ == __name__)
+                                 
