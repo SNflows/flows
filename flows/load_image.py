@@ -1,17 +1,25 @@
 """
 Load image code.
 """
+# pyright: reportMissingTypeStubs=true
 from __future__ import annotations
-import numpy as np
-from typing import Union, Tuple
+
+from typing import Any, Tuple, Union
+
+import astropy
 import astropy.coordinates as coords
+import numpy as np
 from astropy.io import fits
+from astropy.io.fits import Header, PrimaryHDU
 from astropy.time import Time
 
-from .instruments import INSTRUMENTS, verify_coordinates
 from .image import FlowsImage
+from .instruments import INSTRUMENTS, verify_coordinates
 from .utilities import create_logger
+
 logger = create_logger()
+
+astropy.__version__
 
 
 def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, float]] = None):
@@ -31,10 +39,11 @@ def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, 
     ext = 0  # Default extension is  0, individual instruments may override this.
     # Read fits image, Structural Pattern Match to specific instrument.
     with fits.open(filename, mode='readonly') as hdul:
-        hdr = hdul[ext].header
-        origin = hdr.get('ORIGIN', '')
-        telescope = hdr.get('TELESCOP', '')
-        instrument = hdr.get('INSTRUME', '')
+        hdu: PrimaryHDU = hdul[ext]
+        hdr: Header = hdu.header
+        origin = str(hdr.get('ORIGIN', ''))
+        telescope = str(hdr.get('TELESCOP', ''))
+        instrument = str(hdr.get('INSTRUME', ''))
 
         for inst_name, inst_cls in INSTRUMENTS:
             if inst_cls.identifier(telescope, origin, instrument, hdr):
@@ -44,7 +53,7 @@ def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, 
                 mask = inst_cls.get_mask(hdul)
                 # Default = None is to only mask all non-finite values, override here is additive.
 
-                image = FlowsImage(image=np.asarray(hdul[ext].data, dtype='float64'),
+                image = FlowsImage(image=np.asarray(hdu.data, dtype='float64'),
                                    header=hdr, mask=mask)
                 current_instrument = inst_cls(image)
                 clean_image = current_instrument.process_image()

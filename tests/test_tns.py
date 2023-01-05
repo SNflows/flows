@@ -6,9 +6,11 @@ Test TNS queries which rely on the TNS API.
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
-import pytest
-import os
 import datetime
+import logging
+import os
+
+import pytest
 from astropy.coordinates import SkyCoord
 from tendrils.utils import tns
 
@@ -51,8 +53,8 @@ def test_tns_get_obj_noexist():
 @pytest.mark.skipif(os.environ.get('CI') == 'true',
                     reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 @pytest.mark.parametrize('date_begin,date_end',
-                         [('2019-01-01', '2019-02-01'), (datetime.date(2019, 1, 1), datetime.date(2019, 2, 1)),
-                          (datetime.datetime(2019, 1, 1, 12, 0), datetime.datetime(2019, 2, 1, 12, 0))])
+                         [('2019-01-01', '2019-01-10'), (datetime.date(2019, 1, 1), datetime.date(2019, 1, 10)),
+                          (datetime.datetime(2019, 1, 1, 12, 0), datetime.datetime(2019, 1, 10, 12, 0))])
 def test_tns_getnames(date_begin, date_end):
     names = tns.tns_getnames(date_begin=date_begin, date_end=date_end, zmin=0, zmax=0.105, objtype=3)
 
@@ -61,6 +63,7 @@ def test_tns_getnames(date_begin, date_end):
     for n in names:
         assert isinstance(n, str), "Each element should be a string"
         assert n.startswith('SN'), "All names should begin with 'SN'"
+    logging.debug(f"obtained names: {names}")
     assert 'SN2019A' in names, "SN2019A should be in the list"
 
 

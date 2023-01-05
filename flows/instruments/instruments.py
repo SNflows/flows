@@ -30,22 +30,26 @@ These are all optional, defaults are set in baseclass.
 """
 # Standard lib
 from __future__ import annotations
-import sys
+
 import inspect
-from typing import Tuple, Union, Optional
+import sys
+from typing import List, Optional, Tuple, Union
+
+import astropy.coordinates as coords
+import astropy.units as u
 # Third party
 import numpy as np
-import astropy.units as u
-import astropy.coordinates as coords
 from astropy.io import fits
 from astropy.time import Time
 from astropy.wcs import WCS
 # First party
 from tendrils import api
+
 from flows.filters import FILTERS
 from flows.image import FlowsImage
 from flows.instruments.base_instrument import Instrument
 from flows.utilities import create_logger
+
 logger = create_logger()
 
 
@@ -583,5 +587,6 @@ INSTRUMENTS = inspect.getmembers(sys.modules[__name__],
 
 
 
-
-
+INSTRUMENTS: list[tuple[str, Instrument]] = inspect.getmembers(sys.modules[__name__],
+                                 lambda member: inspect.isclass(member) and member.__module__ == __name__)
+                                 
