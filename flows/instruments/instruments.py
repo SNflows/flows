@@ -548,7 +548,6 @@ class Schmidt(Instrument):
 
 class TNG(Instrument):
     siteid = 5  # same as NOT
-    peakmax = None # Lluis did not provide this so it is in header??
     #instrument = 'LRS'
     #telescope = 'TNG'
     
