@@ -115,6 +115,7 @@ def download_ztf_photometry(targetid):
     tab.rename_column('magpsf', 'mag')
     tab.rename_column('sigmapsf', 'mag_err')
 
+    # tested
     # Remove bad values of time and magnitude:
     tab['time'] = np.asarray(tab['time'], dtype='float64')
     tab['mag'] = np.asarray(tab['mag'], dtype='float64')
