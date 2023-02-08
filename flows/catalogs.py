@@ -7,6 +7,7 @@
 import logging
 import os
 import os.path
+from pickle import NONE
 import shlex
 import subprocess
 import warnings
@@ -65,8 +66,8 @@ def configure_casjobs(overwrite=False):
         return
 
     config = load_config()
-    wsid = config.get('casjobs', 'wsid', fallback=None)
-    passwd = config.get('casjobs', 'password', fallback=None)
+    wsid = config.get('casjobs', 'wsid', fallback=os.environ.get("CASJOBS_WSID", None))
+    passwd = config.get('casjobs', 'password', fallback=os.environ.get("CASJOBS_PASSWORD", None))
     if wsid is None or passwd is None:
         raise CasjobsError("CasJobs WSID and PASSWORD not in config.ini")
 
