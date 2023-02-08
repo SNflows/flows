@@ -6,15 +6,17 @@ Test API calls.
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
-import pytest
+import logging
+
+import conftest  # noqa: F401
 import numpy as np
+import pytest
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
-import conftest  # noqa: F401
+
 from flows import catalogs
 
 
-# --------------------------------------------------------------------------------------------------
 def test_query_simbad():
     # Coordinates around test-object (2019yvr):
     coo_centre = SkyCoord(ra=256.727512, dec=30.271482, unit='deg', frame='icrs')
@@ -27,7 +29,6 @@ def test_query_simbad():
     results.pprint_all(50)
 
 
-# --------------------------------------------------------------------------------------------------
 def test_query_skymapper():
     # Coordinates around test-object (2021aess):
     coo_centre = SkyCoord(ra=53.4505, dec=-19.495725, unit='deg', frame='icrs')
@@ -40,12 +41,8 @@ def test_query_skymapper():
     results.pprint_all(50)
 
 
-# --------------------------------------------------------------------------------------------------
-
-@pytest.mark.parametrize('ra,dec', [[256.727512, 30.271482],  # 2019yvr
-                                    [58.59512, -19.18172],  # 2009D
-                                    ])
-def test_download_catalog(SETUP_CONFIG, ra, dec):
+def test_download_catalog(caplog, SETUP_CONFIG, ra: float = 256.727512, dec: float = 30.271482) -> None:
+    caplog.set_level(logging.DEBUG)
     # Check if CasJobs have been configured, and skip the entire test if it isn't.
     # This has to be done like this, to avoid problems when config.ini doesn't exist.
     try:
@@ -57,7 +54,7 @@ def test_download_catalog(SETUP_CONFIG, ra, dec):
     coo_centre = SkyCoord(ra=ra, dec=dec, unit='deg', frame='icrs')
 
     tab = catalogs.query_all(coo_centre)
-    print(tab)
+    logging.debug(tab)
 
     assert isinstance(tab, Table), "Should return a Table"
     results = catalogs.convert_table_to_dict(tab)
