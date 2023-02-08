@@ -26,7 +26,7 @@ def test_query_simbad():
     assert isinstance(results, Table)
     assert isinstance(simbad, SkyCoord)
     assert len(results) > 0
-    results.pprint_all(50)
+    #results.pprint_all(50)
 
 
 def test_query_skymapper():
@@ -38,11 +38,11 @@ def test_query_skymapper():
     assert isinstance(results, Table)
     assert isinstance(skymapper, SkyCoord)
     assert len(results) > 0
-    results.pprint_all(50)
+    #results.pprint_all(50)
 
 
-def test_download_catalog(caplog, SETUP_CONFIG, ra: float = 256.727512, dec: float = 30.271482) -> None:
-    caplog.set_level(logging.DEBUG)
+def test_download_catalog(SETUP_CONFIG, ra: float = 256.727512, dec: float = 30.271482) -> None:
+    # caplog.set_level(logging.DEBUG)
     # Check if CasJobs have been configured, and skip the entire test if it isn't.
     # This has to be done like this, to avoid problems when config.ini doesn't exist.
     try:
