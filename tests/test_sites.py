@@ -1,7 +1,6 @@
 from typing import Optional
 
 import pytest
-from tendrils import api
 
 from flows.instruments import INSTRUMENTS, Instrument, Site
 

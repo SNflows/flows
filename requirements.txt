@@ -17,5 +17,5 @@ pytz
 sep
 astroalign > 2.3
 networkx
-astroquery >= 0.4.7dev8479
+astroquery == 0.4.6
 tendrils >= 0.1.5
