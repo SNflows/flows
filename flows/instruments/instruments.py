@@ -542,15 +542,6 @@ class Schmidt(Instrument):
         raise ValueError(f"Could not find filter {filt} in {[f for f in FILTERS.keys()]}")
 
 
-INSTRUMENTS = inspect.getmembers(sys.modules[__name__],
-                                 lambda member: inspect.isclass(member) and member.__module__ == __name__)
-
-# instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
-#                'Omega2000': Omega2000, 'Swope': Swope, 'Swope_newheader':Swope_newheader, 'Dupont': Dupont, 'Retrocam':
-#                    RetroCam, 'Baade': Baade,
-#                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
-#                'PairTel': PairTel, 'TJO_Meia2': TJO_MEIA2, 'TJO_Meia3': TJO_MEIA3, 'RATIR': RATIR, "Schmidt": Schmidt, "AFOSC": AFOSC}
-
 class TNG(Instrument):
     siteid = 5  # same as NOT
     peakmax = None # Lluis did not provide this so it is in header??
@@ -577,6 +568,19 @@ class TNG(Instrument):
             return {'B_John_10': 'B', 'g_sdss_30':'g', 'r':'r_sdss_31',
             'i_sdss_32':'i', 'u_sdss_29':'u', 'V_John_11':'V_John_11' }.get(ratir_filt)
         return ratir_filt
+ 
+
+
+INSTRUMENTS = inspect.getmembers(sys.modules[__name__],
+                                 lambda member: inspect.isclass(member) and member.__module__ == __name__)
+
+# instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
+#                'Omega2000': Omega2000, 'Swope': Swope, 'Swope_newheader':Swope_newheader, 'Dupont': Dupont, 'Retrocam':
+#                    RetroCam, 'Baade': Baade,
+#                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
+#                'PairTel': PairTel, 'TJO_Meia2': TJO_MEIA2, 'TJO_Meia3': TJO_MEIA3, 'RATIR': RATIR, "Schmidt": Schmidt, "AFOSC": AFOSC}
+
+
 
 
 
