@@ -12,7 +12,7 @@ if the default one from the baseclass does not fit
 your instrument. See:
     ```
     self.image.peakmax = self.peakmax
-    self.image.site = self.get_site() 
+    self.image.site = self.get_site()
     self.image.exptime = self.get_exptime()
     self.image.obstime = self.get_obstime()
     self.image.photfilter = self.get_photfilter()
@@ -20,8 +20,8 @@ your instrument. See:
 
 Identifying the instrument for an image:
 
-Each instrument can define (one or many) of `origin`, 
-`telescope`, `instrument` fields correspinding to the 
+Each instrument can define (one or many) of `origin`,
+`telescope`, `instrument` fields correspinding to the
 standard fits headers to help uniquely identify itself.
 More advanced logic is possible using `unique_headers`
 field as a dict of key,value pairs in the header. Ex:
@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import inspect
 import sys
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Type
 
 import astropy.coordinates as coords
 import astropy.units as u
@@ -150,7 +150,6 @@ class HAWKI(Instrument):
             return fallback_extension
         else:
             raise RuntimeError(f"Could not find image extension that target is on!")
-
 
 
 class ALFOSC(Instrument):
@@ -459,7 +458,6 @@ class TJO_MEIA2(Instrument):
     telescope = 'TJO'
     instrument = 'MEIA2'
 
-
     def get_obstime(self):
         obstime = super().get_obstime()
         obstime += 0.5 * self.image.exptime * u.second
@@ -523,9 +521,9 @@ class AFOSC(Instrument):
 class Schmidt(Instrument):
     siteid = 26
     peakmax = 56_000
-    telescope = '67/91 Schmidt Telescope' 
+    telescope = '67/91 Schmidt Telescope'
     instrument = 'Moravian G4-16000LC'
-    origin = '' 
+    origin = ''
 
     def get_obstime(self):
         obstime = Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
@@ -550,18 +548,16 @@ class TNG(Instrument):
     siteid = 5  # same as NOT
     #instrument = 'LRS'
     #telescope = 'TNG'
-    
-    unique_headers = {'TELESCOP':'TNG', 'INSTRUME':'LRS'} # assume we use unique headers?
 
+    unique_headers = {'TELESCOP':'TNG', 'INSTRUME':'LRS'} # assume we use unique headers?
 
     def get_obstime(self):
         return Time(self.image.header['DATE-OBS'], format='isot', scale='utc',
                     location=self.image.site['EarthLocation'])
 
-
     def get_exptime(self):
         exptime = super().get_exptime()
-        exptime *= int(self.image.header['EXPTIME'])  
+        exptime *= int(self.image.header['EXPTIME'])
         return exptime
 
     def get_photfilter(self):
@@ -571,21 +567,7 @@ class TNG(Instrument):
             return {'B_John_10': 'B', 'g_sdss_30':'g', 'r':'r_sdss_31',
             'i_sdss_32':'i', 'u_sdss_29':'u', 'V_John_11':'V_John_11' }.get(ratir_filt)
         return ratir_filt
- 
 
 
-INSTRUMENTS = inspect.getmembers(sys.modules[__name__],
+INSTRUMENTS: List[Tuple[str, Type[Instrument]]] = inspect.getmembers(sys.modules[__name__],
                                  lambda member: inspect.isclass(member) and member.__module__ == __name__)
-
-# instruments = {'LCOGT': LCOGT, 'HAWKI': HAWKI, 'ALFOSC': ALFOSC, 'NOTCAM': NOTCAM, 'PS1': PS1, 'Liverpool': Liverpool,
-#                'Omega2000': Omega2000, 'Swope': Swope, 'Swope_newheader':Swope_newheader, 'Dupont': Dupont, 'Retrocam':
-#                    RetroCam, 'Baade': Baade,
-#                'Sofi': Sofi, 'EFOSC': EFOSC, 'AstroNIRCam': AstroNIRCam, 'OmegaCam': OmegaCam, 'AndiCam': AndiCam,
-#                'PairTel': PairTel, 'TJO_Meia2': TJO_MEIA2, 'TJO_Meia3': TJO_MEIA3, 'RATIR': RATIR, "Schmidt": Schmidt, "AFOSC": AFOSC}
-
-
-
-
-INSTRUMENTS: list[tuple[str, Instrument]] = inspect.getmembers(sys.modules[__name__],
-                                 lambda member: inspect.isclass(member) and member.__module__ == __name__)
-                                 
