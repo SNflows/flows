@@ -145,3 +145,5 @@ tests/output/
 
 # Ignore VSCode typing clutter
 typings/
+
+*.config
