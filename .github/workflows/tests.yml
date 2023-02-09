@@ -119,8 +119,9 @@ jobs:
 
     - name: Upload coverage
       continue-on-error: true
-      uses: codecov/codecov-action@v2
+      uses: codecov/codecov-action@v3
       with:
+        fail_ci_if_error: true
         env_vars: OS,PYTHON
         verbose: true
 
