@@ -1,8 +1,18 @@
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 import pytest
+from matplotlib import pyplot as plt
+import tempfile
+from tendrils import api
 
 from flows.instruments import INSTRUMENTS, Instrument, Site
+from flows.visibility import visibility
+from flows.target import Target
+
+
+@pytest.fixture(scope='session')
+def flows_sites() -> List[Dict[str, Any]]:
+    return api.get_all_sites()  # type: ignore
 
 
 def test_flows_sites(siteid: int = 9):
@@ -30,6 +40,7 @@ def test_site_from_astropy_vs_flows(sitename: str = "paranal", siteid: int = 2):
     assert int(site.latitude) == int(flows_site.latitude)
     assert int(site.longitude) == int(flows_site.longitude)
 
+
 def test_user_site(monkeypatch):
 
     # provided inputs
@@ -53,6 +64,25 @@ def test_user_site(monkeypatch):
     if site.earth_location is None:
         raise ValueError(f"Expected to find site with earth location!")
     assert int(site.earth_location.lat.value) == int(lat)
+
+
+# Very basic due to being moved to flows tools
+def test_site_visibility(flows_sites):
+    target = Target.from_tid(8)
+    with pytest.deprecated_call():
+        with plt.ioff():
+            ax = visibility(target, siteid=2)
+            assert isinstance(ax, plt.Axes)
+
+    with tempfile.TemporaryDirectory() as tempdir:
+        with pytest.deprecated_call():
+            with plt.ioff():
+                plotpaths = visibility(
+                    target, date="2023-01-01", output=tempdir
+                )
+
+    assert not isinstance(plotpaths, plt.Axes)
+    assert len(flows_sites) == len(plotpaths)
 
 
 if __name__ == '__main__':

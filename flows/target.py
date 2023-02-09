@@ -58,9 +58,16 @@ class Target:
         """
         Create target from fileid.
         """
-        
+
         datafile = datafile or api.get_datafile(fid)
         if datafile is None:
             raise ValueError(f'No datafile found for fid={fid}')
         d = api.get_target(datafile['target_name']) | datafile
         return cls.from_dict(d)
+
+    @classmethod
+    def from_tid(cls, target_id: int) -> 'Target':
+        """
+        Create target from target id.
+        """
+        return cls.from_dict(api.get_target(target_id))

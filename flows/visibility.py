@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Target visibility plotting. 
+Target visibility plotting.
 @TODO: Move to flows-tools.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
@@ -20,6 +20,7 @@ from astropy.visualization import quantity_support
 from tendrils import api
 from .target import Target
 from typing import Optional
+import warnings
 
 
 # --------------------------------------------------------------------------------------------------
@@ -41,6 +42,7 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
     """
 
     logger = logging.getLogger(__name__)
+    warnings.warn(DeprecationWarning("This module is moved to SNFLOWS/flows-tools."))
 
     if date is None:
         date = datetime.utcnow()
