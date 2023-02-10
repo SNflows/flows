@@ -142,3 +142,8 @@ dmypy.json
 
 # Ignore test output 
 tests/output/
+
+# Ignore VSCode typing clutter
+typings/
+
+*.config

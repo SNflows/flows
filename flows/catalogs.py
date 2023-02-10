@@ -4,25 +4,29 @@
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
-
 import logging
+import os
 import os.path
-import subprocess
+from pickle import NONE
 import shlex
-import requests
+import subprocess
 import warnings
 from io import BytesIO
+
 import numpy as np
-from bottleneck import anynan
-from astropy.time import Time
-from astropy.coordinates import SkyCoord, Angle
+import requests
 from astropy import units as u
-from astropy.table import Table, MaskedColumn
-from astroquery.sdss import SDSS
+from astropy.coordinates import Angle, SkyCoord
+from astropy.table import MaskedColumn, Table
+from astropy.time import Time
+from astroquery import sdss
 from astroquery.simbad import Simbad
+from bottleneck import anynan
 from tendrils.utils import load_config, query_ztf_id
+
 from .aadc_db import AADC_DB
 
+logger = logging.getLogger(__name__)
 
 # --------------------------------------------------------------------------------------------------
 class CasjobsError(RuntimeError):
@@ -55,15 +59,15 @@ def configure_casjobs(overwrite=False):
 
     .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
     """
-
     __dir__ = os.path.dirname(os.path.realpath(__file__))
     casjobs_config = os.path.join(__dir__, 'casjobs', 'CasJobs.config')
+    logger.debug(",".join([casjobs_config,__dir__,os.path.realpath(__file__)]))
     if os.path.isfile(casjobs_config) and not overwrite:
         return
 
     config = load_config()
-    wsid = config.get('casjobs', 'wsid', fallback=None)
-    passwd = config.get('casjobs', 'password', fallback=None)
+    wsid = config.get('casjobs', 'wsid', fallback=os.environ.get("CASJOBS_WSID", None))
+    passwd = config.get('casjobs', 'password', fallback=os.environ.get("CASJOBS_PASSWORD", None))
     if wsid is None or passwd is None:
         raise CasjobsError("CasJobs WSID and PASSWORD not in config.ini")
 
@@ -100,8 +104,6 @@ def query_casjobs_refcat2(coo_centre, radius=24 * u.arcmin):
 
     .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
     """
-
-    logger = logging.getLogger(__name__)
     if isinstance(radius, (float, int)):
         radius *= u.deg
 
@@ -128,7 +130,6 @@ def query_casjobs_refcat2(coo_centre, radius=24 * u.arcmin):
 
 # --------------------------------------------------------------------------------------------------
 def _query_casjobs_refcat2_divide_and_conquer(coo_centre, radius):
-    logger = logging.getLogger(__name__)
 
     # Just put in a stop criterion to avoid infinite recursion:
     if radius < 0.04 * u.deg:
@@ -172,7 +173,6 @@ def _query_casjobs_refcat2(coo_centre, radius=24 * u.arcmin):
     .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
     """
 
-    logger = logging.getLogger(__name__)
     if isinstance(radius, (float, int)):
         radius *= u.deg
 
@@ -298,7 +298,9 @@ def query_sdss(coo_centre, radius=24 * u.arcmin, dr=16, clean=True):
     if isinstance(radius, (float, int)):
         radius *= u.deg
 
-    AT_sdss = SDSS.query_region(coo_centre, photoobj_fields=['type', 'clean', 'ra', 'dec', 'psfMag_u'], data_release=dr,
+    #SDSS.MAX_CROSSID_RADIUS = radius + 1 * u.arcmin
+    sdss.conf.skyserver_baseurl = sdss.conf.skyserver_baseurl.replace("http://","https://")
+    AT_sdss = sdss.SDSS.query_region(coo_centre, photoobj_fields=['type', 'clean', 'ra', 'dec', 'psfMag_u'], data_release=dr,
                                 timeout=600, radius=radius)
 
     if AT_sdss is None:
@@ -316,9 +318,9 @@ def query_sdss(coo_centre, radius=24 * u.arcmin, dr=16, clean=True):
         return None, None
 
     # Create SkyCoord object with the coordinates:
-    sdss = SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
+    sdss_coord = SkyCoord(ra=AT_sdss['ra'], dec=AT_sdss['dec'], unit=u.deg, frame='icrs')
 
-    return AT_sdss, sdss
+    return AT_sdss, sdss_coord
 
 
 # --------------------------------------------------------------------------------------------------
@@ -561,8 +563,6 @@ def download_catalog(target=None, radius=24 * u.arcmin, radius_ztf=3 * u.arcsec,
     .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
     """
 
-    logger = logging.getLogger(__name__)
-
     with AADC_DB() as db:
 
         # Get the information about the target from the database:
@@ -623,54 +623,56 @@ def download_catalog(target=None, radius=24 * u.arcmin, radius_ztf=3 * u.arcsec,
             else:
                 on_conflict = 'DO NOTHING'
 
-            try:
-                db.cursor.executemany("""INSERT INTO flows.refcat2 (
-					starid,
-					ra,
-					decl,
-					pm_ra,
-					pm_dec,
-					gaia_mag,
-					gaia_bp_mag,
-					gaia_rp_mag,
-					gaia_variability,
-					u_mag,
-					g_mag,
-					r_mag,
-					i_mag,
-					z_mag,
-					"J_mag",
-					"H_mag",
-					"K_mag",
-					"V_mag",
-					"B_mag")
-				VALUES (
-					%(starid)s,
-					%(ra)s,
-					%(decl)s,
-					%(pm_ra)s,
-					%(pm_dec)s,
-					%(gaia_mag)s,
-					%(gaia_bp_mag)s,
-					%(gaia_rp_mag)s,
-					%(gaia_variability)s,
-					%(u_mag)s,
-					%(g_mag)s,
-					%(r_mag)s,
-					%(i_mag)s,
-					%(z_mag)s,
-					%(J_mag)s,
-					%(H_mag)s,
-					%(K_mag)s,
-					%(V_mag)s,
-					%(B_mag)s)
-				ON CONFLICT """ + on_conflict + ";", results)
-                logger.info("%d catalog entries inserted for %s.", db.cursor.rowcount, target_name)
+            # Avoid testing "ON CONFLICT" of postgres. Only test update/insert.
+            if update_existing:
+                try:
+                    db.cursor.executemany("""INSERT INTO flows.refcat2 (
+                        starid,
+                        ra,
+                        decl,
+                        pm_ra,
+                        pm_dec,
+                        gaia_mag,
+                        gaia_bp_mag,
+                        gaia_rp_mag,
+                        gaia_variability,
+                        u_mag,
+                        g_mag,
+                        r_mag,
+                        i_mag,
+                        z_mag,
+                        "J_mag",
+                        "H_mag",
+                        "K_mag",
+                        "V_mag",
+                        "B_mag")
+                    VALUES (
+                        %(starid)s,
+                        %(ra)s,
+                        %(decl)s,
+                        %(pm_ra)s,
+                        %(pm_dec)s,
+                        %(gaia_mag)s,
+                        %(gaia_bp_mag)s,
+                        %(gaia_rp_mag)s,
+                        %(gaia_variability)s,
+                        %(u_mag)s,
+                        %(g_mag)s,
+                        %(r_mag)s,
+                        %(i_mag)s,
+                        %(z_mag)s,
+                        %(J_mag)s,
+                        %(H_mag)s,
+                        %(K_mag)s,
+                        %(V_mag)s,
+                        %(B_mag)s)
+                    ON CONFLICT """ + on_conflict + ";", results)
+                    logger.info("%d catalog entries inserted for %s.", db.cursor.rowcount, target_name)
 
-                # Mark the target that the catalog has been downloaded:
-                db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE,ztf_id=%s WHERE targetid=%s;",
-                                  (ztf_id, targetid))
-                db.conn.commit()
-            except:  # noqa: E722, pragma: no cover
-                db.conn.rollback()
-                raise
+                    # Mark the target that the catalog has been downloaded:
+                    db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=TRUE,ztf_id=%s WHERE targetid=%s;",
+                                    (ztf_id, targetid))
+                    db.conn.commit()
+                except:  # noqa: E722, pragma: no cover
+                    db.conn.rollback()
+                    raise

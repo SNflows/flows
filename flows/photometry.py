@@ -21,7 +21,7 @@ from astropy.nddata import NDData
 from astropy.modeling import fitting
 from astropy.wcs.utils import proj_plane_pixel_area
 import multiprocessing
-from tendrils import api
+#from tendrils import api
 
 from .magnitudes import instrumental_mag
 from .result_model import ResultsTable
@@ -49,19 +49,19 @@ PhotutilsBackground = TypeVar('PhotutilsBackground', bound=photutils.background.
 logger = create_logger()
 
 
-def get_datafile(fileid: int) -> Dict:
-    """
-    Get datafile from API, log it, return.
-    """
-    datafile = api.get_datafile(fileid)
-    logger.debug("Datafile: %s", datafile)
-    return datafile
+# def get_datafile(fileid: int) -> Dict:
+#     """
+#     Get datafile from API, log it, return.
+#     """
+#     datafile = api.get_datafile(fileid)
+#     logger.debug("Datafile: %s", datafile)
+#     return datafile
 
 
-def get_catalog(targetid: int) -> Dict:
-    catalog = api.get_catalog(targetid, output='table')
-    logger.debug(f"catalog obtained for target: {targetid}")
-    return catalog
+# def get_catalog(targetid: int) -> Dict:
+#     catalog = api.get_catalog(targetid, output='table')
+#     logger.debug(f"catalog obtained for target: {targetid}")
+#     return catalog
 
 
 class PSFBuilder:

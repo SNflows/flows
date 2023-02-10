@@ -2,25 +2,31 @@
 # -*- coding: utf-8 -*-
 """
 Target visibility plotting.
+@TODO: Move to flows-tools.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
 import logging
 import os.path
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.dates import DateFormatter
-import astropy.units as u
-from astropy.time import Time
+import warnings
 from datetime import datetime
-from astropy.coordinates import SkyCoord, AltAz, get_sun, get_moon
+from typing import Optional
+
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.coordinates import AltAz, SkyCoord, get_moon, get_sun
+from astropy.time import Time
 from astropy.visualization import quantity_support
+from matplotlib.dates import DateFormatter
 from tendrils import api
+
+from .target import Target
 
 
 # --------------------------------------------------------------------------------------------------
-def visibility(target, siteid=None, date=None, output=None, overwrite=True):
+def visibility(target: Target, siteid: Optional[int] = None, date=None, output=None, overwrite=True):
     """
     Create visibility plot.
 
@@ -38,16 +44,15 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
     """
 
     logger = logging.getLogger(__name__)
+    warnings.warn(DeprecationWarning("This module is moved to SNFLOWS/flows-tools."))
 
     if date is None:
         date = datetime.utcnow()
     elif isinstance(date, str):
         date = datetime.strptime(date, '%Y-%m-%d')
 
-    tgt = api.get_target(target)
-
     # Coordinates of object:
-    obj = SkyCoord(ra=tgt['ra'], dec=tgt['decl'], unit='deg', frame='icrs')
+    obj = SkyCoord(ra=target.ra, dec=target.dec, unit='deg', frame='icrs')
 
     if siteid is None:
         sites = api.get_all_sites()
@@ -61,7 +66,7 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
         if output:
             if os.path.isdir(output):
                 plotpath = os.path.join(output, "visibility_%s_%s_site%02d.png" % (
-                    tgt['target_name'], date.strftime('%Y%m%d'), site['siteid']))
+                    target.name, date.strftime('%Y%m%d'), site['siteid']))
             else:
                 plotpath = output
             logger.debug("Will save visibility plot to '%s'", plotpath)
@@ -70,9 +75,11 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
             if not overwrite and os.path.exists(plotpath):
                 logger.info("File already exists: %s", plotpath)
                 continue
-
+        logger.debug(f"{site}, type: {type(site)}")
         # Observatory:
-        observatory = site['EarthLocation']
+        observatory = site.get('EarthLocation', None)
+        if observatory is None:
+            observatory = site.get('earth_location')
         utcoffset = (site['longitude'] * u.deg / (360 * u.deg)) * 24 * u.hour
 
         # Create timestamps to calculate for:
@@ -103,7 +110,7 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
         plt.grid(ls=':', lw=0.5)
         ax.plot(times.datetime, altaz_sun.alt, color='y', label='Sun')
         ax.plot(times.datetime, altaz_moon.alt, color=[0.75] * 3, ls='--', label='Moon')
-        objsc = ax.scatter(times.datetime, altaz_obj.alt, c=altaz_obj.az, label=tgt['target_name'], lw=0, s=8,
+        objsc = ax.scatter(times.datetime, altaz_obj.alt, c=altaz_obj.az, label=target.name, lw=0, s=8,
                            cmap='twilight')
         ax.fill_between(times.datetime, 0 * u.deg, 90 * u.deg, altaz_sun.alt < -0 * u.deg, color='0.5',
                         zorder=0)  # , label='Night'
@@ -115,7 +122,7 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
         ax.minorticks_on()
         ax.set_xlim(min_time.datetime, max_time.datetime)
         ax.set_ylim(0 * u.deg, 90 * u.deg)
-        ax.set_title("%s - %s - %s" % (str(tgt['target_name']), date.strftime('%Y-%m-%d'), site['sitename']),
+        ax.set_title("%s - %s - %s" % (target.name, date.strftime('%Y-%m-%d'), site['sitename']),
                      fontsize=14)
         plt.xlabel('Time [UTC]', fontsize=14)
         plt.ylabel('Altitude [deg]', fontsize=16)
