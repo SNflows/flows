@@ -6,11 +6,13 @@ Test TNS queries which rely on the TNS API.
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
 
-import pytest
-import os
 import datetime
+import logging
+import os
+
+import pytest
 from astropy.coordinates import SkyCoord
-from flows import tns
+from tendrils.utils import tns
 
 
 # --------------------------------------------------------------------------------------------------
@@ -20,7 +22,8 @@ def test_tns_search():
     coo_centre = SkyCoord(ra=191.283890127, dec=-0.45909033652, unit='deg', frame='icrs')
     res = tns.tns_search(coo_centre)
 
-    print(res)
+    if res is None:
+        raise ValueError("No results found.")
     assert res[0]['objname'] == '2019yvr'
     assert res[0]['prefix'] == 'SN'
 
@@ -31,7 +34,9 @@ def test_tns_search():
 def test_tns_get_obj():
     res = tns.tns_get_obj('2019yvr')
 
-    print(res)
+    if res is None:
+        raise ValueError("No results found.")
+
     assert res['objname'] == '2019yvr'
     assert res['name_prefix'] == 'SN'
 
@@ -41,7 +46,6 @@ def test_tns_get_obj():
                     reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 def test_tns_get_obj_noexist():
     res = tns.tns_get_obj('1892doesnotexist')
-    print(res)
     assert res is None
 
 
@@ -49,8 +53,8 @@ def test_tns_get_obj_noexist():
 @pytest.mark.skipif(os.environ.get('CI') == 'true',
                     reason="Disabled on GitHub Actions to avoid too many requests HTTP error")
 @pytest.mark.parametrize('date_begin,date_end',
-                         [('2019-01-01', '2019-02-01'), (datetime.date(2019, 1, 1), datetime.date(2019, 2, 1)),
-                          (datetime.datetime(2019, 1, 1, 12, 0), datetime.datetime(2019, 2, 1, 12, 0))])
+                         [('2019-01-01', '2019-01-10'), (datetime.date(2019, 1, 1), datetime.date(2019, 1, 10)),
+                          (datetime.datetime(2019, 1, 1, 12, 0), datetime.datetime(2019, 1, 10, 12, 0))])
 def test_tns_getnames(date_begin, date_end):
     names = tns.tns_getnames(date_begin=date_begin, date_end=date_end, zmin=0, zmax=0.105, objtype=3)
 
@@ -59,6 +63,7 @@ def test_tns_getnames(date_begin, date_end):
     for n in names:
         assert isinstance(n, str), "Each element should be a string"
         assert n.startswith('SN'), "All names should begin with 'SN'"
+    logging.debug(f"obtained names: {names}")
     assert 'SN2019A' in names, "SN2019A should be in the list"
 
 

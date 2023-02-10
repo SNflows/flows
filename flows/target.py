@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Optional, Dict
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import NDArray
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
 from tendrils import api
@@ -27,7 +27,7 @@ class Target:
         self._add_pixel_coordinates(pixel_pos=pixels)
 
     def _add_pixel_coordinates(self, pixel_column: Optional[int] = None, pixel_row: Optional[int] = None,
-                               pixel_pos: Optional[ArrayLike] = None) -> None:
+                               pixel_pos: Optional[NDArray] = None) -> None:
         """
         Add pixel coordinates to target.
         """
@@ -58,6 +58,16 @@ class Target:
         """
         Create target from fileid.
         """
+
         datafile = datafile or api.get_datafile(fid)
+        if datafile is None:
+            raise ValueError(f'No datafile found for fid={fid}')
         d = api.get_target(datafile['target_name']) | datafile
         return cls.from_dict(d)
+
+    @classmethod
+    def from_tid(cls, target_id: int) -> 'Target':
+        """
+        Create target from target id.
+        """
+        return cls.from_dict(api.get_target(target_id))

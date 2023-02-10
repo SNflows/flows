@@ -9,10 +9,11 @@ Note:
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
+import getpass
+import os
 
 import psycopg2 as psql
 from psycopg2.extras import DictCursor
-import getpass
 from tendrils.utils import load_config
 
 
@@ -41,7 +42,7 @@ class AADC_DB(object):  # pragma: no cover
         config = load_config()
 
         if username is None:
-            username = config.get('database', 'username', fallback=None)
+            username = config.get('database', 'username', fallback=os.environ.get("AUDBUsername", None))
             if username is None:
                 default_username = getpass.getuser()
                 username = input('Username [%s]: ' % default_username)
@@ -49,7 +50,7 @@ class AADC_DB(object):  # pragma: no cover
                     username = default_username
 
         if password is None:
-            password = config.get('database', 'password', fallback=None)
+            password = config.get('database', 'password', fallback=os.environ.get("AUDBPassword", None))
             if password is None:
                 password = getpass.getpass('Password: ')
 

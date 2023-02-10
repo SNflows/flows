@@ -17,7 +17,7 @@ logger = create_logger()
 
 
 class AbstractInstrument(ABC):
-    peakmax: int = None
+    peakmax: int 
 
     @abstractmethod
     def __init__(self):
@@ -45,8 +45,8 @@ class AbstractInstrument(ABC):
 
 
 class Instrument(AbstractInstrument):
-    peakmax: int = None
-    siteid: int = None
+    peakmax: int = int(1e18)
+    siteid: int = -99
     telescope: str = ''  # Fits Header name of TELESCOP
     instrument: str = ''  # Fits Header name of Instrument (can be partial)
     origin: str = ''  # Fits Header value of ORIGIN (if relevant)

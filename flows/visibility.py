@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Target visibility plotting.
+@TODO: Move to flows-tools.
 
 .. codeauthor:: Rasmus Handberg <rasmush@phys.au.dk>
 """
@@ -17,10 +18,13 @@ from datetime import datetime
 from astropy.coordinates import SkyCoord, AltAz, get_sun, get_moon
 from astropy.visualization import quantity_support
 from tendrils import api
+from .target import Target
+from typing import Optional
+import warnings
 
 
 # --------------------------------------------------------------------------------------------------
-def visibility(target, siteid=None, date=None, output=None, overwrite=True):
+def visibility(target: Target, siteid: Optional[int] = None, date=None, output=None, overwrite=True):
     """
     Create visibility plot.
 
@@ -38,16 +42,15 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
     """
 
     logger = logging.getLogger(__name__)
+    warnings.warn(DeprecationWarning("This module is moved to SNFLOWS/flows-tools."))
 
     if date is None:
         date = datetime.utcnow()
     elif isinstance(date, str):
         date = datetime.strptime(date, '%Y-%m-%d')
 
-    tgt = api.get_target(target)
-
     # Coordinates of object:
-    obj = SkyCoord(ra=tgt['ra'], dec=tgt['decl'], unit='deg', frame='icrs')
+    obj = SkyCoord(ra=target.ra, dec=target.dec, unit='deg', frame='icrs')
 
     if siteid is None:
         sites = api.get_all_sites()
@@ -61,7 +64,7 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
         if output:
             if os.path.isdir(output):
                 plotpath = os.path.join(output, "visibility_%s_%s_site%02d.png" % (
-                    tgt['target_name'], date.strftime('%Y%m%d'), site['siteid']))
+                    target.name, date.strftime('%Y%m%d'), site['siteid']))
             else:
                 plotpath = output
             logger.debug("Will save visibility plot to '%s'", plotpath)
@@ -103,7 +106,7 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
         plt.grid(ls=':', lw=0.5)
         ax.plot(times.datetime, altaz_sun.alt, color='y', label='Sun')
         ax.plot(times.datetime, altaz_moon.alt, color=[0.75] * 3, ls='--', label='Moon')
-        objsc = ax.scatter(times.datetime, altaz_obj.alt, c=altaz_obj.az, label=tgt['target_name'], lw=0, s=8,
+        objsc = ax.scatter(times.datetime, altaz_obj.alt, c=altaz_obj.az, label=target.name, lw=0, s=8,
                            cmap='twilight')
         ax.fill_between(times.datetime, 0 * u.deg, 90 * u.deg, altaz_sun.alt < -0 * u.deg, color='0.5',
                         zorder=0)  # , label='Night'
@@ -115,7 +118,7 @@ def visibility(target, siteid=None, date=None, output=None, overwrite=True):
         ax.minorticks_on()
         ax.set_xlim(min_time.datetime, max_time.datetime)
         ax.set_ylim(0 * u.deg, 90 * u.deg)
-        ax.set_title("%s - %s - %s" % (str(tgt['target_name']), date.strftime('%Y-%m-%d'), site['sitename']),
+        ax.set_title("%s - %s - %s" % (target.name, date.strftime('%Y-%m-%d'), site['sitename']),
                      fontsize=14)
         plt.xlabel('Time [UTC]', fontsize=14)
         plt.ylabel('Altitude [deg]', fontsize=16)
