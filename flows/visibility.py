@@ -9,18 +9,20 @@ Target visibility plotting.
 
 import logging
 import os.path
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.dates import DateFormatter
-import astropy.units as u
-from astropy.time import Time
-from datetime import datetime
-from astropy.coordinates import SkyCoord, AltAz, get_sun, get_moon
-from astropy.visualization import quantity_support
-from tendrils import api
-from .target import Target
-from typing import Optional
 import warnings
+from datetime import datetime
+from typing import Optional
+
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+from astropy.coordinates import AltAz, SkyCoord, get_moon, get_sun
+from astropy.time import Time
+from astropy.visualization import quantity_support
+from matplotlib.dates import DateFormatter
+from tendrils import api
+
+from .target import Target
 
 
 # --------------------------------------------------------------------------------------------------
@@ -73,9 +75,11 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
             if not overwrite and os.path.exists(plotpath):
                 logger.info("File already exists: %s", plotpath)
                 continue
-
+        logger.debug(f"{site}, type: {type(site)}")
         # Observatory:
-        observatory = site['EarthLocation']
+        observatory = site.get('EarthLocation', None)
+        if observatory is None:
+            observatory = site.get('earth_location')
         utcoffset = (site['longitude'] * u.deg / (360 * u.deg)) * 24 * u.hour
 
         # Create timestamps to calculate for:

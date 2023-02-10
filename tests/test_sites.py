@@ -1,13 +1,13 @@
-from typing import Optional, List, Dict, Any
+import tempfile
+from typing import Any, Dict, List, Optional
 
 import pytest
 from matplotlib import pyplot as plt
-import tempfile
 from tendrils import api
 
 from flows.instruments import INSTRUMENTS, Instrument, Site
-from flows.visibility import visibility
 from flows.target import Target
+from flows.visibility import visibility
 
 
 @pytest.fixture(scope='session')

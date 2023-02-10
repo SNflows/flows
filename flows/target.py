@@ -1,11 +1,12 @@
 from dataclasses import dataclass
-from typing import Optional, Dict
+from typing import Dict, Optional
 
 import numpy as np
-from numpy.typing import NDArray
 from astropy.coordinates import SkyCoord
 from astropy.wcs import WCS
+from numpy.typing import NDArray
 from tendrils import api
+
 
 @dataclass
 class Target:
@@ -70,4 +71,7 @@ class Target:
         """
         Create target from target id.
         """
-        return cls.from_dict(api.get_target(target_id))
+        target_pars = api.get_target(target_id)
+        return cls(
+            ra=target_pars['ra'], dec=target_pars['decl'],
+            name=target_pars['target_name'], id=target_pars['targetid'])
