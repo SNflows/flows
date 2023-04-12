@@ -434,7 +434,7 @@ class AndiCam(Instrument):
     def get_photfilter(self):
         instrument = self.image.header['INSTRUME']
         if instrument == 'ANDICAM-IR':
-            return self.image.header['CCDFLTID']
+            return self.image.header['IRFLTID']
         elif instrument == 'ANDICAM-CCD':
             return self.image.header['CCDFLTID']
 
