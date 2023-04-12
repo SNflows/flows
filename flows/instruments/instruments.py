@@ -477,15 +477,15 @@ class TJO_MEIA3(Instrument):
         obstime = super().get_obstime()
         obstime += 0.5 * self.image.exptime * u.second
         return obstime
-    
+
     def get_photfilter(self):
         tjo_filt = self.image.header['FILTER']
         if tjo_filt in ['SDSS g  ', 'SDSS r  ', 'SDSS i  ', 'SDSS z  ']:
-            return {'SDSS g  '.'gp', 'SDSS r  ':'rp', 'SDSS i  ':'ip', 'SDSS z  ':'zp'}.get(tjo_filt)
+            return {'SDSS g  ':'gp', 'SDSS r  ':'rp', 'SDSS i  ':'ip', 'SDSS z  ':'zp'}.get(tjo_filt)
         return tjo_filt
-    
 
-    
+
+
 
 class RATIR(Instrument):
     siteid = 23
