@@ -438,7 +438,7 @@ class AndiCam(Instrument):
         elif instrument == 'ANDICAM-CCD':
             return self.image.header['CCDFLTID']
         else:
-            return self.image.header['CCDFLTID']
+            print("Could not find instrument in header")
 
 
 class PairTel(Instrument):
