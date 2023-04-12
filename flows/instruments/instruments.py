@@ -437,6 +437,8 @@ class AndiCam(Instrument):
             return self.image.header['IRFLTID']
         elif instrument == 'ANDICAM-CCD':
             return self.image.header['CCDFLTID']
+        else:
+            return self.image.header['CCDFLTID']
 
 
 class PairTel(Instrument):
