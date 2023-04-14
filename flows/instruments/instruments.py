@@ -437,7 +437,7 @@ class AndiCam(Instrument):
 
 class AndiCamIR(Instrument):
     siteid = 20  # Hard-coded the siteid for ANDICAM at Cerro Tololo Interamerican Observatory (CTIO)
-    instrument = 'ANDICAM-IR'
+    instrument = 'ANDICAM-CCD'
     unique_headers = {'OBSERVAT': 'CTIO'}
 
     def get_obstime(self):
