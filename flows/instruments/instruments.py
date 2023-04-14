@@ -445,7 +445,7 @@ class AndiCamIR(Instrument):
         return andicam.get_obstime()
 
     def get_photfilter(self):
-        return self.image.header['IRFLTID']
+        return self.image.header['CCDFLTID']
 
 
 class PairTel(Instrument):
