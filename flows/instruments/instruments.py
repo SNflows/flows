@@ -435,17 +435,7 @@ class AndiCam(Instrument):
         return self.image.header['CCDFLTID']
 
 
-class AndiCamIR(Instrument):
-    andicam = AndiCam()
-    siteid = andicam.siteid  # Hard-coded the siteid for ANDICAM at Cerro Tololo Interamerican Observatory (CTIO)
-    instrument = 'ANDICAM-CCD'
-    unique_headers = andicam.unique_headers
 
-    def get_obstime(self):
-        return andicam.get_obstime()
-
-    def get_photfilter(self):
-        return self.image.header['CCDFLTID']
 
 
 class PairTel(Instrument):
