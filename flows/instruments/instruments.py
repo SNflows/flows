@@ -436,14 +436,13 @@ class AndiCam(Instrument):
 
 
 class AndiCamIR(Instrument):
-    siteid = 20  # Hard-coded the siteid for ANDICAM at Cerro Tololo Interamerican Observatory (CTIO)
+    andicam = AndiCam()
+    siteid = andicam.siteid  # Hard-coded the siteid for ANDICAM at Cerro Tololo Interamerican Observatory (CTIO)
     instrument = 'ANDICAM-CCD'
-    unique_headers = {'OBSERVAT': 'CTIO'}
+    unique_headers = andicam.unique_headers
 
     def get_obstime(self):
-        obstime = super().get_obstime()
-        obstime += 0.5 * self.image.exptime * u.second
-        return obstime
+        return andicam.get_obstime()
 
     def get_photfilter(self):
         return self.image.header['IRFLTID']
