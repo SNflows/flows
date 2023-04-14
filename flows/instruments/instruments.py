@@ -432,13 +432,21 @@ class AndiCam(Instrument):
         return obstime
 
     def get_photfilter(self):
-        instrument = self.image.header['INSTRUME']
-        if instrument == 'ANDICAM-IR':
-            return self.image.header['IRFLTID']
-        elif instrument == 'ANDICAM-CCD':
-            return self.image.header['CCDFLTID']
-        else:
-            print("Could not find instrument in header")
+        return self.image.header['CCDFLTID']
+
+
+class AndiCamIR(Instrument):
+    siteid = 20  # Hard-coded the siteid for ANDICAM at Cerro Tololo Interamerican Observatory (CTIO)
+    instrument = 'ANDICAM-IR'
+    unique_headers = {'OBSERVAT': 'CTIO'}
+
+    def get_obstime(self):
+        obstime = super().get_obstime()
+        obstime += 0.5 * self.image.exptime * u.second
+        return obstime
+
+    def get_photfilter(self):
+        return self.image.header['IRFLTID']
 
 
 class PairTel(Instrument):
