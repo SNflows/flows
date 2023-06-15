@@ -434,6 +434,18 @@ class AndiCam(Instrument):
     def get_photfilter(self):
         return self.image.header['CCDFLTID']
 
+class AndiCamIR(Instrument):
+    andicam = AndiCam()
+    siteid = andicam.siteid
+    instrument = "ANDICAM-CCD"
+    unique_headers = andicam.unique_headers
+
+    def get_obstime(self):
+        return andicam.get_obstime()
+
+    def get_photfilter(self):
+        return self.image.header["IRFLTID"]
+
 
 class PairTel(Instrument):
     siteid = 21
