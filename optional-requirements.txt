@@ -1,2 +1,0 @@
-vtk
-git+https://github.com/obscode/imagematch.git@photutils#egg=imagematch
