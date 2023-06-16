@@ -1,0 +1,5 @@
+pytest
+flake8
+flake8-builtins
+flake8-logging-format
+autopep8
