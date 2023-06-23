@@ -45,10 +45,10 @@ from astropy.wcs import WCS
 # First party
 from tendrils import api
 
-from flows.filters import FILTERS
-from flows.image import FlowsImage
-from flows.instruments.base_instrument import Instrument
-from flows.utilities import create_logger
+from filters import FILTERS
+from image import FlowsImage
+from instruments.base_instrument import Instrument
+from utilities import create_logger
 
 logger = create_logger()
 

@@ -26,9 +26,9 @@ from bottleneck import nanmedian, nansum, nanmean, replace
 from scipy.spatial import KDTree
 import pandas as pd  # TODO: Convert to pure numpy implementation
 import sep
-from .image import FlowsImage
-from .target import Target
-from .utilities import create_logger
+from image import FlowsImage
+from target import Target
+from utilities import create_logger
 logger = create_logger()
 
 RefTable = TypeVar('RefTable', Dict, ArrayLike, Table)

@@ -4,12 +4,12 @@ from typing import Optional, Protocol, Dict, TypeVar, Union
 from configparser import ConfigParser
 from bottleneck import allnan
 from tendrils import api, utils
-from .load_image import load_image
-from .utilities import create_logger
-from .target import Target
-from .image import FlowsImage
-from . import reference_cleaning as refclean
-from .filters import get_reference_filter
+from load_image import load_image
+from utilities import create_logger
+from target import Target
+from image import FlowsImage
+import reference_cleaning as refclean
+from filters import get_reference_filter
 logger = create_logger()
 
 DataFileType = TypeVar("DataFileType", bound=dict)
@@ -45,8 +45,15 @@ class Directories:
     Class for creating input and output directories, given a configparser instance.
     Overwrite archive_local or output_folder to manually place elsewhere.
     """
-    archive_local: Optional[str] = None
-    output_folder: Optional[str] = None
+    archive_local =  "/Users/kimphan/Desktop/flows_test/photometry/2018rw"
+    output_folder = "/Users/kimphan/Desktop/flows_test/photometry_test_output"
+    
+    #######
+        #OLD CODE:
+    #archive_local: Optional[str] = None
+    #output_folder: Optional[str] = None
+
+    #######
 
     def __init__(self, config: Optional[ConfigParser] = None):
         self.config = config or utils.load_config()

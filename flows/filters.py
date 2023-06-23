@@ -1,5 +1,5 @@
 from typing import Optional
-from .utilities import create_logger
+from utilities import create_logger
 logger = create_logger()
 FILTERS = {
     'up': 'u_mag',

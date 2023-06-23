@@ -23,8 +23,8 @@ from astropy.wcs.utils import proj_plane_pixel_area
 import multiprocessing
 #from tendrils import api
 
-from .magnitudes import instrumental_mag
-from .result_model import ResultsTable
+from magnitudes import instrumental_mag
+from result_model import ResultsTable
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
 from photutils import CircularAperture, CircularAnnulus, aperture_photometry  # noqa: E402
@@ -32,16 +32,16 @@ from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_star
 from photutils.background import MedianBackground  # noqa: E402
 import photutils  # noqa: E402
 
-from .reference_cleaning import References, ReferenceCleaner, InitGuess  # noqa: E402
-from .plots import plt, plot_image  # noqa: E402
-from .version import get_version  # noqa: E402
-from .image import FlowsImage  # noqa: E402
-from .coordinatematch import correct_wcs  # noqa: E402
-from .epsfbuilder import FlowsEPSFBuilder, verify_epsf  # noqa: E402
-from .fileio import DirectoryProtocol, IOManager  # noqa: E402
-from .target import Target  # noqa: E402
-from .background import FlowsBackground  # noqa: E402
-from .utilities import create_logger  # noqa: E402
+from reference_cleaning import References, ReferenceCleaner, InitGuess  # noqa: E402
+from plots import plt, plot_image  # noqa: E402
+from version import get_version  # noqa: E402
+from image import FlowsImage  # noqa: E402
+from coordinatematch import correct_wcs  # noqa: E402
+from epsfbuilder import FlowsEPSFBuilder, verify_epsf  # noqa: E402
+from fileio import DirectoryProtocol, IOManager  # noqa: E402
+from target import Target  # noqa: E402
+from background import FlowsBackground  # noqa: E402
+from utilities import create_logger  # noqa: E402
 
 __version__ = get_version(pep440=False)
 

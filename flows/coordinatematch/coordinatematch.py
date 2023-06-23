@@ -13,11 +13,11 @@ from astropy.coordinates import SkyCoord
 import astropy.wcs
 from scipy.spatial import cKDTree as KDTree
 from networkx import Graph, connected_components
-from .wcs import WCS2
-from flows.utilities import create_logger
-from flows.image import FlowsImage
-from flows import reference_cleaning as refclean
-from flows.target import Target
+from wcs import WCS2
+from utilities import create_logger
+from image import FlowsImage
+import reference_cleaning as refclean
+from target import Target
 
 
 logger = create_logger()

@@ -13,9 +13,9 @@ from astropy.io import fits
 from astropy.io.fits import Header, PrimaryHDU
 from astropy.time import Time
 
-from .image import FlowsImage
-from .instruments import INSTRUMENTS, verify_coordinates
-from .utilities import create_logger
+from image import FlowsImage
+from instruments import INSTRUMENTS, verify_coordinates
+from utilities import create_logger
 
 logger = create_logger()
 

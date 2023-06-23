@@ -7,10 +7,10 @@ from astropy.stats import sigma_clip
 from astropy.table import Table
 from bottleneck import nansum
 
-from .filters import get_reference_filter
-from .target import Target
-from .utilities import create_logger
-from .zeropoint import sigma_from_Chauvenet, bootstrap_outlier
+from filters import get_reference_filter
+from target import Target
+from utilities import create_logger
+from zeropoint import sigma_from_Chauvenet, bootstrap_outlier
 
 logger = create_logger()
 #logger = logging.getLogger(__name__)

@@ -1,6 +1,7 @@
 ==============
 Flows Pipeline
 ==============
+
 .. image:: https://zenodo.org/badge/241705955.svg
    :target: https://zenodo.org/badge/latestdoi/241705955
 .. image:: https://github.com/SNflows/flows/actions/workflows/tests.yml/badge.svg?branch=devel
