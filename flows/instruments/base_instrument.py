@@ -11,8 +11,8 @@ from astropy.io import fits
 from astropy.time import Time
 # First party
 from tendrils import api
-from image import FlowsImage, InstrumentDefaults
-from utilities import create_logger
+from flows.image import FlowsImage, InstrumentDefaults
+from flows.utilities import create_logger
 logger = create_logger()
 
 

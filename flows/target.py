@@ -8,6 +8,11 @@ from numpy.typing import NDArray
 from tendrils import api
 
 
+#Add logger to target.py#
+from .utilities import create_logger
+logger = create_logger()
+
+
 @dataclass
 class Target:
     ra: float
@@ -24,6 +29,10 @@ class Target:
             self.coords = SkyCoord(ra=self.ra, dec=self.dec, unit='deg', frame='icrs')
 
     def calc_pixels(self, wcs: WCS) -> None:
+    
+        ##Extra logger##
+        logger.info("Using target.Target.calc_pixels")
+    
         pixels = np.array(wcs.all_world2pix(self.ra, self.dec, 1)).T
         self._add_pixel_coordinates(pixel_pos=pixels)
 
@@ -32,6 +41,10 @@ class Target:
         """
         Add pixel coordinates to target.
         """
+        
+        ##Extra logger##
+        logger.info("Using target.Target._add_pixel_coordinates")
+        
         if pixel_column is None or pixel_row is None:
             if pixel_pos is None:
                 raise ValueError('Either pixel_column, pixel_row or pixel_pos must be provided.')
@@ -44,6 +57,9 @@ class Target:
         """
         Return target as output dictionary. starid = -1 means difference image.
         """
+        ##Extra logger##
+        logger.info("Using target.Target.output_dict")
+        
         return {'starid': starid, 'ra': self.ra, 'decl': self.dec, 'pixel_column': self.pixel_column,
                 'pixel_row': self.pixel_row, 'used_for_epsf': False}
 
@@ -52,6 +68,10 @@ class Target:
         """
         Create target from dictionary.
         """
+        
+        ##Extra logger##
+        logger.info("Using target.Target.from_dict")
+        
         return cls(ra=d['ra'], dec=d['decl'], name=d['target_name'], id=d['targetid'], photfilter=d['photfilter'],)
 
     @classmethod
@@ -60,6 +80,9 @@ class Target:
         Create target from fileid.
         """
 
+        ##Extra logger##
+        logger.info("Using target.Target.from_fid")
+        
         datafile = datafile or api.get_datafile(fid)
         if datafile is None:
             raise ValueError(f'No datafile found for fid={fid}')
@@ -71,6 +94,10 @@ class Target:
         """
         Create target from target id.
         """
+        
+        ##Extra logger##
+        logger.info("Using target.Target.from_tid")
+        
         target_pars = api.get_target(target_id)
         return cls(
             ra=target_pars['ra'], dec=target_pars['decl'],

@@ -4,12 +4,12 @@ from typing import Optional, Protocol, Dict, TypeVar, Union
 from configparser import ConfigParser
 from bottleneck import allnan
 from tendrils import api, utils
-from load_image import load_image
-from utilities import create_logger
-from target import Target
-from image import FlowsImage
-import reference_cleaning as refclean
-from filters import get_reference_filter
+from .load_image import load_image
+from .utilities import create_logger
+from .target import Target
+from .image import FlowsImage
+from . import reference_cleaning as refclean
+from .filters import get_reference_filter
 logger = create_logger()
 
 DataFileType = TypeVar("DataFileType", bound=dict)
@@ -19,25 +19,41 @@ class DirectoryProtocol(Protocol):
     output_folder: str
 
     def set_output_dirs(self, target_name: str, fileid: int, create: bool = True) -> None:
+    
+        ##Extra logger##
+        logger.info("Using fileio.DirectoryProtocol.set_output_dirs")
+    
         raise NotImplementedError
 
     def image_path(self, image_path: str) -> str:
+    ##Extra logger##
+        logger.info("Using fileio.DirectoryProtocol.image_path")
         raise NotImplementedError
 
     @property
     def photometry_path(self) -> str:
+        ##Extra logger##
+        logger.info("Using fileio.DirectoryProtocol.photometry_path")
         raise NotImplementedError
 
     def save_as(self, filename: str) -> str:
+        ##Extra logger##
+        logger.info("Using fileio.DirectoryProtocol.save_as")
         raise NotImplementedError
 
     @property
     def log_path(self) -> str:
+    
+        ##Extra logger##
+        logger.info("Using fileio.DirectoryProtocol.log_path")
         raise NotImplementedError
 
     @classmethod
     def from_fid(cls, fid: int) -> 'DirectoryProtocol':
+        ##Extra logger##
+        logger.info("Using fileio.DirectoryProtocol.from_fid")
         raise NotImplementedError
+    
 
 
 class Directories:
@@ -45,8 +61,8 @@ class Directories:
     Class for creating input and output directories, given a configparser instance.
     Overwrite archive_local or output_folder to manually place elsewhere.
     """
-    archive_local =  "/Users/kimphan/Desktop/flows_test/photometry/2018rw"
-    output_folder = "/Users/kimphan/Desktop/flows_test/photometry_test_output"
+    archive_local =  "/Users/kimphan/Desktop/flows/photometry"
+    output_folder = "/Users/kimphan/Desktop/flows/photometry_test_output"
     
     #######
         #OLD CODE:
@@ -71,6 +87,9 @@ class Directories:
             create (bool): Whether to create the output_folder if it doesn't exist.
             output_folder_root (str): Overwrite the root directory for output.
         """
+        
+        ##Extra logger##
+        logger.info("Using fileio.Directories.set_output_dirs")
 
         # Checking for None allows manual declarations to not be overwritten.
         if self.archive_local is None:
@@ -83,11 +102,20 @@ class Directories:
             os.makedirs(self.output_folder, exist_ok=True)
             logger.info("Placing output in '%s'", self.output_folder)
 
+
     def _set_archive(self) -> Optional[str]:
+    
+        ##Extra logger##
+        logger.info("Using fileio.Directories._set_archive")
+        
         archive_local = self.config.get('photometry', 'archive_local', fallback=None)
         if archive_local is not None and not os.path.isdir(archive_local):
+        
             raise FileNotFoundError("ARCHIVE is not available: " + archive_local)
         logger.info(f"Using data from: {archive_local}.")
+        
+
+        
         return archive_local
 
     def _set_output(self, target_name: str, fileid: int, output_folder_root: Optional[str] = None) -> str:
@@ -95,31 +123,52 @@ class Directories:
         Directory for output, defaults to current
         directory if config is invalid or empty.
         """
+        ##Extra logger##
+        logger.info("Using fileio.Directories._set_output")
+        
         output_folder_root = self.config.get('photometry', 'output', fallback='.') if output_folder_root is None \
             else output_folder_root
         output_folder = os.path.join(output_folder_root, target_name, f'{fileid:05d}')
+        
+
+        
         return output_folder
 
     def image_path(self, image_path: str) -> str:
+        ##Extra logger##
+        logger.info("Using fileio.Directories.image_path")
         return os.path.join(self.archive_local, image_path)
 
     @property
     def photometry_path(self) -> str:
+        ##Extra logger##
+        logger.info("Using fileio.Directories.photometry_path")
         return os.path.join(self.output_folder, 'photometry.ecsv')
 
     def save_as(self, filename: str) -> str:
+        ##Extra logger##
+        logger.info("Using fileio.Directories.save_as")
         return os.path.join(self.output_folder, filename)
 
     @property
     def log_path(self) -> str:
+    
+        ##Extra logger##
+        logger.info("Using fileio.Directories.log_path")
+        
         return os.path.join(self.output_folder, "photometry.log")
 
     @classmethod
     def from_fid(cls, fid: int, config: Optional[ConfigParser] = None, create: bool = True,
                  datafile: Optional[Dict] = None) -> DirectoryProtocol:
+                 
+        ##Extra logger##
+        logger.info("Using fileio.Directories.set_output_dirs")
+        
         instance = cls(config)
         datafile = datafile or api.get_datafile(fid)
         instance.set_output_dirs(datafile['target_name'], fid, create)
+                
         return instance
 
 
@@ -129,36 +178,65 @@ class DirectoriesDuringTest:
     """
     archive_local = None
     output_folder = None
+    
+
 
     def __init__(self, input_dir: Union[str, Path], output_dir: Union[str, Path]):
         self.input_dir = input_dir
         self.output_dir = output_dir
 
     def set_output_dirs(self, target_name: str, fileid: int, create: bool = True) -> None:
+    
+        ##Extra logger##
+        logger.info("Using fileio.DirectoriesDuringTest.set_output_dirs")
+        
         self.output_folder = os.path.join(self.output_dir, target_name, f'{fileid:05d}')
         if create:
             os.makedirs(self.output_folder, exist_ok=True)
+            
 
     def image_path(self, image_path: str) -> str:
+    
+        ##Extra logger##
+        logger.info("Using fileio.DirectoriesDuringTest.image_path")
+    
         return os.path.join(self.input_dir+image_path)
 
     @property
     def photometry_path(self) -> str:
+    
+        ##Extra logger##
+        logger.info("Using fileio.DirectoriesDuringTest.photometry_path")
         return os.path.join(self.output_folder, 'photometry.ecsv')
+    
 
     def save_as(self, filename: str) -> str:
+    
+    ##Extra logger##
+        logger.info("Using fileio.DirectoriesDuringTest.save_as")
+    
         return os.path.join(self.output_folder, filename)
 
     @property
     def log_path(self) -> str:
+        ##Extra logger##
+        logger.info("Using fileio.DirectoriesDuringTest.log_path")
+    
         return os.path.join(self.output_folder, "photometry.log")
 
     @classmethod
     def from_fid(cls, fid: int, input_dir: Union[str, Path] = './test/input',
                  output_dir: Union[str, Path] = './test/output', datafile: Optional[Dict] = None) -> 'DirectoryProtocol':
+                 
+        ##Extra logger##
+        logger.info("Using fileio.DirectoriesDuringTest.from_fid")
+        
         instance = cls(input_dir, output_dir)
         datafile = datafile or api.get_datafile(fid)
         instance.set_output_dirs(datafile['target_name'], fid)
+        
+
+        
         return instance
 
 
@@ -181,31 +259,54 @@ class IOManager:
         """
         Load an image from a file.
         """
+        
+        ##Extra logger##
+        logger.info("Using fileio.IOManager._load_image")
+        
         # Load the image from the FITS file:
         image = load_image(self.directories.image_path(image_path), target_coord=self.target.coords)
+                
         return image
 
     def load_science_image(self, image_path: Optional[str] = None) -> FlowsImage:
+    
+    
         image_path = image_path or self.datafile['path']
         image = self._load_image(image_path)
+        
+        ##Extra logger##
+        logger.info("Using fileio.IOManager.load_science_image")
+        
         logger.info("Load image '%s'", self.directories.image_path(image_path))
         image.fid = self.datafile['fileid']
         image.template_fid = None if self.datafile.get('template') is None else self.datafile['template']['fileid']
+            
         return image
 
     def get_filter(self):
+        ##Extra logger##
+        logger.info("Using fileio.IOManager.get_filter")
         return get_reference_filter(self.target.photfilter)
 
     def load_references(self, catalog: Optional[Dict] = None) -> refclean.References:
+    
+        ##Extra logger##
+        logger.info("Using fileio.IOManager.load_references")
+    
         use_filter = self.get_filter()
         references = api.get_catalog(self.target.name)['references'] if catalog is None else catalog['references']
         references.sort(use_filter)
         # Check that there actually are reference stars in that filter:
         if allnan(references[use_filter]):
             raise ValueError("No reference stars found in current photfilter.")
+                        
         return refclean.References(table=references)
 
     def load_diff_image(self) -> Optional[FlowsImage]:
+    
+        ##Extra logger##
+        logger.info("Using fileio.IOManager.load_diff_image")
+    
         diffimage_df = self.datafile.get('diffimg', None)
         diffimage_path = diffimage_df.get('path', None) if diffimage_df else None
         self.diff_image_exists = diffimage_path is not None
@@ -216,6 +317,7 @@ class IOManager:
             logger.info("Load difference image '%s'", self.directories.image_path(diffimage_path))
             diffimage.fid = diffimage_df['fileid']
             return diffimage
+            
         return None
 
     @classmethod
@@ -224,9 +326,16 @@ class IOManager:
         """
         Create an IOManager from a fileid.
         """
+        
+        ##Extra logger##
+        logger.info("Using fileio.IOManager.from_fid")
+        
         datafile = datafile or api.get_datafile(fid)
         target = Target.from_fid(fid=fid, datafile=datafile)
         directories = directories or Directories.from_fid(fid=fid, create=create_directories, datafile=datafile)
+        
+
+        
         return cls(target=target, directories=directories, datafile=datafile)
 
 
@@ -241,6 +350,10 @@ def del_dir(target: Union[Path, str],
     :param only_if_empty: Raise RuntimeError if any file is found in the tree
     :param delete_parent_if_file: Delete the parent directory if it is a file
     """
+    
+    ##Extra logger##
+    logger.info("Using fileio.IOManager.del_dir")
+    
     target = Path(target).expanduser()
     if not target.exists():
         logger.warning("Not deleted: Directory '%s' does not exist", target)

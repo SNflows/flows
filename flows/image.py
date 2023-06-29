@@ -9,7 +9,7 @@ from typing import Union
 from astropy.time import Time
 from astropy.wcs import WCS, FITSFixedWarning
 from typing import Tuple,  Dict, Any, Optional, TypeGuard
-from utilities import create_logger
+from .utilities import create_logger
 logger = create_logger()
 
 

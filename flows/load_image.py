@@ -13,9 +13,9 @@ from astropy.io import fits
 from astropy.io.fits import Header, PrimaryHDU
 from astropy.time import Time
 
-from image import FlowsImage
-from instruments import INSTRUMENTS, verify_coordinates
-from utilities import create_logger
+from .image import FlowsImage
+from .instruments import INSTRUMENTS, verify_coordinates
+from .utilities import create_logger
 
 logger = create_logger()
 
@@ -34,8 +34,11 @@ def load_image(filename: str, target_coord: Union[coords.SkyCoord, Tuple[float, 
 
     Returns:
         FlowsImage: instance of FlowsImage with values populated based on instrument.
-
     """
+    
+    ##Extra logger##
+    logger.info("Using load_image.load_image")
+    
     ext = 0  # Default extension is  0, individual instruments may override this.
     # Read fits image, Structural Pattern Match to specific instrument.
     with fits.open(filename, mode='readonly') as hdul:
@@ -74,5 +77,10 @@ def correct_barycentric(obstime: Time, target_coord: coords.SkyCoord) -> Time:
     Returns:
         obstime (astropy.time.Time): Time corrected to barycenter with jpl ephemeris.
     """
+    ##Extra logger##
+    logger.info("Using load_image.correct_barycentric")
+    
     ltt_bary = obstime.light_travel_time(target_coord, ephemeris='jpl')
+    
+    
     return obstime.tdb + ltt_bary

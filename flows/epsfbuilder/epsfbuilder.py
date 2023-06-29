@@ -10,7 +10,7 @@ import numpy as np
 from scipy.interpolate import griddata, UnivariateSpline
 import photutils.psf
 from typing import List, Tuple
-from utilities import create_logger
+from flows.utilities import create_logger
 logger = create_logger()
 
 

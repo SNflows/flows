@@ -10,9 +10,12 @@ from tendrils import api
 from flows import photometry, fileio, result_model
 from flows.utilities import create_logger, parse_log_level, create_warning_logger, remove_file_handlers
 
-
 def process_fileid(fid, autoupload: bool = False, cm_timeout=None, no_plots: bool = False,
                    rescale: bool = True, rescale_dynamic: bool = True) -> result_model.ResultsTable:
+    ##Extra logger ##
+    logger = create_logger()
+    logger.info("Using run_photometry.process_fileid")
+
     # Create the output directory if it doesn't exist:
     datafile = api.get_datafile(fid)
     directories = fileio.Directories.from_fid(fid, datafile=datafile)

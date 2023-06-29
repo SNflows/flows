@@ -12,6 +12,12 @@ from scipy.optimize import minimize
 from scipy.spatial.transform import Rotation
 
 
+### EXTRA LINES OF CODE MAKE LOGGER###
+from flows.utilities import create_logger
+logger = create_logger()
+### EXTRA LINES OF CODE MAKE LOGGER###
+
+
 class WCS2:
     """
     Manipulate WCS solution.
@@ -56,16 +62,23 @@ class WCS2:
     def from_matrix(cls, x, y, ra, dec, matrix):
         '''Initiate the class with a matrix.'''
 
+        ##Extra logger##
+        #logger.info("Using wcs.WCS2.from_matrix")
+
         assert np.shape(matrix) == (2, 2), 'Matrix must be 2x2'
 
         scale, mirror, angle = cls._decompose_matrix(matrix)
-
+        
         return cls(x, y, ra, dec, scale, mirror, angle)
+
 
     # ----------------------------------------------------------------------------------------------
     @classmethod
     def from_points(cls, xy, rd):
         """Initiate the class with at least pixel + sky coordinates."""
+
+        ##Extra logger##
+        logger.info("Using wcs.WCS2.from_points")
 
         assert np.shape(xy) == np.shape(rd) == (len(xy), 2) and len(
             xy) > 2, 'Arguments must be lists of at least 3 sets of coordinates'
@@ -74,6 +87,7 @@ class WCS2:
 
         x, y, ra, dec, matrix = cls._solve_from_points(xy, rd)
         scale, mirror, angle = cls._decompose_matrix(matrix)
+        
 
         return cls(x, y, ra, dec, scale, mirror, angle)
 
@@ -81,13 +95,16 @@ class WCS2:
     @classmethod
     def from_astropy_wcs(cls, astropy_wcs):
         """Initiate the class with an astropy.wcs.WCS object."""
+        
+        ##Extra logger##
+        logger.info("Using wcs.WCS2.from_astropy_wcs")
 
         if not isinstance(astropy_wcs, astropy.wcs.WCS):
             raise ValueError('Must be astropy.wcs.WCS')
 
         (x, y), (ra, dec) = astropy_wcs.wcs.crpix, astropy_wcs.wcs.crval
         scale, mirror, angle = cls._decompose_matrix(astropy_wcs.pixel_scale_matrix)
-
+        
         return cls(x, y, ra, dec, scale, mirror, angle)
 
     # ----------------------------------------------------------------------------------------------
@@ -99,6 +116,8 @@ class WCS2:
         If two sets are given the offset, angle and scale will be derived.
         And if more sets are given a completely new solution will be found.
         """
+        ##Extra logger##
+        logger.info("Using wcs.WCS2.adjust_with_points")
 
         assert np.shape(xy) == np.shape(rd) == (len(xy), 2), 'Arguments must be lists of sets of coordinates'
 
@@ -129,27 +148,39 @@ class WCS2:
     # ----------------------------------------------------------------------------------------------
     @property
     def matrix(self):
-
+    
+        ##Extra logger##
+        logger.info("Using wcs.WCS2.matrix")
+        
         scale = self.scale / 60 / 60
         mirror = np.diag([[-1, 1][self.mirror], 1])
         angle = np.deg2rad(self.angle)
 
         matrix = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
 
+
         return scale * matrix @ mirror
 
     # ----------------------------------------------------------------------------------------------
     @property
     def astropy_wcs(self):
+    
+        ##Extra logger##
+        logger.info("Using wcs.WCS2.astropy_wcs")
+        
         wcs = astropy.wcs.WCS()
         wcs.wcs.crpix = self.x, self.y
         wcs.wcs.crval = self.ra, self.dec
         wcs.wcs.pc = self.matrix
+                
         return wcs
 
     # ----------------------------------------------------------------------------------------------
     @staticmethod
     def _solve_from_points(xy, rd):
+    
+        ##Extra logger##
+        logger.info("Using wcs.WCS2._solve_from_points")
 
         (x, y), (ra, dec) = xy.mean(axis=0), rd.mean(axis=0)
 
@@ -157,12 +188,15 @@ class WCS2:
         b[:, 0] *= np.cos(np.deg2rad(rd[:, 1]))
 
         matrix = np.linalg.lstsq(A, b, rcond=None)[0].T
-
+        
         return x, y, ra, dec, matrix
 
     # ----------------------------------------------------------------------------------------------
     @staticmethod
     def _decompose_matrix(matrix):
+
+        ##Extra logger##
+        #logger.info("Using wcs.WCS2._decompose_matrix")
 
         scale = np.sqrt(np.power(matrix, 2).sum() / 2) * 60 * 60
 
@@ -176,11 +210,14 @@ class WCS2:
         matrix3d = np.eye(3)
         matrix3d[:2, :2] = matrix / (scale / 60 / 60)
         angle = Rotation.from_matrix(matrix3d).as_euler('xyz', degrees=True)[2]
-
+        
         return scale, mirror, angle
 
     # ----------------------------------------------------------------------------------------------
     def __setattr__(self, name, value):
+
+        ##Extra logger##
+        #logger.info("Using wcs.WCS2.__setattr__")
 
         if name == 'ra' and (value < 0 or value >= 360):
             raise ValueError("0 <= R.A. < 360")
@@ -196,13 +233,16 @@ class WCS2:
 
         elif name == 'angle' and (value <= -180 or value > 180):
             raise ValueError("-180 < Angle <= 180")
-
+            
         super().__setattr__(name, value)
 
     # ----------------------------------------------------------------------------------------------
     def __call__(self, **kwargs):
         '''Make a copy with, or a copy with changes.'''
-
+        
+        ##Extra logger##
+        #logger.info("Using wcs.WCS2.__call__")
+        
         keys = ('x', 'y', 'ra', 'dec', 'scale', 'mirror', 'angle')
 
         if not all(k in keys for k in kwargs):
@@ -211,9 +251,14 @@ class WCS2:
         obj = deepcopy(self)
         for k, v in kwargs.items():
             obj.__setattr__(k, v)
+                        
         return obj
 
     # ----------------------------------------------------------------------------------------------
     def __repr__(self):
         ra, dec = self.astropy_wcs.wcs_pix2world([(0, 0)], 0)[0]
+        
+        ##Extra logger##
+        #logger.info("Using wcs.WCS2.__repr__")
+        
         return f'WCS2(0, 0, {ra:.4f}, {dec:.4f}, {self.scale:.2f}, {self.mirror}, {self.angle:.2f})'

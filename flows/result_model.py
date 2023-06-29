@@ -1,7 +1,7 @@
 from astropy.table import Table
 import astropy.units as u
-from image import FlowsImage
-from utilities import create_logger
+from .image import FlowsImage
+from .utilities import create_logger
 logger = create_logger()
 
 

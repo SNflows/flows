@@ -26,9 +26,9 @@ from bottleneck import nanmedian, nansum, nanmean, replace
 from scipy.spatial import KDTree
 import pandas as pd  # TODO: Convert to pure numpy implementation
 import sep
-from image import FlowsImage
-from target import Target
-from utilities import create_logger
+from .image import FlowsImage
+from .target import Target
+from .utilities import create_logger
 logger = create_logger()
 
 RefTable = TypeVar('RefTable', Dict, ArrayLike, Table)
@@ -46,27 +46,49 @@ class References:
     xy: Optional[RefTable] = None
 
     def replace_nans_pm(self) -> None:
+    
+        ##Extra logger##
+        logger.info("Using reference_cleaning.References.replace_nams_pm")
+        
         replace(self.table['pm_ra'], np.NaN, 0.)
         replace(self.table['pm_dec'], np.NaN, 0.)
+        
 
     def make_sky_coords(self, reference_time: float = 2015.5) -> None:
+    
+        ##Extra logger##
+        logger.info("Using reference_cleaning.References.make_sky_coords")
+    
         self.replace_nans_pm()
         self.coords = SkyCoord(ra=self.table['ra'], dec=self.table['decl'], pm_ra_cosdec=self.table['pm_ra'],
                         pm_dec=self.table['pm_dec'], unit='deg', frame='icrs',
                         obstime=Time(reference_time, format='decimalyear'))
 
+
+
     def propagate(self, obstime: Time) -> None:
+    
+        ##Extra logger##
+        logger.info("Using reference_cleaning.References.propagate")
+    
         if self.coords is None:
             raise AttributeError("References.coords is not defined.")
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", ErfaWarning)
             self.coords = self.coords.apply_space_motion(new_obstime=obstime)
+            
 
     def copy(self) -> 'References':
+        ##Extra logger##
+        logger.info("Using reference_cleaning.References.copy")
         return References(self.__dataclass_fields__)
 
     @property
     def masked(self, mask: Optional[np.ndarray] = None) -> "References":
+    
+        ##Extra logger##
+        logger.info("Using reference_cleaning.References.copy")
+        
         if self.mask is None:
             if mask is None:
                 raise AttributeError("No mask defined.")
@@ -76,25 +98,45 @@ class References:
         for name in self.__dataclass_fields__:
             if getattr(self, name) is not None:
                 setattr(copy, name, getattr(self, name)[self.mask])
+            
         return copy
 
     def get_xy(self, img_wcs: wcs.WCS) -> None:
         """get pixel coordinates of reference stars"""
+        
+        ##Extra logger##
+        logger.info("Using reference_cleaning.References.get_xy")
+        
         self.xy = img_wcs.all_world2pix(list(zip(self.coords.ra.deg, self.coords.dec.deg)), 0)
 
     def make_pixel_columns(self, column_name: str ='pixel_column', row_name: str = 'pixel_row') -> None:
+    
+        ##Extra logger##
+        logger.info("Using reference_cleaning.References.make_pixel_columns")
+        
         self.table[column_name], self.table[row_name] = list(map(np.array, zip(*self.xy)))
 
     def _prepend_row(self, row: dict) -> None:
+    
+        ##Extra logger##
+        logger.info("Using reference_cleaning.References._prepend_row")
+        
         self.table.insert_row(0, row)
 
     def add_target(self, target: Target, starid: int = 0) -> None:
+    
+    ##Extra logger##
+        logger.info("Using reference_cleaning.References.add_target")
+    
         self._prepend_row(target.output_dict(starid=starid))
         if target.pixel_row and target.pixel_column:
             self.xy = np.vstack(((target.pixel_column, target.pixel_row), self.xy))
 
 
 def use_sep(image: FlowsImage, tries: int = 5, thresh: float = 5.):
+
+    ##Extra logger##
+    logger.info("Using reference_cleaning.use_sep")
 
     # Use sep to for soure extraction
     sep_background = sep.Background(image.image, mask=image.mask)
@@ -113,12 +155,17 @@ def use_sep(image: FlowsImage, tries: int = 5, thresh: float = 5.):
     sep_references = References(table=Table(objects))
     sep_references.xy = sep_references.table[['x', 'y']]
     sep_references.make_pixel_columns()
+    
     return sep_references
 
 
 def force_reject_g2d(xarray: ArrayLike, yarray: ArrayLike, image: Union[NDArray, np.ma.MaskedArray],
                      rsq_min: float = 0.5, radius: float = 10, fwhm_guess: float = 6.0, fwhm_min: float = 3.5,
                      fwhm_max: float = 18.0) -> Tuple[np.ma.MaskedArray, ...]:
+    
+    ##Extra logger##
+    logger.info("Using reference_cleaning.force_reject_g2d")
+    
     """
     It takes a list of x and y coordinates, and a 2D image, and returns a list of x and y coordinates,
     a list of r-squared values, and a boolean mask
@@ -224,6 +271,10 @@ def clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references, min_fwhm_
 
     .. codeauthor:: Emir Karamehmetoglu <emir.k@phys.au.dk>
     """
+    
+    ##Extra logger##
+    logger.info("Using reference_cleaning.clean_with_rsq_and_get_fwhm")
+    
     min_references_now = min_references
     rsqvals = np.arange(rsq_min, 0.95, 0.15)[::-1]
     fwhm_found = False
@@ -270,26 +321,41 @@ def clean_with_rsq_and_get_fwhm(masked_fwhms, masked_rsqs, references, min_fwhm_
     # if len(references) == 2: logger.info('2 reference stars remaining, check WCS and image quality')
     if len(references) < 2:
         raise MinStarError(f"{len(references)} References remaining; could not estimate fwhm.")
+    
     return fwhm, references
 
 
 # --------------------------------------------------------------------------------------------------
 def mkposxy(posx, posy):
     '''Make 2D np array for astroalign'''
+    
+    ##Extra logger##
+    logger.info("Using reference_cleaning.mkposxy")
+    
     img_posxy = np.array([[x, y] for x, y in zip(posx, posy)], dtype="float64")
+        
     return img_posxy
 
 
 # --------------------------------------------------------------------------------------------------
 def try_transform(source, target, pixeltol=2, nnearest=5, max_stars=50):
+
+    ##Extra logger##
+    logger.info("Using reference_cleaning.try_transform")
+
     aa.NUM_NEAREST_NEIGHBORS = nnearest
     aa.PIXEL_TOL = pixeltol
     transform, (sourcestars, targetstars) = aa.find_transform(source, target, max_control_points=max_stars)
+        
     return sourcestars, targetstars
 
 
 # --------------------------------------------------------------------------------------------------
 def try_astroalign(source, target, pixeltol=2, nnearest=5, max_stars_n=50):
+
+    ##Extra logger##
+    logger.info("Using reference_cleaning.try_astroalign")
+
     # Get indexes of matched stars
     success = False
     try:
@@ -300,6 +366,7 @@ def try_astroalign(source, target, pixeltol=2, nnearest=5, max_stars_n=50):
         success = True
     except aa.MaxIterError:
         source_ind, target_ind = 'None', 'None'
+            
     return source_ind, target_ind, success
 
 
@@ -307,6 +374,10 @@ def try_astroalign(source, target, pixeltol=2, nnearest=5, max_stars_n=50):
 def min_to_max_astroalign(source, target, fwhm=5, fwhm_min=1, fwhm_max=4, knn_min=5, knn_max=20, max_stars=100,
                           min_matches=3):
     """Try to find matches using astroalign asterisms by stepping through some parameters."""
+    
+    ##Extra logger##
+    logger.info("Using reference_cleaning.min_to_max_astroalign")
+    
     # Set max_control_points par based on number of stars and max_stars.
     nstars = max(len(source), len(source))
     if max_stars >= nstars:
@@ -345,6 +416,9 @@ def min_to_max_astroalign(source, target, fwhm=5, fwhm_min=1, fwhm_max=4, knn_mi
 def kdtree(source, target, fwhm=5, fwhm_max=4, min_matches=3):
     '''Use KDTree to get nearest neighbor matches within fwhm_max*fwhm distance'''
 
+    ##Extra logger##
+    logger.info("Using reference_cleaning.kdtree")
+
     # Use KDTree to rapidly efficiently query nearest neighbors
 
     tt = KDTree(target)
@@ -362,27 +436,41 @@ def kdtree(source, target, fwhm=5, fwhm_max=4, min_matches=3):
     targets = np.array(targets, dtype=int)
 
     # Return indexes of matches
+    
     return sources, targets, len(sources) >= min_matches
 
 
 # --------------------------------------------------------------------------------------------------
 def get_new_wcs(extracted_ind, extracted_stars, clean_references, ref_ind, obstime, rakey='ra_obs', deckey='decl_obs'):
+
+    ##Extra logger##
+    logger.info("Using reference_cleaning.get_new_wcs")
+
     targets = (extracted_stars[extracted_ind][:, 0], extracted_stars[extracted_ind][:, 1])
 
     c = SkyCoord(ra=clean_references[rakey][ref_ind], dec=clean_references[deckey][ref_ind], frame='icrs',
                  obstime=obstime)
+                     
     return wcs.utils.fit_wcs_from_points(targets, c)
 
 
 def make_rsq_mask(masked_rsqs: np.ma.MaskedArray) -> np.ndarray:
+
+    ##Extra logger##
+    logger.info("Using reference_cleaning.make_rsq_mask")
+
     # Switching to pandas for easier selection
     df = pd.DataFrame(masked_rsqs, columns=['rsq'])
+
     return df.sort_values('rsq', ascending=False).dropna().index.values
 
 
 def get_clean_references(reference_table: RefTable, masked_rsqs: np.ma.MaskedArray, min_references_ideal: int = 6,
                          min_references_abs: int = 3, rsq_min: float = 0.15, rsq_ideal: float = 0.5,
                          keep_max: int = 100, rescue_bad: bool = True) -> Tuple[RefTable, np.ndarray]:
+                         
+    ##Extra logger##
+    logger.info("Using reference_cleaning.get_clean_references")
     # Greedy first try
     mask = (masked_rsqs >= rsq_ideal) & (masked_rsqs < 1.0)
     mask = ~mask.data | mask.mask  # masked out of range values OR non-finite values
@@ -408,6 +496,7 @@ def get_clean_references(reference_table: RefTable, masked_rsqs: np.ma.MaskedArr
     rsq_mask_index = make_rsq_mask(masked_rsqs)[:min_references_ideal]
     if len(rsq_mask_index) < 2:
         raise MinStarError('Less than 2 clean stars.')
+        
     return reference_table[rsq_mask_index], rsq_mask_index  # Return if len >= 2
 
 
@@ -428,6 +517,10 @@ class ReferenceCleaner:
         Clean extracted stars.
         :return: Tuple of masked_fwhms, masked_ref_xys, rsq_mask, masked_rsqs
         """
+        
+        ##Extra logger##
+        logger.info("Using reference_cleaning.ReferenceCleaner._clean_extracted_stars")
+        
         # use instrument_defaults for initial guess of FWHM
         radius = self.image.instrument_defaults.radius
         fwhm_guess = self.image.instrument_defaults.fwhm
@@ -443,10 +536,19 @@ class ReferenceCleaner:
 
     def set_gaussian_xys(self, masked_ref_xys: np.ma.MaskedArray, old_references: RefTable,
                          new_references: RefTable) -> None:
+
+        ##Extra logger##
+        logger.info("Using reference_cleaning.ReferenceCleaner.set_gaussian_xys")
+        
         xy = [tuple(masked_ref_xys[old_references['starid'] == ref['starid']].data[0]) for ref in new_references]
         self.gaussian_xys = np.array(xy)
 
+
     def clean_references(self, references: References = None) -> Tuple[References, float]:
+    
+        ##Extra logger##
+        logger.info("Using reference_cleaning.ReferenceCleaner.clean_references")
+    
         if references is None:
             references = self.references
 
@@ -475,12 +577,17 @@ class ReferenceCleaner:
 
         # Save Gaussian XY positions before returning
         self.set_gaussian_xys(masked_ref_xys, references.table, ordered_cleaned_references.table)
+        
         return ordered_cleaned_references, fwhm
 
     def make_sep_clean_references(self) -> References:
         """
         Make a clean reference catalog using SExtractor.
         """
+        
+        ##Extra logger##
+        logger.info("Using reference_cleaning.ReferenceCleaner.make_sep_clean_references")
+        
         image = self.image
         # Get the SExtractor references from the image
         sep_references = use_sep(image)
@@ -490,6 +597,9 @@ class ReferenceCleaner:
             sep_references.table['x'], sep_references.table['y'])
 
         sep_references.mask = sep_mask
+        
+
+        
         return sep_references.masked
 
     def mask_edge_and_target(self, target_coords: SkyCoord, hsize: int = 10,
@@ -497,6 +607,10 @@ class ReferenceCleaner:
         """
         Clean the references by removing references that are too close to the target.
         """
+        
+        ##Extra logger##
+        logger.info("Using reference_cleaning.ReferenceCleaner.mask_edge_and_target")
+        
         image_shape = self.image.shape
 
         # Make mask
@@ -506,6 +620,9 @@ class ReferenceCleaner:
         self.references.mask = mask
 
         # Make new clean references
+        
+
+        
         return self.references.masked
         # return References(table=self.references.masked, mask=mask,
         #                  coords=self.references.coords[mask],
@@ -520,19 +637,32 @@ class InitGuess:
 
     @property
     def init_guess_full(self) -> Table:
+        ##Extra logger##
+        logger.info("Using reference_cleaning.InitGuess.init_guess_full")
         return Table(self.clean_references.xy, names=['x_0', 'y_0'])
 
     @property
     def init_guess_target(self) -> Table:
+        ##Extra logger##
+        logger.info("Using reference_cleaning.InitGuess.init_guess_target")
         return Table(self.init_guess_full[self.target_row])
 
     @property
     def init_guess_diff(self) -> Table:
+        ##Extra logger##
+        logger.info("Using reference_cleaning.InitGuess.init_guess_diff")
+    
         if self.diff_row is None:
             raise ValueError('`diff_row` is None, I cannot calculate the initial guesses for the difference image row.')
+    
         return Table(self.init_guess_full[self.diff_row])
 
     @property
     def init_guess_references(self) -> Table:
+    
+        ##Extra logger##
+        logger.info("Using reference_cleaning.InitGuess.init_guess_references")
+    
         ref_begin = max(self.diff_row, self.target_row) + 1 if self.diff_row is not None else self.target_row + 1
+        
         return self.init_guess_full[ref_begin:]

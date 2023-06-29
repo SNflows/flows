@@ -13,11 +13,11 @@ from astropy.coordinates import SkyCoord
 import astropy.wcs
 from scipy.spatial import cKDTree as KDTree
 from networkx import Graph, connected_components
-from wcs import WCS2
-from utilities import create_logger
-from image import FlowsImage
-import reference_cleaning as refclean
-from target import Target
+from .wcs import WCS2
+from flows.utilities import create_logger
+from flows.image import FlowsImage
+from flows import reference_cleaning as refclean
+from flows.target import Target
 
 
 logger = create_logger()
@@ -28,6 +28,9 @@ def correct_wcs(image: FlowsImage, references: refclean.References, target: Targ
     """
     Correct WCS of image to match the reference image.
     """
+    ##Extra logger##
+    logger.info("Using coordinatematch.correct_wcs")
+    
     # Start pre-cleaning
     sep_cleaner = refclean.ReferenceCleaner(image, references, rsq_min=0.3)
 
@@ -59,6 +62,8 @@ def correct_wcs(image: FlowsImage, references: refclean.References, target: Targ
         del i_xy, i_rd
 
     logger.debug(f'Used WCS: {WCS2.from_astropy_wcs(image.wcs)}')
+    
+    
     return image
 
 
@@ -107,7 +112,10 @@ class CoordinateMatch(object):
             scale = 0.002 log(arcsec/pixel)
             angle = 0.002 radians
         """
-
+        
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch.set_normalizations")
+        
         if self.parameters is not None:
             raise RuntimeError("can't change normalization after matching is started")
 
@@ -122,6 +130,7 @@ class CoordinateMatch(object):
         self.normalizations.scale = scale if scale is not None else self.normalizations.scale
         self.normalizations.angle = angle if ra is not None else self.normalizations.angle
 
+
     # ----------------------------------------------------------------------------------------------
     def set_bounds(self, x=None, y=None, ra=None, dec=None, radius=None, scale=None, angle=None):
         """
@@ -133,7 +142,10 @@ class CoordinateMatch(object):
         [radians] if those are known, possibly from previous observations with the
         same system.
         """
-
+        
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch.set_bounds")
+        
         if self.parameters is not None:
             raise RuntimeError("can't change bounds after matching is started")
 
@@ -157,8 +169,12 @@ class CoordinateMatch(object):
         self.bounds.scale = scale if scale is not None else self.bounds.scale
         self.bounds.angle = angle if angle is not None else self.bounds.angle
 
+
     # ----------------------------------------------------------------------------------------------
     def _sorted_triangles(self, pool):
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch._sorted_triangles")
+    
         for i, c in enumerate(pool):
             for i, b in enumerate(pool[:i]):
                 for a in pool[:i]:
@@ -166,6 +182,10 @@ class CoordinateMatch(object):
 
     # ----------------------------------------------------------------------------------------------
     def _sorted_product_pairs(self, p, q):
+    
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch._sorted_product_pairs")
+        
         i_p = np.argsort(np.arange(len(p)))
         i_q = np.argsort(np.arange(len(q)))
         for _i_p, _i_q in sorted(product(i_p, i_q), key=lambda idxs: sum(idxs)):
@@ -173,6 +193,9 @@ class CoordinateMatch(object):
 
     # ----------------------------------------------------------------------------------------------
     def _sorted_triangle_packages(self):
+    
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch._sorted_triangle_packages")
 
         i_xy_triangle_generator = self._sorted_triangles(self.i_xy)
         i_rd_triangle_generator = self._sorted_triangles(self.i_rd)
@@ -208,6 +231,9 @@ class CoordinateMatch(object):
 
     # ----------------------------------------------------------------------------------------------
     def _get_triangle_angles(self, triangles):
+    
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch._get_triangle_angles")
 
         sidelengths = np.sqrt(np.power(triangles[:, (1, 0, 0)] - triangles[:, (2, 2, 1)], 2).sum(axis=2))
 
@@ -221,6 +247,9 @@ class CoordinateMatch(object):
     # ----------------------------------------------------------------------------------------------
     def _solve_for_matrices(self, xy_triangles, rd_triangles):
 
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch.solve_for_matrices")
+
         n = len(xy_triangles)
 
         A = xy_triangles - np.mean(xy_triangles, axis=1).reshape(n, 1, 2)
@@ -232,6 +261,8 @@ class CoordinateMatch(object):
 
     # ----------------------------------------------------------------------------------------------
     def _extract_parameters(self, xy_triangles, rd_triangles, matrices):
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch._extract_parameters")
 
         parameters = []
         for xy_com, rd_com, matrix in zip(xy_triangles.mean(axis=1), rd_triangles.mean(axis=1), matrices):
@@ -244,11 +275,14 @@ class CoordinateMatch(object):
             wcs = WCS2.from_matrix(*xy_com, *rd_com, matrix)
 
             parameters.append((*coordinates, np.log(wcs.scale), np.deg2rad(wcs.angle)))
-
+            
         return parameters
 
     # ----------------------------------------------------------------------------------------------
     def _get_bounds_mask(self, parameters):
+
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch._get_bounds_mask")
 
         i = np.ones(len(parameters), dtype=bool)
         parameters = np.array(parameters)
@@ -299,6 +333,9 @@ class CoordinateMatch(object):
         else:
             print('Failed, timeout.')
         """
+        
+        ##Extra logger##
+        logger.info("Using coordinatematch.CoordinateMatch.__call__")
 
         self.parameters = list() if self.parameters is None else self.parameters
 

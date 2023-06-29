@@ -7,10 +7,10 @@ from astropy.stats import sigma_clip
 from astropy.table import Table
 from bottleneck import nansum
 
-from filters import get_reference_filter
-from target import Target
-from utilities import create_logger
-from zeropoint import sigma_from_Chauvenet, bootstrap_outlier
+from .filters import get_reference_filter
+from .target import Target
+from .utilities import create_logger
+from .zeropoint import sigma_from_Chauvenet, bootstrap_outlier
 
 logger = create_logger()
 #logger = logging.getLogger(__name__)
@@ -19,6 +19,10 @@ logger = create_logger()
 def instrumental_mag(tab: Table, target: Target, make_fig: bool = False) -> Tuple[Table, Optional[plt.Figure],
                                                                                   Optional[plt.Axes]]:
     target_rows = tab['starid'] <= 0
+
+                
+    ##Extra logger##
+    logger.info("Using magnitudes.instrumental_mag")
 
     # Check that we got valid flux photometry:
     if np.any(~np.isfinite(tab[target_rows]['flux_psf'])) or np.any(~np.isfinite(tab[target_rows]['flux_psf_error'])):
