@@ -25,7 +25,15 @@ from copy import deepcopy
 from bottleneck import nanmedian, nansum, nanmean, replace
 from scipy.spatial import KDTree
 import pandas as pd  # TODO: Convert to pure numpy implementation
-import sep
+#    From https://github.com/PJ-Watson/sep-pjw:
+#    "The original release of sep by Kyle Barbary no longer appears to be maintained.
+#    [...] The aim of sep-pjw is to offer a version of sep that resolves [support] issues,
+#    whilst maintaining compatibility as much as is feasibly possible. [...]
+#    For existing workflows, the only necessary update will be to change the import to [sep_pjw]"
+#import sep
+import sep_pjw
+
+
 from .image import FlowsImage
 from .target import Target
 from .utilities import create_logger
