@@ -54,8 +54,8 @@ class References:
     xy: Optional[RefTable] = None
 
     def replace_nans_pm(self) -> None:
-        replace(self.table['pm_ra'], np.NaN, 0.)
-        replace(self.table['pm_dec'], np.NaN, 0.)
+        replace(self.table['pm_ra'], np.nan, 0.)
+        replace(self.table['pm_dec'], np.nan, 0.)
 
     def make_sky_coords(self, reference_time: float = 2015.5) -> None:
         self.replace_nans_pm()
@@ -105,9 +105,9 @@ class References:
 def use_sep(image: FlowsImage, tries: int = 5, thresh: float = 5.):
 
     # Use sep to for soure extraction
-    sep_background = sep.Background(image.image, mask=image.mask)
+    sep_background = sep_pjw.Background(image.image, mask=image.mask)
     try:
-        objects = sep.extract(image.image - sep_background, thresh=thresh, err=sep_background.globalrms,
+        objects = sep_pjw.extract(image.image - sep_background, thresh=thresh, err=sep_background.globalrms,
                               mask=image.mask, deblend_cont=0.1, minarea=9, clean_param=2.0)
     except KeyboardInterrupt as e:
         raise e
@@ -161,9 +161,9 @@ def force_reject_g2d(xarray: ArrayLike, yarray: ArrayLike, image: Union[NDArray,
 
     # Stars reject
     N = len(xarray)
-    fwhms = np.full((N, 2), np.NaN)
-    xys = np.full((N, 2), np.NaN)
-    rsqs = np.full(N, np.NaN)
+    fwhms = np.full((N, 2), np.nan)
+    xys = np.full((N, 2), np.nan)
+    rsqs = np.full(N, np.nan)
     for i, (x, y) in enumerate(zip(xarray, yarray)):
         x = int(np.round(x))
         y = int(np.round(y))
@@ -185,8 +185,8 @@ def force_reject_g2d(xarray: ArrayLike, yarray: ArrayLike, image: Union[NDArray,
         nan_filter = nan_filter & np.isfinite(curr_star)
         if len(curr_star[nan_filter]) < 3:  # Not enough pixels to fit
             logger.debug(f"Not enough pixels to fit star, curr_star[nan_filter]:{curr_star[nan_filter]}")
-            rsqs[i] = np.NaN
-            fwhms[i] = np.NaN
+            rsqs[i] = np.nan
+            fwhms[i] = np.nan
             continue
 
         gfit = gfitter(g2d, x=xpos[nan_filter], y=ypos[nan_filter], z=curr_star[nan_filter])

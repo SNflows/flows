@@ -68,17 +68,19 @@ class ResultsTable(Table):
         results_table['flux_aperture'] = apphot_tbl['flux_aperture'] / image.exptime
         results_table['flux_aperture_error'] = apphot_tbl['flux_aperture_error'] / image.exptime
         results_table['flux_psf'] = psfphot_tbl['flux_fit'] / image.exptime
-        results_table['flux_psf_error'] = psfphot_tbl['flux_unc'] / image.exptime
+        results_table['flux_psf_error'] = psfphot_tbl['flux_err'] / image.exptime
         results_table['pixel_column_psf_fit'] = psfphot_tbl['x_fit']
         results_table['pixel_row_psf_fit'] = psfphot_tbl['y_fit']
-        results_table['pixel_column_psf_fit_error'] = psfphot_tbl['x_0_unc']
-        results_table['pixel_row_psf_fit_error'] = psfphot_tbl['y_0_unc']
+        # 'x_0_unc' -> 'x_err' and 'y_0_unc' -> 'y_err' at some version transition of photutils (not documented in
+        # changelog, found with debugger).
+        results_table['pixel_column_psf_fit_error'] = psfphot_tbl['x_err']
+        results_table['pixel_row_psf_fit_error'] = psfphot_tbl['y_err']
 
         return results_table
 
     @staticmethod
     def verify_uncertainty_column(tab):
-        if "flux_unc" in tab.colnames:
+        if "flux_err" in tab.colnames:
             return tab
-        tab['flux_unc'] = tab['flux_fit'] * 0.04  # Assume 4% errors
+        tab['flux_err'] = tab['flux_fit'] * 0.04  # Assume 4% errors
         logger.warning("Flux uncertainty not found from PSF fit, assuming 4% error.")

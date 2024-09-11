@@ -469,10 +469,10 @@ def query_all(coo_centre, radius=24 * u.arcmin, dist_cutoff=2 * u.arcsec):
 
     # REFCAT results table does not have uBV
     N = len(AT_results)
-    d = np.full(N, np.NaN)
-    AT_results.add_column(MaskedColumn(name='B_mag', unit='mag', dtype='float32', fill_value=np.NaN, data=d))
-    AT_results.add_column(MaskedColumn(name='V_mag', unit='mag', dtype='float32', fill_value=np.NaN, data=d))
-    AT_results.add_column(MaskedColumn(name='u_mag', unit='mag', dtype='float32', fill_value=np.NaN, data=d))
+    d = np.full(N, np.nan)
+    AT_results.add_column(MaskedColumn(name='B_mag', unit='mag', dtype='float32', fill_value=np.nan, data=d))
+    AT_results.add_column(MaskedColumn(name='V_mag', unit='mag', dtype='float32', fill_value=np.nan, data=d))
+    AT_results.add_column(MaskedColumn(name='u_mag', unit='mag', dtype='float32', fill_value=np.nan, data=d))
 
     # Query APASS around the target position:
     results_apass = query_apass(coo_centre, radius=radius)

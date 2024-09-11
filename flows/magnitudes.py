@@ -60,7 +60,7 @@ def instrumental_mag(tab: Table, target: Target, make_fig: bool = False) -> Tupl
     if n_weights > 1:
         zp_error = np.sqrt(n_weights * nansum(weights * (y - best_fit(x)) ** 2) / nansum(weights) / (n_weights - 1))
     else:
-        zp_error = np.NaN
+        zp_error = np.nan
     logger.info('Leastsquare ZP = %.3f, ZP_error = %.3f', zp, zp_error)
 
     # Determine sigma clipping sigma according to Chauvenet method
