@@ -55,7 +55,7 @@ class AADC_DB(object):  # pragma: no cover
                 password = getpass.getpass('Password: ')
 
         # Open database connection:
-        self.conn = psql.connect('host=10.28.0.127 user=' + username + ' password=' + password + ' dbname=db_aadc')
+        self.conn = psql.connect('host=db.adastra.lan user=' + username + ' password=' + password + ' dbname=adastra')
         self.cursor = self.conn.cursor(cursor_factory=DictCursor)
 
     def close(self):

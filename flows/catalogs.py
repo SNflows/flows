@@ -188,7 +188,7 @@ def _query_casjobs_refcat2(coo_centre, radius=24 * u.arcmin):
     cmd = 'java -jar casjobs.jar execute "{0:s}"'.format(sql)
 
     # Execute the command:
-    cmd = shlex.split(cmd)
+    cmd = shlex.split(cmd) # TODO: download casjobs from https://galex.stsci.edu/casjobs/casjobscl.aspx, follow instructions
     directory = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'casjobs')
     proc = subprocess.Popen(cmd, cwd=directory, stdout=subprocess.PIPE, universal_newlines=True)
     stdout, stderr = proc.communicate()
