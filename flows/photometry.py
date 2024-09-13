@@ -176,8 +176,8 @@ class Photometry:
         # inner and an outer radius, which we have not been doing previously... Comments/suggestions, anyone?
         self.photometry_obj = PSFPhotometry(psf_model=psf_model, fit_shape=fitsize, grouper=SourceGrouper(fwhm),
                                             fitter=fitter,
-                                            localbkg_estimator=photutils.background.LocalBackground(inner_radius=5,
-                                                                                                    outer_radius=10,
+                                            localbkg_estimator=photutils.background.LocalBackground(inner_radius=4*fwhm,
+                                                                                                    outer_radius=7*fwhm,
                                                                                                     bkg_estimator=bkg),
                                             aperture_radius=fwhm)
 
