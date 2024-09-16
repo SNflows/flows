@@ -151,19 +151,32 @@ def _query_casjobs_refcat2(coo_centre, radius=24 * u.arcmin):
     if isinstance(radius, (float, int)):
         radius *= u.deg
 
-    sql = ("""SELECT r.* FROM fGetNearbyObjEq({ra:f}, {dec:f}, {radius:f}) AS n
-    INNER JOIN HLSP_ATLAS_REFCAT2.refcat2 AS r ON n.objid=r.objid ORDER BY n.distance;"""
-    .format(ra=coo_centre.ra.deg, dec=coo_centre.dec.deg, radius=Angle(radius).deg))
-    logger.debug(sql)
+    # prepare refcat2 query to find all objects near position
+    casjobs_context = "HLSP_ATLAS_REFCAT2"
+    casjobs_personal_table = "flows"
+    sql = ("""SELECT r.* INTO {table:s} FROM fGetNearbyObjEq({ra:f}, {dec:f}, {radius:f}) AS n
+    INNER JOIN {context:s}.refcat2 AS r ON n.objid=r.objid ORDER BY n.distance;"""
+    .format(table=casjobs_personal_table, context=casjobs_context,
+            ra=coo_centre.ra.deg, dec=coo_centre.dec.deg, radius=Angle(radius).deg))
 
-    # Make sure that CasJobs have been configured:
     config = load_config()
     casjobs_configured(config)
-
     jobs = mastcasjobs.MastCasJobs(userid=config.get('casjobs', 'wsid'),
                                    password=config.get('casjobs', 'password'),
-                                   context="HLSP_ATLAS_REFCAT2")
-    results = jobs.quick(sql, task_name="python cone search")
+                                   context=casjobs_context)
+
+    # limited storage space at remote casjobs, drop table, if it exists, before making a new one
+    for table in jobs.list_tables():
+        if table == casjobs_personal_table:
+            jobs.drop_table(casjobs_personal_table)  # more graceful than drop_table_if_exists()
+
+    # submit job, wait for it to finish and retrieve the results
+    job_id = jobs.submit(sql, context=casjobs_context, task_name=casjobs_personal_table)
+    logger.debug("Submitted query '%s' to MAST CasJobs context '%s' with task name '%s'",
+                 sql, casjobs_context, casjobs_personal_table)
+    code, status = jobs.monitor(job_id, timeout=5)
+    logger.debug("MAST CasJobs query exited with status %d: %s", code, status)
+    results = jobs.get_table(casjobs_personal_table)
 
     # Contents of HLSP_ATLAS_REFCAT2.refcat2 data table - i.e. the columns of 'results' just
     # above; from https://galex.stsci.edu/casjobs/MyDB.aspx -> HLSP_ATLAS_REFCAT2.refcat2
