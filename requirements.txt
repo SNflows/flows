@@ -19,3 +19,4 @@ astroalign > 2.3
 networkx
 astroquery >= 0.4.6
 tendrils >= 0.1.5
+mastcasjobs >= 0.0.6

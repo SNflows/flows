@@ -15,6 +15,7 @@ def parse():
     parser.add_argument('-d', '--debug', help='Print debug messages.', action='store_true')
     parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
     parser.add_argument('-t', '--target', type=str, help='Target to print catalog for.', nargs='?', default=None)
+    parser.add_argument('-c', '--commit', help='Commit downloaded catalogs to flows database.', action='store_true')
     return parser.parse_args()
 
 def set_logging_level(args):
@@ -43,7 +44,7 @@ def main():
     # Get missing
     for target in api.get_catalog_missing():
         logger.info("Downloading catalog for target=%s...", target)
-        download_catalog(target)  # @TODO: refactor to Tendrils
+        download_catalog(target, update_existing=args.commit)  # @TODO: refactor to Tendrils
 
     # download target catalog for printing
     if args.target is not None:

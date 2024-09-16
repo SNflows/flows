@@ -13,6 +13,7 @@ import numpy as np
 import pytest
 from astropy.coordinates import SkyCoord
 from astropy.table import Table
+from tendrils.utils import load_config
 
 from flows import catalogs
 
@@ -46,7 +47,7 @@ def test_download_catalog(SETUP_CONFIG, ra: float = 256.727512, dec: float = 30.
     # Check if CasJobs have been configured, and skip the entire test if it isn't.
     # This has to be done like this, to avoid problems when config.ini doesn't exist.
     try:
-        catalogs.configure_casjobs()
+        catalogs.casjobs_configured(load_config())
     except catalogs.CasjobsError:
         pytest.skip("CasJobs not configured")
 
