@@ -27,7 +27,7 @@ from .magnitudes import instrumental_mag
 from .result_model import ResultsTable
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry  # noqa: E402
+from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry  # noqa: E402
 
 
 #    In photutils version 1.13 the deprecated (since version 1.9) BasicPSFPhotometry is removed;
