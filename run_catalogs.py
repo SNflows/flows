@@ -42,7 +42,9 @@ def main():
     logger.setLevel(logging_level)
 
     # Get missing
-    for target in api.get_catalog_missing():
+    targets = api.get_catalog_missing()
+    logger.info("%d catalogs missing", len(targets))
+    for target in targets:
         logger.info("Downloading catalog for target=%s...", target)
         download_catalog(target, update_existing=args.commit)  # @TODO: refactor to Tendrils
 
