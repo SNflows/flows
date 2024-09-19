@@ -13,7 +13,7 @@ git clone https://github.com/SNflows/flows.git
 cd flows
 ```
 
-Required dependencies can be installed using the following command. It is recommended to do this in a dedicated `virtualenv <https://virtualenv.pypa.io/en/stable/>`_ or similar:
+Required dependencies can be installed using the following command. It is recommended to do this in a dedicated [virtualenv](https://virtualenv.pypa.io/en/stable/) or similar:
 
 ```shell
 python3 -m venv env
