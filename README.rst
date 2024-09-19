@@ -18,25 +18,28 @@ Installation instructions
 =========================
 * Go to the directory where you want the Python code to be installed and simply download it or clone it via *git* as::
 
-  >>> git clone https://github.com/SNflows/flows.git
-  >>> cd flows
+.. code-block:: console
+    git clone https://github.com/SNflows/flows.git
+    cd flows
 
 * Required dependencies can be installed using the following command. It is recommended to do this in a dedicated `virtualenv <https://virtualenv.pypa.io/en/stable/>`_ or similar:
 
-  >>> python3 -m venv env
-  >>> source env/bin/activate
-  >>> pip install --upgrade pip
-  >>> pip install -r requirements.txt
+.. code-block:: console
+    python3 -m venv env
+    source env/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
 
 * In addition, in order to run tests and do development, do
 
-  >>> pip install -r dev_requirements.txt  # in same virtual environment as above
-  >>> _pyver=$(find env/lib/ -type d -mindepth 1 -maxdepth 1 | cut -d '/' -f 3)
-  >>> ln -s ../env/lib/${_pyver}/site-packages/tendrils/utils/config.ini flows/config.ini
-  >>> wget -O tests/input/2020aatc/SN2020aatc_K_20201213_495s.fits.gz https://anon.erda.au.dk/share_redirect/FJGx69KFvg
-  >>> wget -O tests/input/2020lao/59000.96584_h_e_20200531_33_1_1_1_2020lao_LT_gp.fits.gz https://anon.erda.au.dk/share_redirect/E98lmqOVWf
-  >>> wget -O tests/input/2020lao/subtracted/59000.96584_h_e_20200531_33_1_1_1_2020lao_LT_gpdiff.fits.gz https://anon.erda.au.dk/share_redirect/bIxyzrRXbg
-  >>> wget -O tests/input/2021wyw/ADP.2021-10-15T11_40_06.553.fits.gz https://anon.erda.au.dk/share_redirect/Gr8p2K7ph5
+.. code-block:: console
+    pip install -r dev_requirements.txt  # in same virtual environment as above
+    _pyver=$(find env/lib/ -type d -mindepth 1 -maxdepth 1 | cut -d '/' -f 3)
+    ln -s ../env/lib/${_pyver}/site-packages/tendrils/utils/config.ini flows/config.ini
+    wget -O tests/input/2020aatc/SN2020aatc_K_20201213_495s.fits.gz https://anon.erda.au.dk/share_redirect/FJGx69KFvg
+    wget -O tests/input/2020lao/59000.96584_h_e_20200531_33_1_1_1_2020lao_LT_gp.fits.gz https://anon.erda.au.dk/share_redirect/E98lmqOVWf
+    wget -O tests/input/2020lao/subtracted/59000.96584_h_e_20200531_33_1_1_1_2020lao_LT_gpdiff.fits.gz https://anon.erda.au.dk/share_redirect/bIxyzrRXbg
+    wget -O tests/input/2021wyw/ADP.2021-10-15T11_40_06.553.fits.gz https://anon.erda.au.dk/share_redirect/Gr8p2K7ph5
 
 
 TODO: Reformulate following bullet point and check/decide on which config paths are/should be available...:
@@ -59,7 +62,8 @@ How to run tests
 ================
 You can test your installation by going to the root directory where you cloned the repository and run the command::
 
->>> pytest
+.. code-block:: console
+    pytest
 
 Full configuration file
 =======================
@@ -142,7 +146,6 @@ Text coming soon...
 
     [ztf]
     # output_photometry = .
-
 
 Making a release
 ================
