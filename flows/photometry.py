@@ -119,12 +119,15 @@ class PSFBuilder:
         logger.info("Building ePSF...")
 
         # from photutils docs: recentering_boxsize must have odd values and be greater than or equal to 3
-        discrete_width = int(np.round(2 * self.fwhm))
-        rcb = discrete_width if discrete_width % 2 else discrete_width + 1
+        rcb = int(np.round(2 * self.fwhm))
+        rcb = rcb if rcb % 2 else rcb + 1
+        # from photutils docs: fit_boxsize must have odd values
+        fb = int(np.round(1.5 * self.fwhm))
+        fb = fb if fb % 2 else fb + 1
 
         builder = self.epsf_builder(
             oversampling=1, shape=1 * self.star_size,
-            fitter=EPSFFitter(fit_boxsize=max(int(np.round(1.5 * self.fwhm)), 5)),
+            fitter=EPSFFitter(fit_boxsize=max(fb, 5)),
             recentering_boxsize=max(rcb, 5),
             norm_radius=max(self.fwhm, 5), maxiters=100,
             progress_bar=multiprocessing.parent_process() is None and logger.getEffectiveLevel() <= 20
