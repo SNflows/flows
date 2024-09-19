@@ -18,13 +18,13 @@ Installation instructions
 =========================
 * Go to the directory where you want the Python code to be installed and simply download it or clone it via *git* as::
 
-.. code-block:: console
+.. code-block:: bash
     git clone https://github.com/SNflows/flows.git
     cd flows
 
 * Required dependencies can be installed using the following command. It is recommended to do this in a dedicated `virtualenv <https://virtualenv.pypa.io/en/stable/>`_ or similar:
 
-.. code-block:: console
+.. code-block:: bash
     python3 -m venv env
     source env/bin/activate
     pip install --upgrade pip
@@ -32,7 +32,7 @@ Installation instructions
 
 * In addition, in order to run tests and do development, do
 
-.. code-block:: console
+.. code-block:: bash
     pip install -r dev_requirements.txt  # in same virtual environment as above
     _pyver=$(find env/lib/ -type d -mindepth 1 -maxdepth 1 | cut -d '/' -f 3)
     ln -s ../env/lib/${_pyver}/site-packages/tendrils/utils/config.ini flows/config.ini
@@ -62,7 +62,8 @@ How to run tests
 ================
 You can test your installation by going to the root directory where you cloned the repository and run the command::
 
-.. code-block:: console
+.. code-block:: bash
+
     pytest
 
 Full configuration file
