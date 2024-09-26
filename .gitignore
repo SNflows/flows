@@ -147,3 +147,6 @@ tests/output/
 typings/
 
 *.config
+
+# Downloaded at run-time in flows_mwmap.py:
+flows_mwmap_milkyway.fits
