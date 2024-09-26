@@ -27,16 +27,16 @@ class AADC_DB(object):  # pragma: no cover
         cursor (`psycopg2.Cursor` object): Cursor to use in database.
     """
 
-    def __init__(self, username=None, password=None):
+    def __init__(self, username=None, password=None, host=None, dbname=None):
         """
-        Open connection to central TASOC database.
-
-        If ``username`` or ``password`` is not provided or ``None``,
+        If ``username``, ``password``, ``host`` or ``dbname`` is not provided or ``None``,
         the user will be prompted for them.
 
         Parameters:
             username (string or None, optional): Username for AADC database.
             password (string or None, optional): Password for AADC database.
+            host     (string or None, optional): Host     for AADC database.
+            dbname   (string or None, optional): DBname   for AADC database.
         """
 
         config = load_config()
@@ -54,8 +54,24 @@ class AADC_DB(object):  # pragma: no cover
             if password is None:
                 password = getpass.getpass('Password: ')
 
+        if host is None:
+            host = config.get('database', 'host', fallback=os.environ.get("AUDBHost", None))
+            if host is None:
+                default_host = 'db.adastra.lan'
+                host = input('Host [%s]: ' % default_host)
+                if host == '':
+                    host = default_host
+
+        if dbname is None:
+            dbname = config.get('database', 'dbname', fallback=os.environ.get("AUDBName", None))
+            if dbname is None:
+                default_dbname = 'adastra'
+                dbname = input('Schema [%s]: ' % default_dbname)
+                if dbname == '':
+                    dbname = default_dbname
+
         # Open database connection:
-        self.conn = psql.connect('host=db.adastra.lan user=' + username + ' password=' + password + ' dbname=adastra')
+        self.conn = psql.connect('host=' + host + ' user=' + username + ' password=' + password + ' dbname=' + dbname)
         self.cursor = self.conn.cursor(cursor_factory=DictCursor)
 
     def close(self):
