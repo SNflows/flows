@@ -109,8 +109,8 @@ def create_plot(filepath, target_coord=None, target_position=None):
 
 # --------------------------------------------------------------------------------------------------
 def ingest_from_inbox():
-    rootdir_inbox = '/data/flows/archive/inbox'
-    rootdir = '/data/flows/archive/archive'
+    rootdir_inbox = '/archive/inbox'
+    rootdir = '/archive/raw'
 
     logger = logging.getLogger(__name__)
 
@@ -395,8 +395,8 @@ def ingest_from_inbox():
 
                     # Set file and directory permissions:
                     # TODO: Can this not be handled in a more elegant way?
-                    os.chmod(os.path.dirname(newpath), 0o2750)
-                    os.chmod(newpath, 0o0440)
+                    os.chmod(os.path.dirname(newpath), 0o2775)
+                    os.chmod(newpath, 0o0444)
 
                     filesize = os.path.getsize(fpath)
 
@@ -453,8 +453,8 @@ def ingest_from_inbox():
 
 # --------------------------------------------------------------------------------------------------
 def ingest_photometry_from_inbox():
-    rootdir_inbox = '/data/flows/archive/inbox'
-    rootdir_archive = '/data/flows/archive/archive_photometry'
+    rootdir_inbox = '/archive/inbox'
+    rootdir_archive = '/archive/photometry'
 
     logger = logging.getLogger(__name__)
 
@@ -748,11 +748,11 @@ def ingest_photometry_from_inbox():
             else:
                 # Set file and directory permissions:
                 # TODO: Can this not be handled in a more elegant way?
-                os.chmod(os.path.join(rootdir_archive, targetname), 0o2750)
-                os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}'), 0o2750)
-                os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}', f'v{new_version:02d}'), 0o2550)
+                os.chmod(os.path.join(rootdir_archive, targetname), 0o2775)
+                os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}'), 0o2775)
+                os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}', f'v{new_version:02d}'), 0o2555)
                 for f in os.listdir(os.path.dirname(newpath)):
-                    os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0440)
+                    os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0444)
 
                 logger.info("DELETE THE ORIGINAL FILE")
                 if os.path.isfile(fpath):
@@ -767,7 +767,7 @@ def cleanup_inbox():
     """
     Cleanup of inbox directory
     """
-    rootdir_inbox = '/data/flows/archive/inbox'
+    rootdir_inbox = '/archive/inbox'
 
     # Just a simple check to begin with:
     if not os.path.isdir(rootdir_inbox):

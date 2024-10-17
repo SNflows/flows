@@ -89,7 +89,7 @@ if __name__ == '__main__':
         m = regex_year.match(tgt['target_name'])
         year = int(m.group(1))
 
-        outdir = os.path.join('/data/flows/archive/candidates', str(year), tgt['target_name'])
+        outdir = os.path.join('/archive/candidates', str(year), tgt['target_name'])
 
         # If running in fast mode, jump over everything
         if args.fast and (tgt['inserted'] < yesterday or os.path.isdir(outdir)):

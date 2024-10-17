@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
             p = row['path'].replace('.fits', '.fits.gz')
 
-            fpath = os.path.join('/data/flows/archive/archive', p)
+            fpath = os.path.join('/archive/raw', p)
             try:
                 fsize = os.path.getsize(fpath)
                 fhash = get_filehash(fpath)

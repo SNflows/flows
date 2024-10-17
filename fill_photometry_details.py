@@ -20,7 +20,7 @@ if __name__ == '__main__':
         #for row in db.cursor.fetchall():
         #
         #	fileid_phot = row['fileid']
-        #	filepath = os.path.join('/flows/archive_photometry/', row['path'])
+        #	filepath = os.path.join('/archive/photometry/', row['path'])
         #
         #	tab = Table.read(filepath, format='ascii.ecsv')
         #
@@ -102,7 +102,7 @@ if __name__ == '__main__':
         for row in db.cursor.fetchall():
 
             fileid_phot = row['fileid']
-            filepath = os.path.join('/data/flows/archive/archive_photometry/', row['path'])
+            filepath = os.path.join('/archive/photometry/', row['path'])
 
             tab = Table.read(filepath, format='ascii.ecsv')
             print(len(tab))
