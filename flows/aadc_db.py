@@ -66,12 +66,12 @@ class AADC_DB(object):  # pragma: no cover
             dbname = config.get('database', 'dbname', fallback=os.environ.get("AUDBName", None))
             if dbname is None:
                 default_dbname = 'adastra'
-                dbname = input('Schema [%s]: ' % default_dbname)
+                dbname = input('Database [%s]: ' % default_dbname)
                 if dbname == '':
                     dbname = default_dbname
 
         # Open database connection:
-        self.conn = psql.connect('host=' + host + ' user=' + username + ' password=' + password + ' dbname=' + dbname)
+        self.conn = psql.connect(host=host, database=dbname, user=username, password=password)
         self.cursor = self.conn.cursor(cursor_factory=DictCursor)
 
     def close(self):

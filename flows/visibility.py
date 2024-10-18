@@ -50,7 +50,7 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
     if date is None:
         date = datetime.utcnow()
     elif isinstance(date, str):
-        date = datetime.strptime(date, '%Y-%m-%d')
+        date = datetime.strptime(date, '%Y%m%d')
 
     # Coordinates of object:
     obj = SkyCoord(ra=target.ra, dec=target.dec, unit='deg', frame='icrs')
@@ -69,6 +69,8 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
                 plotpath = os.path.join(output, "visibility_%s_%s_site%02d.png" % (
                     target.name, date.strftime('%Y%m%d'), site['siteid']))
             else:
+                if not os.path.exists(os.path.dirname(output)):
+                    os.makedirs(os.path.dirname(output))
                 plotpath = output
             logger.debug("Will save visibility plot to '%s'", plotpath)
 

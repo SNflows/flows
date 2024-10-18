@@ -7,6 +7,7 @@
 import argparse
 from flows.plots import plots_interactive
 import flows
+from flows.target import Target
 
 if __name__ == '__main__':
     # Parse command line arguments:
@@ -20,4 +21,5 @@ if __name__ == '__main__':
     if args.output is None:
         plots_interactive()
 
-    flows.visibility(target=args.target, siteid=args.site, date=args.date, output=args.output)
+    t = Target.from_tname(args.target)
+    flows.visibility(target=t, siteid=args.site, date=args.date, output=args.output)

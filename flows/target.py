@@ -7,6 +7,8 @@ from astropy.wcs import WCS
 from numpy.typing import NDArray
 from tendrils import api
 
+from flows.aadc_db import AADC_DB
+
 
 @dataclass
 class Target:
@@ -75,3 +77,17 @@ class Target:
         return cls(
             ra=target_pars['ra'], dec=target_pars['decl'],
             name=target_pars['target_name'], id=target_pars['targetid'])
+
+    @classmethod
+    def from_tname(cls, target_name: str) -> 'Target':
+        # TODO: better to define a function 'api.get_target(target_name)', avoiding db connection...
+
+        """
+        Create target from target name.
+        """
+        with AADC_DB() as db:
+            # SELECT fileid,path,targetid FROM flows.files LEFT JOIN flows.photometry_details d ON d.fileid_phot=files.fileid WHERE files.datatype=2 AND d.fileid_phot IS NULL;
+            db.cursor.execute("select targetid from flows.targets WHERE target_name=%s;", [target_name])
+            for row in db.cursor.fetchall():
+                target_id = row['targetid']
+                return cls.from_tid(target_id)
