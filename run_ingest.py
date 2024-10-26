@@ -403,13 +403,19 @@ def ingest_from_inbox():
                     if not fpath.endswith('-e00.fits'):
                         create_plot(newpath, target_coord=target_coord, target_position=target_pixels)
 
-                    db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,version,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,%(version)s,1) RETURNING fileid;", {
+                    db.cursor.execute("""INSERT INTO flows.files (
+                    archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,version,available
+                    )
+                    VALUES (
+                    %(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,%(version)s,1
+                    )
+                    RETURNING fileid;""", {
                         'archive': archive,
                         'relpath': relpath,
                         'targetid': targetid,
                         'datatype': datatype,
-                         'site': img.site['siteid'], 'filesize': filesize, 'filehash': filehash, 'obstime': obstime,
-                         'photfilter': img.photfilter, 'exptime': img.exptime, 'version': version})
+                         'site': img.site['siteid'], 'filesize': filesize, 'filehash': filehash, 'obstime': float(obstime),
+                         'photfilter': img.photfilter, 'exptime': float(img.exptime), 'version': version})
                     fileid = db.cursor.fetchone()[0]
 
                     if datatype == 4:

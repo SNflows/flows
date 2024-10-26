@@ -89,7 +89,7 @@ def main():
             continue
 
         # Write table to file:
-        tab.write(ztf_lightcurve_path, format='ascii.ecsv', delimiter=',')
+        tab.write(ztf_lightcurve_path, format='ascii.ecsv', delimiter=',', overwrite=True) # TODO: overwrite=True has not always been necessary, do we want to overwrite or not?
 
         # Find time of maxmimum and 14 days from that:
         indx_min = np.argmin(tab['mag'])
