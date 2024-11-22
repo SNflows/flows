@@ -108,10 +108,10 @@ if __name__ == '__main__':
         tgtobj = Target.from_tid(tgt['targetid'])
 
         # FIXME: Limiting to only siteid=2 (VLT) right now!
-        flows.visibility(target=tgtobj, siteid=2, date=today.strftime('%Y-%m-%d'), output=outdir, overwrite=False)
+        flows.visibility(target=tgtobj, siteid=2, date=today.strftime('%Y%m%d'), output=outdir, overwrite=False)
 
         # Create plots for tomorrow already:
-        flows.visibility(target=tgtobj, siteid=2, date=tomorrow.strftime('%Y-%m-%d'), output=outdir, overwrite=False)
+        flows.visibility(target=tgtobj, siteid=2, date=tomorrow.strftime('%Y%m%d'), output=outdir, overwrite=False)
 
         regex_fname = re.compile(r'^visibility_%s_(\d+)_site\d+\.png$' % tgt['target_name'])
         for f in glob.iglob(os.path.join(outdir, 'visibility_*.png')):
