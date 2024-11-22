@@ -20,6 +20,7 @@ def main():
     parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
     parser.add_argument('-t', '--target', type=str, default=None, help='Target to download ZTF photometry for.')
     parser.add_argument('-o', '--output', type=str, default=None, help='Directory to save output to.')
+    parser.add_argument('-m', '--missing', help='Download ZTF photometry for all missing targets/candidates.', action='store_true')
     args = parser.parse_args()
 
     # Set logging level:
@@ -62,10 +63,14 @@ def main():
 
     # Loop through targets:
     for tgt in targets:
+        # only interested in candidates and targets
+        if tgt['target_status'] == 'rejected':
+            continue
+
         logger.debug("Target: %s", tgt)
         target_name = tgt['target_name']
 
-        # Paths to the files to be updated:
+        # Paths to the output files:
         ztf_lightcurve_path = os.path.join(output_dir, f'{target_name:s}-ztf.ecsv')
         ztf_plot_path = os.path.join(output_dir, f'{target_name:s}-ztf.png')
 
@@ -78,40 +83,47 @@ def main():
                 os.remove(ztf_plot_path)
             continue
 
+        if args.missing:
+            if os.path.isfile(ztf_lightcurve_path) and os.path.isfile(ztf_plot_path):
+                continue
+
         # Download ZTF photometry as Astropy Table:
-        tab = ztf.download_ztf_photometry(tgt['targetid'])
-        logger.debug("ZTF Photometry:\n%s", tab)
-        if tab is None or len(tab) == 0:
-            if os.path.isfile(ztf_lightcurve_path):
-                os.remove(ztf_lightcurve_path)
-            if os.path.isfile(ztf_plot_path):
-                os.remove(ztf_plot_path)
+        try:
+            tab = ztf.download_ztf_photometry(tgt['targetid'])
+            logger.debug("ZTF Photometry:\n%s", tab)
+            if tab is None or len(tab) == 0:
+                if os.path.isfile(ztf_lightcurve_path):
+                    os.remove(ztf_lightcurve_path)
+                if os.path.isfile(ztf_plot_path):
+                    os.remove(ztf_plot_path)
+                continue
+
+            # Write table to file:
+            tab.write(ztf_lightcurve_path, format='ascii.ecsv', delimiter=',', overwrite=True) # TODO: overwrite=True has not always been necessary, do we want to overwrite or not?
+
+            # Find time of maxmimum and 14 days from that:
+            indx_min = np.argmin(tab['mag'])
+            maximum_mjd = tab['time'][indx_min]
+            fortnight_mjd = maximum_mjd + 14
+
+            # Get LC data out and save as CSV files
+            fig, ax = plt.subplots()
+            ax.axvline(maximum_mjd, ls='--', c='k', lw=0.5, label='Maximum')
+            ax.axvline(fortnight_mjd, ls='--', c='0.5', lw=0.5, label='+14 days')
+            for fid in np.unique(tab['photfilter']):
+                col = colors[fid]
+                band = tab[tab['photfilter'] == fid]
+                ax.errorbar(band['time'], band['mag'], band['mag_err'], color=col, ls='-', lw=0.5, marker='.', label=fid)
+
+            ax.invert_yaxis()
+            ax.set_title(target_name)
+            ax.set_xlabel('Time (MJD)')
+            ax.set_ylabel('Magnitude')
+            ax.legend()
+            fig.savefig(ztf_plot_path, format='png', bbox_inches='tight')
+            plt.close(fig)
+        except:
             continue
-
-        # Write table to file:
-        tab.write(ztf_lightcurve_path, format='ascii.ecsv', delimiter=',', overwrite=True) # TODO: overwrite=True has not always been necessary, do we want to overwrite or not?
-
-        # Find time of maxmimum and 14 days from that:
-        indx_min = np.argmin(tab['mag'])
-        maximum_mjd = tab['time'][indx_min]
-        fortnight_mjd = maximum_mjd + 14
-
-        # Get LC data out and save as CSV files
-        fig, ax = plt.subplots()
-        ax.axvline(maximum_mjd, ls='--', c='k', lw=0.5, label='Maximum')
-        ax.axvline(fortnight_mjd, ls='--', c='0.5', lw=0.5, label='+14 days')
-        for fid in np.unique(tab['photfilter']):
-            col = colors[fid]
-            band = tab[tab['photfilter'] == fid]
-            ax.errorbar(band['time'], band['mag'], band['mag_err'], color=col, ls='-', lw=0.5, marker='.', label=fid)
-
-        ax.invert_yaxis()
-        ax.set_title(target_name)
-        ax.set_xlabel('Time (MJD)')
-        ax.set_ylabel('Magnitude')
-        ax.legend()
-        fig.savefig(ztf_plot_path, format='png', bbox_inches='tight')
-        plt.close(fig)
 
 
 # --------------------------------------------------------------------------------------------------
