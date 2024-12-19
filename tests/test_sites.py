@@ -78,7 +78,7 @@ def test_site_visibility(flows_sites):
         with pytest.deprecated_call():
             with plt.ioff():
                 plotpaths = visibility(
-                    target, date="2023-01-01", output=tempdir
+                    target, date="20230101", output=tempdir
                 )
 
     assert not isinstance(plotpaths, plt.Axes)

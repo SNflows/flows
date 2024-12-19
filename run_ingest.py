@@ -13,6 +13,8 @@ import logging
 import sys
 import os.path
 import glob
+import subprocess
+import warnings
 import numpy as np
 import astropy.coordinates as coords
 from astropy.table import Table
@@ -22,6 +24,8 @@ from zipfile import ZipFile
 import tempfile
 import re
 from collections import defaultdict
+if os.path.abspath(os.path.join(os.path.dirname(__file__), 'flows')) not in sys.path:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'flows')))
 from flows.aadc_db import AADC_DB
 from flows.plots import plt, plot_image
 from flows.load_image import load_image
@@ -69,8 +73,7 @@ def flows_get_archive_from_path(fname, archives_list=None):
 
 # --------------------------------------------------------------------------------------------------
 def optipng(fpath):
-    os.system('optipng -preserve -quiet "%s"' % fpath)
-
+    subprocess.run(['optipng', '-preserve', '-quiet', fpath])
 
 # --------------------------------------------------------------------------------------------------
 class CounterFilter(logging.Filter):
@@ -106,8 +109,8 @@ def create_plot(filepath, target_coord=None, target_position=None):
 
 # --------------------------------------------------------------------------------------------------
 def ingest_from_inbox():
-    rootdir_inbox = '/flows/inbox'
-    rootdir = '/flows/archive'
+    rootdir_inbox = '/archive/inbox'
+    rootdir = '/archive/raw'
 
     logger = logging.getLogger(__name__)
 
@@ -132,11 +135,13 @@ def ingest_from_inbox():
                 logger.info(fpath)
 
                 # Find the uploadlog corresponding to this file:
-                db.cursor.execute("SELECT logid FROM flows.uploadlog WHERE uploadpath=%s;",
-                                  [os.path.relpath(fpath, rootdir_inbox)])
+                db.cursor.execute("SELECT logid,dont_ingest_again FROM flows.uploadlog WHERE uploadpath=%s;", [os.path.relpath(fpath, rootdir_inbox)])
                 row = db.cursor.fetchone()
                 if row is not None:
                     uploadlogid = row['logid']
+                    if row['dont_ingest_again']:
+                        logger.info("Skipping file")
+                        continue
                 else:
                     uploadlogid = None
                 logger.info("Uploadlog ID: %s", uploadlogid)
@@ -144,8 +149,7 @@ def ingest_from_inbox():
                 # Only accept FITS file, or already compressed FITS files:
                 if not fpath.endswith('.fits') and not fpath.endswith('.fits.gz'):
                     if uploadlogid:
-                        db.cursor.execute("UPDATE flows.uploadlog SET status='Invalid file type' WHERE logid=%s;",
-                                          [uploadlogid])
+                        db.cursor.execute("UPDATE flows.uploadlog SET status='Invalid file type',dont_ingest_again=TRUE WHERE logid=%s;", [uploadlogid])
                         db.conn.commit()
                     logger.error("Invalid file type: %s", os.path.relpath(fpath, rootdir_inbox))
                     continue
@@ -296,31 +300,51 @@ def ingest_from_inbox():
                 except Exception as e:  # pragma: no cover
                     logger.exception("Could not load FITS image")
                     if uploadlogid:
-                        errmsg = str(e) if hasattr(e, 'message') else str(e.message)
+                        errmsg = str(e) if not hasattr(e, 'message') else str(e.message)
                         db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;",
                                           ['Load Image Error: ' + errmsg, uploadlogid])
                         db.conn.commit()
                     continue
 
                 # Use the WCS in the file to calculate the pixel-positon of the target:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore', category=RuntimeWarning, message='All-NaN slice encountered')
                 try:
                     target_pixels = img.wcs.all_world2pix(target_radec, 0).flatten()
                 except:  # noqa: E722, pragma: no cover
                     logger.exception("Could not find target position using the WCS.")
                     if uploadlogid:
                         errmsg = "Could not find target position using the WCS."
-                        db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", [errmsg, uploadlogid])
+                        db.cursor.execute("UPDATE flows.uploadlog SET status=%s,dont_ingest_again=TRUE WHERE logid=%s;", [errmsg, uploadlogid])
                         db.conn.commit()
                     continue
 
                 # Check that the position of the target actually falls within
                 # the pixels of the image:
-                if target_pixels[0] < -0.5 or target_pixels[1] < -0.5 or target_pixels[0] > img.shape[1] - 0.5 or \
-                        target_pixels[1] > img.shape[0] - 0.5:
+                logger.debug("image.shape = %s", img.shape)
+                if len(img.shape) != 2:
+                    errmsg = "Invalid image dimensions."
+                    logger.error(errmsg)
+                    if uploadlogid:
+                        db.cursor.execute("UPDATE flows.uploadlog SET status=%s,dont_ingest_again=TRUE WHERE logid=%s;", [errmsg, uploadlogid])
+                        db.conn.commit()
+                    continue
+
+                logger.debug("target_pixels = %s", target_pixels)
+                if len(target_pixels) != 2 or np.any(~np.isfinite(target_pixels)):
+                    errmsg = "Invalid extracted target position. Check the WCS."
+                    logger.error(errmsg)
+                    if uploadlogid:
+                        db.cursor.execute("UPDATE flows.uploadlog SET status=%s,dont_ingest_again=TRUE WHERE logid=%s;", [errmsg, uploadlogid])
+                        db.conn.commit()
+                    continue
+
+                if target_pixels[0] < -0.5 or target_pixels[1] < -0.5 \
+                    or target_pixels[0] > img.shape[1]-0.5 or target_pixels[1] > img.shape[0]-0.5:
                     logger.error("Target position does not fall within image. Check the WCS.")
                     if uploadlogid:
                         errmsg = "Target position does not fall within image. Check the WCS."
-                        db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", [errmsg, uploadlogid])
+                        db.cursor.execute("UPDATE flows.uploadlog SET status=%s,dont_ingest_again=TRUE WHERE logid=%s;", [errmsg, uploadlogid])
                         db.conn.commit()
                     continue
 
@@ -348,10 +372,13 @@ def ingest_from_inbox():
                 #       with the central value. This way of doing it is more forgiving.
                 obstime = img.obstime.utc.mjd
                 if inputtype != 'replace':
-                    db.cursor.execute(
-                        "SELECT fileid FROM flows.files WHERE targetid=%s AND datatype=%s AND site=%s AND photfilter=%s AND obstime BETWEEN %s AND %s;",
-                        [targetid, datatype, img.site['siteid'], img.photfilter, obstime - 0.5 * img.exptime / 86400,
-                         obstime + 0.5 * img.exptime / 86400, ])
+                    db.cursor.execute("SELECT fileid FROM flows.files WHERE targetid=%s AND datatype=%s AND site=%s AND photfilter=%s AND obstime BETWEEN %s AND %s;", [
+                        targetid,
+                        datatype,
+                        img.site['siteid'],
+                        img.photfilter,
+                        float(obstime - 0.5 * img.exptime/86400),
+                        float(obstime + 0.5 * img.exptime / 86400), ])
                     if db.cursor.fetchone() is not None:
                         logger.error("ALREADY DONE: Deep check")
                         if uploadlogid:
@@ -368,19 +395,27 @@ def ingest_from_inbox():
 
                     # Set file and directory permissions:
                     # TODO: Can this not be handled in a more elegant way?
-                    os.chmod(os.path.dirname(newpath), 0o2750)
-                    os.chmod(newpath, 0o0440)
+                    os.chmod(os.path.dirname(newpath), 0o2775)
+                    os.chmod(newpath, 0o0444)
 
                     filesize = os.path.getsize(fpath)
 
                     if not fpath.endswith('-e00.fits'):
                         create_plot(newpath, target_coord=target_coord, target_position=target_pixels)
 
-                    db.cursor.execute(
-                        "INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,version,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,%(version)s,1) RETURNING fileid;",
-                        {'archive': archive, 'relpath': relpath, 'targetid': targetid, 'datatype': datatype,
-                         'site': img.site['siteid'], 'filesize': filesize, 'filehash': filehash, 'obstime': obstime,
-                         'photfilter': img.photfilter, 'exptime': img.exptime, 'version': version})
+                    db.cursor.execute("""INSERT INTO flows.files (
+                    archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,exptime,version,available
+                    )
+                    VALUES (
+                    %(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(exptime)s,%(version)s,1
+                    )
+                    RETURNING fileid;""", {
+                        'archive': archive,
+                        'relpath': relpath,
+                        'targetid': targetid,
+                        'datatype': datatype,
+                         'site': img.site['siteid'], 'filesize': filesize, 'filehash': filehash, 'obstime': float(obstime),
+                         'photfilter': img.photfilter, 'exptime': float(img.exptime), 'version': version})
                     fileid = db.cursor.fetchone()[0]
 
                     if datatype == 4:
@@ -395,11 +430,24 @@ def ingest_from_inbox():
                                           [fileid, uploadlogid])
 
                     db.conn.commit()
-                except:  # noqa: E722, pragma: no cover
+
+                except (KeyboardInterrupt, SystemExit):
                     db.conn.rollback()
                     if os.path.exists(newpath):
                         os.remove(newpath)
-                    raise
+                    logger.warning("Stopped by user or system")
+                    return
+
+                except Exception as e: # noqa: E722, pragma: no cover
+                    db.conn.rollback()
+                    if os.path.exists(newpath):
+                        os.remove(newpath)
+                    logger.exception("%s: Could not ingest file", fpath)
+                    if uploadlogid:
+                        msg = str(e) if not hasattr(e, 'message') else str(e.message)
+                        db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", [msg, uploadlogid])
+                        db.conn.commit()
+
                 else:
                     logger.info("DELETE THE ORIGINAL FILE")
                     if os.path.isfile(newpath):
@@ -411,8 +459,8 @@ def ingest_from_inbox():
 
 # --------------------------------------------------------------------------------------------------
 def ingest_photometry_from_inbox():
-    rootdir_inbox = '/flows/inbox'
-    rootdir_archive = '/flows/archive_photometry'
+    rootdir_inbox = '/archive/inbox'
+    rootdir_archive = '/archive/photometry'
 
     logger = logging.getLogger(__name__)
 
@@ -536,6 +584,7 @@ def ingest_photometry_from_inbox():
 
                     # Optimize all the PNG files in the temp directory:
                     for f in glob.iglob(os.path.join(tmpdir, '*.png')):
+                        logger.debug("Running optipng on %s", f)
                         optipng(f)
 
                     # Copy the full directory to its new home:
@@ -546,9 +595,12 @@ def ingest_photometry_from_inbox():
                 filesize = os.path.getsize(newpath)
                 filehash = get_filehash(newpath)
 
-                db.cursor.execute(
-                    "INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,version,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(version)s,1) RETURNING fileid;",
-                    {'archive': archive, 'relpath': relpath, 'targetid': targetid, 'datatype': 2, 'site': site,
+                db.cursor.execute("INSERT INTO flows.files (archive,path,targetid,datatype,site,filesize,filehash,obstime,photfilter,version,available) VALUES (%(archive)s,%(relpath)s,%(targetid)s,%(datatype)s,%(site)s,%(filesize)s,%(filehash)s,%(obstime)s,%(photfilter)s,%(version)s,1) RETURNING fileid;", {
+                    'archive': archive,
+                    'relpath': relpath,
+                    'targetid': targetid,
+                    'datatype': 2,
+                    'site': site,
                      'filesize': filesize, 'filehash': filehash, 'obstime': tab.meta['obstime-bmjd'],
                      'photfilter': tab.meta['photfilter'], 'version': new_version})
                 fileid = db.cursor.fetchone()[0]
@@ -585,91 +637,91 @@ def ingest_photometry_from_inbox():
                                 'pipeline_version': tab.meta['version'], 'latest_version': new_version}
 
                 db.cursor.execute("""INSERT INTO flows.photometry_details (
-					fileid_phot,
-					fileid_img,
-					fileid_template,
-					fileid_diffimg,
-					obstime_bmjd,
-					mag_raw,
-					mag_raw_error,
-					mag_sub,
-					mag_sub_error,
-					zeropoint,
-					zeropoint_error,
-					zeropoint_diff,
-					fwhm,
-					seeing,
-					references_detected,
-					used_for_epsf,
-					faintest_reference_detected,
-					pipeline_version
-				) VALUES (
-					%(fileid_phot)s,
-					%(fileid_img)s,
-					%(fileid_template)s,
-					%(fileid_diffimg)s,
-					%(obstime)s,
-					%(mag_raw)s,
-					%(mag_raw_error)s,
-					%(mag_sub)s,
-					%(mag_sub_error)s,
-					%(zeropoint)s,
-					%(zeropoint_error)s,
-					%(zeropoint_diff)s,
-					%(fwhm)s,
-					%(seeing)s,
-					%(references_detected)s,
-					%(used_for_epsf)s,
-					%(faintest_reference_detected)s,
-					%(pipeline_version)s
-				);""", phot_summary)
+                    fileid_phot,
+                    fileid_img,
+                    fileid_template,
+                    fileid_diffimg,
+                    obstime_bmjd,
+                    mag_raw,
+                    mag_raw_error,
+                    mag_sub,
+                    mag_sub_error,
+                    zeropoint,
+                    zeropoint_error,
+                    zeropoint_diff,
+                    fwhm,
+                    seeing,
+                    references_detected,
+                    used_for_epsf,
+                    faintest_reference_detected,
+                    pipeline_version
+                ) VALUES (
+                    %(fileid_phot)s,
+                    %(fileid_img)s,
+                    %(fileid_template)s,
+                    %(fileid_diffimg)s,
+                    %(obstime)s,
+                    %(mag_raw)s,
+                    %(mag_raw_error)s,
+                    %(mag_sub)s,
+                    %(mag_sub_error)s,
+                    %(zeropoint)s,
+                    %(zeropoint_error)s,
+                    %(zeropoint_diff)s,
+                    %(fwhm)s,
+                    %(seeing)s,
+                    %(references_detected)s,
+                    %(used_for_epsf)s,
+                    %(faintest_reference_detected)s,
+                    %(pipeline_version)s
+                );""", phot_summary)
 
                 db.cursor.execute("SELECT * FROM flows.photometry_summary WHERE fileid_img=%s;", [fileid_img])
                 if db.cursor.fetchone() is None:
                     db.cursor.execute("""INSERT INTO flows.photometry_summary (
-						fileid_phot,
-						fileid_img,
-						fileid_template,
-						fileid_diffimg,
-						targetid,
-						obstime,
-						photfilter,
-						mag_raw,
-						mag_raw_error,
-						mag_sub,
-						mag_sub_error,
-						pipeline_version,
-						latest_version
-					) VALUES (
-						%(fileid_phot)s,
-						%(fileid_img)s,
-						%(fileid_template)s,
-						%(fileid_diffimg)s,
-						%(targetid)s,
-						%(obstime)s,
-						%(photfilter)s,
-						%(mag_raw)s,
-						%(mag_raw_error)s,
-						%(mag_sub)s,
-						%(mag_sub_error)s,
-						%(pipeline_version)s,
-						%(latest_version)s
-					);""", phot_summary)
+                        fileid_phot,
+                        fileid_img,
+                        fileid_template,
+                        fileid_diffimg,
+                        targetid,
+                        obstime,
+                        photfilter,
+                        mag_raw,
+                        mag_raw_error,
+                        mag_sub,
+                        mag_sub_error,
+                        pipeline_version,
+                        latest_version
+                    ) VALUES (
+                        %(fileid_phot)s,
+                        %(fileid_img)s,
+                        %(fileid_template)s,
+                        %(fileid_diffimg)s,
+                        %(targetid)s,
+                        %(obstime)s,
+                        %(photfilter)s,
+                        %(mag_raw)s,
+                        %(mag_raw_error)s,
+                        %(mag_sub)s,
+                        %(mag_sub_error)s,
+                        %(pipeline_version)s,
+                        %(latest_version)s
+                    );""", phot_summary)
                 else:
                     db.cursor.execute("""UPDATE flows.photometry_summary SET
-						fileid_phot=%(fileid_phot)s,
-						targetid=%(targetid)s,
-						fileid_template=%(fileid_template)s,
-						fileid_diffimg=%(fileid_diffimg)s,
-						obstime=%(obstime)s,
-						photfilter=%(photfilter)s,
-						mag_raw=%(mag_raw)s,
-						mag_raw_error=%(mag_raw_error)s,
-						mag_sub=%(mag_sub)s,
-						mag_sub_error=%(mag_sub_error)s,
-						pipeline_version=%(pipeline_version)s,
-						latest_version=%(latest_version)s
-						WHERE fileid_img=%(fileid_img)s;""", phot_summary)
+                        fileid_phot=%(fileid_phot)s,
+                        targetid=%(targetid)s,
+                        fileid_template=%(fileid_template)s,
+                        fileid_diffimg=%(fileid_diffimg)s,
+                        obstime=%(obstime)s,
+                        photfilter=%(photfilter)s,
+                        mag_raw=%(mag_raw)s,
+                        mag_raw_error=%(mag_raw_error)s,
+                        mag_sub=%(mag_sub)s,
+                        mag_sub_error=%(mag_sub_error)s,
+                        pipeline_version=%(pipeline_version)s,
+                        latest_version=%(latest_version)s
+                        WHERE fileid_img=%(fileid_img)s;""", phot_summary)
 
                 # Update the photometry status to done:
                 db.cursor.execute(
@@ -682,19 +734,31 @@ def ingest_photometry_from_inbox():
 
                 db.conn.commit()
 
-            except:  # noqa: E722, pragma: no cover
+            except (KeyboardInterrupt, SystemExit):
                 db.conn.rollback()
                 if newpath is not None and os.path.isdir(os.path.dirname(newpath)):
                     shutil.rmtree(os.path.dirname(newpath))
-                raise
+                logger.warning("Stopped by user or system")
+                return
+
+            except Exception as e: # noqa: E722, pragma: no cover
+                db.conn.rollback()
+                if newpath is not None and os.path.isdir(os.path.dirname(newpath)):
+                    shutil.rmtree(os.path.dirname(newpath))
+                logger.exception("%s: Could not ingest file", fpath)
+                if uploadlogid:
+                    msg = str(e) if not hasattr(e, 'message') else str(e.message)
+                    db.cursor.execute("UPDATE flows.uploadlog SET status=%s WHERE logid=%s;", [msg, uploadlogid])
+                    db.conn.commit()
+
             else:
                 # Set file and directory permissions:
                 # TODO: Can this not be handled in a more elegant way?
-                os.chmod(os.path.join(rootdir_archive, targetname), 0o2750)
-                os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}'), 0o2750)
-                os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}', f'v{new_version:02d}'), 0o2550)
+                os.chmod(os.path.join(rootdir_archive, targetname), 0o2775)
+                os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}'), 0o2775)
+                os.chmod(os.path.join(rootdir_archive, targetname, f'{fileid_img:05d}', f'v{new_version:02d}'), 0o2555)
                 for f in os.listdir(os.path.dirname(newpath)):
-                    os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0440)
+                    os.chmod(os.path.join(os.path.dirname(newpath), f), 0o0444)
 
                 logger.info("DELETE THE ORIGINAL FILE")
                 if os.path.isfile(fpath):
@@ -709,7 +773,7 @@ def cleanup_inbox():
     """
     Cleanup of inbox directory
     """
-    rootdir_inbox = '/flows/inbox'
+    rootdir_inbox = '/archive/inbox'
 
     # Just a simple check to begin with:
     if not os.path.isdir(rootdir_inbox):
@@ -727,13 +791,12 @@ def cleanup_inbox():
 
     # Delete left-over files in the database tables, that have been removed from disk:
     with AADC_DB() as db:
-        db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL;")
+        db.cursor.execute("SELECT logid,uploadpath FROM flows.uploadlog WHERE uploadpath IS NOT NULL AND fileid IS NULL AND status!='File deleted';")
         for row in db.cursor.fetchall():
             if not os.path.isfile(os.path.join(rootdir_inbox, row['uploadpath'])):
-                print("MARK AS DELETED IN DATABASE: " + row['uploadpath'])
-                db.cursor.execute("UPDATE flows.uploadlog SET uploadpath=NULL,status='File deleted' WHERE logid=%s;",
-                                  [row['logid']])
-                db.conn.commit()
+                print(f"MARK AS DELETED IN DATABASE (logid={row['logid']:d}): " + row['uploadpath'])
+                db.cursor.execute("UPDATE flows.uploadlog SET status='File deleted' WHERE logid=%s;", [row['logid']])
+        db.conn.commit()
 
 
 # --------------------------------------------------------------------------------------------------
@@ -760,10 +823,28 @@ if __name__ == '__main__':
     ingest_photometry_from_inbox()
     cleanup_inbox()
 
+    # Last time we warned:
+    report_errors = True
+    try:
+        with AADC_DB() as db:
+            db.cursor.execute("SELECT * FROM flows.ingest_reporting WHERE last_ingest_report > TIMEZONE('utc', NOW()) - '1 day'::interval LIMIT 1;")
+            last_ingest_report = db.cursor.fetchone()
+            if last_ingest_report is None:
+                db.cursor.execute("TRUNCATE flows.ingest_reporting;")
+                db.cursor.execute("INSERT INTO flows.ingest_reporting (last_ingest_report) VALUES (TIMEZONE('utc', NOW()));")
+                db.conn.commit()
+                report_errors = True
+            else:
+                report_errors = False
+    except:
+        db.conn.rollback()
+        report_errors = True
+
     # Check the number of errors or warnings issued, and convert these to a return-code:
-    logcounts = counter.counter
-    if logcounts.get('ERROR', 0) > 0 or logcounts.get('CRITICAL', 0) > 0:
-        sys.exit(4)
-    elif logcounts.get('WARNING', 0) > 0:
-        sys.exit(3)
+    if report_errors:
+        logcounts = counter.counter
+        if logcounts.get('ERROR', 0) > 0 or logcounts.get('CRITICAL', 0) > 0:
+            sys.exit(4)
+        elif logcounts.get('WARNING', 0) > 0:
+            sys.exit(3)
     sys.exit(0)

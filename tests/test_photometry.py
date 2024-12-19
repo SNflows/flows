@@ -52,7 +52,6 @@ def test_photometry_mag_fast(photometry_fast):
 
 
 # ------------------ EVEN SLOWER TESTS ------------------------------------------------
-@pytest.mark.slow
 @pytest.fixture(scope='session', autouse=True)
 def photometry_slow_optical(fid=1446):
     result_table, tdir = run_phot(fid)

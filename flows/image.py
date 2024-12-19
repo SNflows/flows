@@ -80,7 +80,7 @@ class FlowsImage:
 
     def create_masked_image(self) -> None:
         """Warning: this is destructive and will overwrite image data setting masked values to NaN"""
-        self.image[self.mask] = np.NaN
+        self.image[self.mask] = np.nan
         self.clean = np.ma.masked_array(data=self.image, mask=self.mask, copy=False)
 
     def set_edge_rows_to_value(self, y: Tuple[float] = None, value: Union[int, float, np.float64] = 0) -> None:

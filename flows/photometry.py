@@ -27,8 +27,17 @@ from .magnitudes import instrumental_mag
 from .result_model import ResultsTable
 
 warnings.simplefilter('ignore', category=AstropyDeprecationWarning)
-from photutils import CircularAperture, CircularAnnulus, aperture_photometry  # noqa: E402
-from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars  # noqa: E402
+from photutils.aperture import CircularAperture, CircularAnnulus, aperture_photometry  # noqa: E402
+
+
+#    In photutils version 1.13 the deprecated (since version 1.9) BasicPSFPhotometry is removed;
+#    PSFPhotometry is to be used instead.
+#    In photutils version 1.13 the deprecated (since version 1.9) DAOGroup is removed;
+#    SourceGrouper is to be used instead.
+#    See https://photutils.readthedocs.io/en/stable/changelog.html
+# from photutils.psf import EPSFFitter, BasicPSFPhotometry, DAOGroup, extract_stars  # noqa: E402
+from photutils.psf import EPSFFitter, PSFPhotometry, SourceGrouper, extract_stars
+
 from photutils.background import MedianBackground  # noqa: E402
 import photutils  # noqa: E402
 
@@ -108,10 +117,18 @@ class PSFBuilder:
         """
         # Build ePSF
         logger.info("Building ePSF...")
+
+        # from photutils docs: recentering_boxsize must have odd values and be greater than or equal to 3
+        rcb = int(np.round(2 * self.fwhm))
+        rcb = rcb if rcb % 2 else rcb + 1
+        # from photutils docs: fit_boxsize must have odd values
+        fb = int(np.round(1.5 * self.fwhm))
+        fb = fb if fb % 2 else fb + 1
+
         builder = self.epsf_builder(
             oversampling=1, shape=1 * self.star_size,
-            fitter=EPSFFitter(fit_boxsize=max(int(np.round(1.5 * self.fwhm)), 5)),
-            recentering_boxsize=max(int(np.round(2 * self.fwhm)), 5),
+            fitter=EPSFFitter(fit_boxsize=max(fb, 5)),
+            recentering_boxsize=max(rcb, 5),
             norm_radius=max(self.fwhm, 5), maxiters=100,
             progress_bar=multiprocessing.parent_process() is None and logger.getEffectiveLevel() <= 20
         )
@@ -125,7 +142,7 @@ class PSFBuilder:
 
 class Photometry:
 
-    def __init__(self, photometry_obj: Optional[BasicPSFPhotometry] = None):
+    def __init__(self, photometry_obj: Optional[PSFPhotometry] = None):
         self.photometry_obj = photometry_obj
 
     @staticmethod
@@ -152,16 +169,32 @@ class Photometry:
     def create_photometry_object(self, fwhm: Union[float, u.Quantity], psf_model: photutils.psf.EPSFModel,
                                  fitsize: Union[int, Tuple[int]], fitter: Callable = fitting.LevMarLSQFitter(),
                                  bkg: PhotutilsBackground = MedianBackground()):
-        self.photometry_obj = BasicPSFPhotometry(group_maker=DAOGroup(fwhm), bkg_estimator=bkg, psf_model=psf_model,
-                                                 fitter=fitter, fitshape=fitsize, aperture_radius=fwhm)
+        # 2024-09 erik:
+        # photutils version 1.1.0 (or possibly lower?):
+        # self.photometry_obj = PSFPhotometry(group_maker=SourceGrouper(fwhm), bkg_estimator=bkg, psf_model=psf_model,
+        #                                          fitter=fitter, fitshape=fitsize, aperture_radius=fwhm)
+        # It seems that 'group_maker' -> 'grouper', 'bkg_estimator' -> 'localbkg_estimator', 'fitshape' -> 'fit_shape'
+        # in newer photutils versions.
+        # In addition, localbkg_estimator requires a LocalBackground object which in turn requires us to specify an
+        # inner and an outer radius, which we have not been doing previously... Comments/suggestions, anyone?
+        self.photometry_obj = PSFPhotometry(psf_model=psf_model, fit_shape=fitsize, grouper=SourceGrouper(fwhm),
+                                            fitter=fitter,
+                                            localbkg_estimator=photutils.background.LocalBackground(inner_radius=4*fwhm,
+                                                                                                    outer_radius=7*fwhm,
+                                                                                                    bkg_estimator=bkg),
+                                            aperture_radius=fwhm)
 
-    def psfphot(self, image: ArrayLike, init_table: Table) -> Tuple[BasicPSFPhotometry, Table]:
+    def psfphot(self, image: ArrayLike, init_table: Table) -> Tuple[PSFPhotometry, Table]:
         """PSF photometry on init guesses table/row.
         """
         if self.photometry_obj is None:
             raise ValueError('Photometry object not initialized.')
         # logger.info(f"{init_table}")
-        output: Table = self.photometry_obj(image=image, init_guesses=init_table)
+        # 2024-09 erik:
+        # 'image' and 'init_guesses' not recognised.
+        # Trying to supply image as implicit 'data' and doing 'init_guesses' -> 'init_params'.
+        # output: Table = self.photometry_obj(image=image, init_guesses=init_table)
+        output: Table = self.photometry_obj(image, init_params=init_table)
         return self.photometry_obj, output
 
     @staticmethod
@@ -173,7 +206,9 @@ class Photometry:
 
         for fit_shape, row in phot_tables.items():
             row = row[0] if select_first_row else row
-            new_err = row['flux_unc'] / exptime
+            # 'flux_unc' -> 'flux_err' at some version transition of photutils (not documented in changelog,
+            # found with debugger).
+            new_err = row['flux_err'] / exptime
             new_flux = row['flux_fit'] / exptime
             if new_flux <= flux + flux_err:
                 return fit_shape, new_err
@@ -316,7 +351,7 @@ class PhotometryManager:
                                              init_table=self.init_guesses_diff.init_guess_diff)
         return psf_tbl
 
-    def rescale_uncertainty(self, psfphot_tbl: Table, dynamic: bool = True, 
+    def rescale_uncertainty(self, psfphot_tbl: Table, dynamic: bool = True,
                             static_fwhm: float = 2.5, epsilon_mag: float = 0.004,
                             ensure_greater: bool = True):
         """
@@ -331,7 +366,7 @@ class PhotometryManager:
         static_fwhm : float
             FWHM multiple to use incase dynamic fails or don't want to use it. Default 2.5 determined empirically.
         epsilon_mag : float
-            Small magnitude change within which new and old uncertainties are considered the same. 
+            Small magnitude change within which new and old uncertainties are considered the same.
             Should be smaller than ~1/2 the expected uncertainty.
         """
         # Rescale psf errors from fit iteratively
@@ -346,7 +381,7 @@ class PhotometryManager:
                 if self.diff_im_exists:
                     _table = self.diff_psf_phot()
                 _table = self.raw_psf_phot(self.init_guesses.init_guess_target)
-                if "flux_unc" in _table.colnames:
+                if "flux_err" in _table.colnames:
                     _phot_tables_dict[fitshape] = _table
 
             if len(_phot_tables_dict) == 0:
@@ -355,7 +390,7 @@ class PhotometryManager:
             else:
                 # Find the fit shape elbow:
                 flux = psfphot_tbl[0]['flux_fit']
-                flux_err = psfphot_tbl[0]['flux_unc']
+                flux_err = psfphot_tbl[0]['flux_err']
                 exptime = self.image.exptime
                 dynamic_fit_shape, new_err = self.photometry.rescale_flux_error(_phot_tables_dict, flux, flux_err,
                                                                                 exptime)
@@ -365,13 +400,13 @@ class PhotometryManager:
         logger.info(f"Recalculating all reference uncertainties using new fitsize:"
                     f" {fit_shape} pixels, ({fit_shape/self.fwhm if dynamic else static_fwhm :.2} * FWHM).")
         psfphot_tbl_rescaled = self.psfphot(fit_shape)
-        if psfphot_tbl['flux_unc'][0] > psfphot_tbl_rescaled['flux_unc'][0] + epsilon_mag and ensure_greater:
+        if psfphot_tbl['flux_err'][0] > psfphot_tbl_rescaled['flux_err'][0] + epsilon_mag and ensure_greater:
             logger.info("Recalculated uncertainties were smaller than original and ``ensure_greater`` was True:"
                         "Not using rescaled uncertainties for the SN.")
-            psfphot_tbl['flux_unc'][1:] = psfphot_tbl_rescaled['flux_unc'][1:]
+            psfphot_tbl['flux_err'][1:] = psfphot_tbl_rescaled['flux_err'][1:]
             return psfphot_tbl
 
-        psfphot_tbl['flux_unc'] = psfphot_tbl_rescaled['flux_unc']
+        psfphot_tbl['flux_err'] = psfphot_tbl_rescaled['flux_err']
         return psfphot_tbl
 
     def make_result_table(self, psfphot_tbl: Table, apphot_tbl: Table):
@@ -441,9 +476,9 @@ def do_phot(fileid: int, cm_timeout: Optional[float] = None, make_plots: bool = 
     # Do photometry
     apphot_tbl = pm.apphot()
     # Verify uncertainty exists after PSF phot:
-    psfphot_tbl = ResultsTable.verify_uncertainty_column(pm.psfphot())  
+    psfphot_tbl = ResultsTable.verify_uncertainty_column(pm.psfphot())
     if rescale:  # Rescale uncertainties
-        psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl, dynamic=rescale_dynamic) 
+        psfphot_tbl = pm.rescale_uncertainty(psfphot_tbl, dynamic=rescale_dynamic)
 
     # Build results table and calculate magnitudes
     pm.make_result_table(psfphot_tbl, apphot_tbl)

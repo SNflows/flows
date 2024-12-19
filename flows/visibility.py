@@ -16,9 +16,10 @@ from typing import Optional
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
-from astropy.coordinates import AltAz, SkyCoord, get_moon, get_sun
+from astropy.coordinates import AltAz, SkyCoord, get_body, get_sun
 from astropy.time import Time
 from astropy.visualization import quantity_support
+from matplotlib import pyplot
 from matplotlib.dates import DateFormatter
 from tendrils import api
 
@@ -49,7 +50,7 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
     if date is None:
         date = datetime.utcnow()
     elif isinstance(date, str):
-        date = datetime.strptime(date, '%Y-%m-%d')
+        date = datetime.strptime(date, '%Y%m%d')
 
     # Coordinates of object:
     obj = SkyCoord(ra=target.ra, dec=target.dec, unit='deg', frame='icrs')
@@ -68,6 +69,8 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
                 plotpath = os.path.join(output, "visibility_%s_%s_site%02d.png" % (
                     target.name, date.strftime('%Y%m%d'), site['siteid']))
             else:
+                if not os.path.exists(os.path.dirname(output)):
+                    os.makedirs(os.path.dirname(output))
                 plotpath = output
             logger.debug("Will save visibility plot to '%s'", plotpath)
 
@@ -95,7 +98,7 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
 
         # The Sun and Moon:
         altaz_sun = get_sun(times).transform_to(AltAzFrame)
-        altaz_moon = get_moon(times).transform_to(AltAzFrame)
+        altaz_moon = get_body("moon", times).transform_to(AltAzFrame)
 
         sundown_astro = (altaz_sun.alt < -6 * u.deg)
         if np.any(sundown_astro):
@@ -110,7 +113,7 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
         plt.grid(ls=':', lw=0.5)
         ax.plot(times.datetime, altaz_sun.alt, color='y', label='Sun')
         ax.plot(times.datetime, altaz_moon.alt, color=[0.75] * 3, ls='--', label='Moon')
-        objsc = ax.scatter(times.datetime, altaz_obj.alt, c=altaz_obj.az, label=target.name, lw=0, s=8,
+        objsc = ax.scatter(times.datetime, altaz_obj.alt.deg, c=altaz_obj.az.deg, label=target.name, lw=0, s=8,
                            cmap='twilight')
         ax.fill_between(times.datetime, 0 * u.deg, 90 * u.deg, altaz_sun.alt < -0 * u.deg, color='0.5',
                         zorder=0)  # , label='Night'
@@ -139,5 +142,6 @@ def visibility(target: Target, siteid: Optional[int] = None, date=None, output=N
     if output:
         return plotpaths
 
-    plt.show()
+    if pyplot.isinteractive():
+        plt.show()
     return ax

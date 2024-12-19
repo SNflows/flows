@@ -147,3 +147,12 @@ tests/output/
 typings/
 
 *.config
+
+# Downloaded at run-time in flows_mwmap.py:
+flows_mwmap_milkyway.fits
+
+# input for pytest
+tests/input/2020lao/59000.96584_h_e_20200531_33_1_1_1_2020lao_LT_gp.fits.gz
+tests/input/2020lao/subtracted/59000.96584_h_e_20200531_33_1_1_1_2020lao_LT_gpdiff.fits.gz
+tests/input/2021wyw/ADP.2021-10-15T11_40_06.553.fits.gz
+tests/input/2020aatc/SN2020aatc_K_20201213_495s.fits.gz

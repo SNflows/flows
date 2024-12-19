@@ -3,7 +3,7 @@ from typing import Optional, Callable
 import numpy as np
 from astropy.stats import SigmaClip
 from numpy.typing import ArrayLike
-from photutils import Background2D, SExtractorBackground
+from photutils.background import Background2D, SExtractorBackground
 from photutils.utils import calc_total_error
 
 

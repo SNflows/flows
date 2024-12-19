@@ -8,7 +8,11 @@ Match two sets of coordinates.
 import numpy as np
 import time
 from itertools import count, islice, chain, product, zip_longest
-from astropy.coordinates.angle_utilities import angular_separation
+#    In astropy version 6.0 the deprecated (since version 4.3) astropy.coordinates.angle_utilities is removed;
+#    astropy.coordinates.{,angle_formats} is to be used instead.
+#    See https://docs.astropy.org/en/v6.0.0/changelog.html
+# from astropy.coordinates.angle_utilities import angular_separation
+from astropy.coordinates import angular_separation
 from astropy.coordinates import SkyCoord
 import astropy.wcs
 from scipy.spatial import cKDTree as KDTree
