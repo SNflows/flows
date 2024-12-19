@@ -17,7 +17,7 @@ import sys
 if '/usr/users/kasoc/Preprocessing/' not in sys.path:
 	sys.path.insert(0, '/usr/users/kasoc/Preprocessing/')
 #sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'flows')))
-from kasocutil import psql_connect
+from kasocutil import psql_connect # 2024-12-19 erik: no trace of this module in '/usr/users/kasoc' ...
 #import flows
 
 if __name__ == '__main__':
