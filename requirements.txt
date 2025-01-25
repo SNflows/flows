@@ -19,5 +19,4 @@ astroalign >= 2.5.1
 networkx >= 3.3
 astroquery >= 0.4.7
 tendrils >= 0.3.2
-mastcasjobs >= 0.0.6
 healpy >= 1.17.3
