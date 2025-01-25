@@ -157,7 +157,7 @@ def query_simbad(coo_centre, radius=24 * u.arcmin):
 
     s = Simbad()
     s.ROW_LIMIT = 0
-    s.add_votable_fields('ra(d;A;ICRS;J2000)', 'dec(d;D;ICRS;2000)', 'pmra', 'pmdec')
+    s.add_votable_fields('ra', 'dec', 'pmra', 'pmdec')
     s.add_votable_fields('otype')
     s.add_votable_fields('flux(B)', 'flux(V)', 'flux(R)', 'flux(I)', 'flux(J)', 'flux(H)', 'flux(K)')
     s.add_votable_fields('flux(u)', 'flux(g)', 'flux(r)', 'flux(i)', 'flux(z)')
@@ -174,8 +174,8 @@ def query_simbad(coo_centre, radius=24 * u.arcmin):
 
     # Rename columns:
     results.rename_column('MAIN_ID', 'main_id')
-    results.rename_column('RA_d_A_ICRS_J2000', 'ra')
-    results.rename_column('DEC_d_D_ICRS_2000', 'dec')
+    results.rename_column('RA', 'ra')
+    results.rename_column('DEC', 'dec')
     results.rename_column('PMRA', 'pmra')
     results.rename_column('PMDEC', 'pmdec')
     results.rename_column('FLUX_B', 'B_mag')
@@ -203,7 +203,7 @@ def query_simbad(coo_centre, radius=24 * u.arcmin):
 
     # Build sky coordinates object:
     simbad = SkyCoord(ra=results['ra'], dec=results['dec'], pm_ra_cosdec=results['pmra'], pm_dec=results['pmdec'],
-                      frame='icrs', obstime='J2000')
+                      frame='icrs', obstime='J2000', unit=u.deg)
 
     return results, simbad
 
