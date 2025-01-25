@@ -456,6 +456,78 @@ def query_skymapper(coo_centre, radius=24 * u.arcmin):
 
 
 # --------------------------------------------------------------------------------------------------
+
+def query_local_refcat2(coo_centre, radius=24 * u.arcmin):
+    """
+    Uses refcat.c from https://archive.stsci.edu/hlsp/atlas-refcat2 to do a cone-search around the position.
+    NOTE: In going from mast casjobs to local refcat.c, we have lost the unique object identifier, 'objid'
+               ----> See _query_casjobs_refcat2
+          We have to invent our own objids.
+          They get assigned incrementally from the value "300,000,000,000,000,000" onwards, which is comfortably
+          above any objids in our database on 2025-01-25.
+          TODO: Something less hacky! Assign every entry in the local catalog a unique objid somehow...
+
+    Parameters:
+        coo_centre (:class:`astropy.coordinates.SkyCoord`): Coordinates of centre of search cone.
+        radius (Angle, optional): Search radius. Default is 24 arcmin.
+
+    Returns:
+        list: List of dicts with the REFCAT2 information.
+
+    .. codeauthor:: Erik Jensen
+    """
+
+    current_max_objid = 300_000_000_000_000_000
+    with AADC_DB() as db:
+        db.cursor.execute("SELECT MAX(starid) FROM flows.refcat2;")
+        for row in db.cursor.fetchall():
+            if row[0] > current_max_objid:
+                current_max_objid = row[0]
+
+    refcat_output = subprocess.run(["refcat",
+                              str(coo_centre.ra.deg), str(coo_centre.dec.deg),
+                              "-rad", str(Angle(radius).deg),
+                              "-var", "ra,dec,pmra,pmdec,gaia,bp,rp,dupvar,g,r,i,z,j,h,k",
+                              "-nohdr"],
+                             encoding="utf-8", capture_output=True, check=True)
+
+    # TODO: feel free to make this less awful!
+    OBJID = RA = DEC = PMRA = PMDEC = GAIA = BP = RP = DUPVAR = G = R = I = Z = J = H = K = np.array([])
+    for line in refcat_output.stdout.splitlines():
+        OBJID = np.append(OBJID, current_max_objid)
+        current_max_objid += 1
+
+        ra, dec, pmra, pmdec, gaia, bp, rp, dupvar, g, r, i, z, j, h, k = line.split()
+
+        RA    = np.append(RA, ra)
+        DEC   = np.append(DEC, dec)
+        PMRA  = np.append(PMRA, pmra)
+        PMDEC = np.append(PMDEC, pmdec)
+        GAIA = np.append(GAIA, gaia)
+        BP = np.append(BP, bp)
+        RP = np.append(RP, rp)
+        DUPVAR = np.append(DUPVAR, dupvar)
+        G = np.append(G, g)
+        R = np.append(R, r)
+        I = np.append(I, i)
+        Z = np.append(Z, z)
+        J = np.append(J, j)
+        H = np.append(H, h)
+        K = np.append(K, k)
+
+    # rename columns to match older java-based implementation which had different naming conventions
+    # TODO: refactor dependent functions to expect the default namings and get rid of these renamings
+    #       to start: comment out the renamings below and see where the flows pipeline breaks, then fix it
+    results = Table({'starid': OBJID, 'ra': RA, 'decl': DEC, 'pm_ra': PMRA, 'pm_dec': PMDEC, 'gaia_mag': GAIA,
+                'gaia_bp_mag': BP, 'gaia_rp_mag': RP, 'gaia_variability': DUPVAR, 'g_mag': G, 'r_mag': R, 'i_mag': I,
+                'z_mag': Z, 'J_mag': J, 'H_mag': H, 'K_mag': K})
+
+    if not results:
+        raise CasjobsError("Something went wrong in local refcat.c binary")
+
+    logger.debug("Found %d results", len(results))
+    return results
+
 def query_all(coo_centre, radius=24 * u.arcmin, dist_cutoff=2 * u.arcsec):
     """
     Query all catalogs (REFCAT2, APASS, SDSS and SkyMapper) and return merged catalog.
@@ -479,7 +551,7 @@ def query_all(coo_centre, radius=24 * u.arcmin, dist_cutoff=2 * u.arcsec):
     """
 
     # Query the REFCAT2 catalog using CasJobs around the target position:
-    results = query_casjobs_refcat2(coo_centre, radius=radius)
+    results = query_local_refcat2(coo_centre, radius=radius)
     AT_results = Table(results)
     refcat = SkyCoord(ra=AT_results['ra'], dec=AT_results['decl'], unit=u.deg, frame='icrs')
 
