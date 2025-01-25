@@ -17,7 +17,6 @@ pytz >= 2024.2
 sep-pjw >= 1.3.5
 astroalign >= 2.5.1
 networkx >= 3.3
-astroquery >= 0.4.7
+astroquery == 0.4.7 # TODO version >= 0.4.9 brings changes which messes with catalogs.py:query_simbad() - any expert want to have a crack at this?
 tendrils >= 0.3.2
-mastcasjobs >= 0.0.6
 healpy >= 1.17.3
