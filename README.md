@@ -80,17 +80,6 @@ Text coming soon...
 # pipeline = False
 token = None
 
-# casjobs:
-#   wsid and password required for run_catalogs.py,
-#   user registration at
-#   https://galex.stsci.edu/casjobs/CreateAccount.aspx
-#   wsid can be found at
-#   https://galex.stsci.edu/casjobs/changedetails.aspx
-#   after login
-[casjobs]
-# wsid = $CASJOBS_WSID/None
-# password = $CASJOBS_PASSWORD/None
-
 # database:
 #   username and password required for run_catalogs.py,
 #   the user is a registered user in the flows database
