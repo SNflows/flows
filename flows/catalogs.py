@@ -356,7 +356,6 @@ def query_simbad(coo_centre, radius=24 * u.arcmin):
 
     s = Simbad()
     s.ROW_LIMIT = 0
-    s.remove_votable_fields('coordinates')
     s.add_votable_fields('ra(d;A;ICRS;J2000)', 'dec(d;D;ICRS;2000)', 'pmra', 'pmdec')
     s.add_votable_fields('otype')
     s.add_votable_fields('flux(B)', 'flux(V)', 'flux(R)', 'flux(I)', 'flux(J)', 'flux(H)', 'flux(K)')
