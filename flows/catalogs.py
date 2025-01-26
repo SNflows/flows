@@ -276,6 +276,8 @@ def query_local_refcat2(coo_centre, radius=24 * u.arcmin):
 
     .. codeauthor:: Erik Jensen
     """
+    if isinstance(radius, (float, int)):
+        radius *= u.deg
 
     current_max_objid = 300_000_000_000_000_000
     with AADC_DB() as db:
@@ -292,28 +294,29 @@ def query_local_refcat2(coo_centre, radius=24 * u.arcmin):
                              encoding="utf-8", capture_output=True, check=True)
 
     # TODO: feel free to make this less awful!
-    OBJID = RA = DEC = PMRA = PMDEC = GAIA = BP = RP = DUPVAR = G = R = I = Z = J = H = K = np.array([])
+    OBJID = DUPVAR = np.array([], dtype='int')
+    RA = DEC = PMRA = PMDEC = GAIA = BP = RP = G = R = I = Z = J = H = K = np.array([], dtype='float')
     for line in refcat_output.stdout.splitlines():
         OBJID = np.append(OBJID, current_max_objid)
         current_max_objid += 1
 
         ra, dec, pmra, pmdec, gaia, bp, rp, dupvar, g, r, i, z, j, h, k = line.split()
 
-        RA    = np.append(RA, ra)
-        DEC   = np.append(DEC, dec)
-        PMRA  = np.append(PMRA, pmra)
-        PMDEC = np.append(PMDEC, pmdec)
-        GAIA = np.append(GAIA, gaia)
-        BP = np.append(BP, bp)
-        RP = np.append(RP, rp)
+        RA     = np.append(RA, ra)
+        DEC    = np.append(DEC, dec)
+        PMRA   = np.append(PMRA, pmra)
+        PMDEC  = np.append(PMDEC, pmdec)
+        GAIA   = np.append(GAIA, gaia)
+        BP     = np.append(BP, bp)
+        RP     = np.append(RP, rp)
         DUPVAR = np.append(DUPVAR, dupvar)
-        G = np.append(G, g)
-        R = np.append(R, r)
-        I = np.append(I, i)
-        Z = np.append(Z, z)
-        J = np.append(J, j)
-        H = np.append(H, h)
-        K = np.append(K, k)
+        G      = np.append(G, g)
+        R      = np.append(R, r)
+        I      = np.append(I, i)
+        Z      = np.append(Z, z)
+        J      = np.append(J, j)
+        H      = np.append(H, h)
+        K      = np.append(K, k)
 
     # rename columns to match older java-based implementation which had different naming conventions
     # TODO: refactor dependent functions to expect the default namings and get rid of these renamings

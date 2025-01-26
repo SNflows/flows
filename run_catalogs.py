@@ -44,7 +44,7 @@ def main():
 
     targets = api.get_catalog_missing()
     if args.target is not None:
-        if args.print is None:
+        if args.print is False:
             # We want to download and possibly commit the target catalog
             if int(args.target) in targets:
                 logger.info("Downloading catalog for target=%s (committing to db=%s)...", args.target, args.commit)
