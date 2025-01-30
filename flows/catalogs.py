@@ -258,7 +258,7 @@ def query_skymapper(coo_centre, radius=24 * u.arcmin):
 
 # --------------------------------------------------------------------------------------------------
 
-def query_local_refcat2(coo_centre, radius=24 * u.arcmin):
+def query_local_refcat2(coo_centre, radius=24 * u.arcmin, limiting_magnitude=19):
     """
     Uses refcat.c from https://archive.stsci.edu/hlsp/atlas-refcat2 to do a cone-search around the position.
     NOTE: In going from mast casjobs to local refcat.c, we have lost the unique object identifier, 'objid'
@@ -290,6 +290,7 @@ def query_local_refcat2(coo_centre, radius=24 * u.arcmin):
     refcat_output = subprocess.run(["refcat",
                               str(coo_centre.ra.deg), str(coo_centre.dec.deg),
                               "-rad", str(Angle(radius).deg),
+                              "-mlim", str(limiting_magnitude),
                               "-var", "ra,dec,pmra,pmdec,gaia,bp,rp,dupvar,g,r,i,z,j,h,k",
                               "-nohdr"],
                              encoding="utf-8", capture_output=True, check=True)
@@ -332,7 +333,7 @@ def query_local_refcat2(coo_centre, radius=24 * u.arcmin):
     logger.debug("Found %d results", len(results))
     return results
 
-def query_all(coo_centre, radius=24 * u.arcmin, dist_cutoff=2 * u.arcsec):
+def query_all(coo_centre, radius=24 * u.arcmin, dist_cutoff=2 * u.arcsec, limiting_magnitude=19):
     """
     Query all catalogs (REFCAT2, APASS, SDSS and SkyMapper) and return merged catalog.
 
@@ -355,7 +356,7 @@ def query_all(coo_centre, radius=24 * u.arcmin, dist_cutoff=2 * u.arcsec):
     """
 
     # Query the REFCAT2 catalog using CasJobs around the target position:
-    results = query_local_refcat2(coo_centre, radius=radius)
+    results = query_local_refcat2(coo_centre, radius=radius, limiting_magnitude=limiting_magnitude)
     AT_results = Table(results)
     refcat = SkyCoord(ra=AT_results['ra'], dec=AT_results['decl'], unit=u.deg, frame='icrs')
 
