@@ -4,7 +4,7 @@ Runner to add target catalog, if catalog info is missing. Print output.
 import argparse
 import logging
 from tendrils import api
-from flows import download_catalog
+from flows import download_catalog, delete_catalog
 
 
 def parse():
@@ -16,7 +16,8 @@ def parse():
     parser.add_argument('-q', '--quiet', help='Only report warnings and errors.', action='store_true')
     parser.add_argument('-c', '--commit', help='Commit downloaded catalog(s) to flows database.', action='store_true')
     parser.add_argument('-p', '--print', help='Print single catalog which already exists in flows database.', action='store_true')
-    parser.add_argument('-t', '--target', type=str, help='Optionally specify just one target for downloading/committing/printing.', nargs='?', default=None)
+    parser.add_argument('-t', '--target', type=str, help='Optionally specify just one target for downloading/committing/printing/deleting.', nargs='?', default=None)
+    parser.add_argument('-D', '--delete', help='Delete single catalog which already exists in flows database.', action='store_true')
     return parser.parse_args()
 
 def set_logging_level(args):
@@ -41,6 +42,15 @@ def main():
     if not logger.hasHandlers():
         logger.addHandler(console)
     logger.setLevel(logging_level)
+
+    if args.delete:
+        if args.target is not None:
+            logger.info("Deleting catalog for target=%s...", args.target)
+            delete_catalog(int(args.target))
+            logger.info("Done deleting catalog for target=%s...", args.target)
+        else:
+            logger.warning("Need to specify target to delete")
+        exit(0)
 
     targets = api.get_catalog_missing()
     if args.target is not None:

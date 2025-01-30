@@ -192,6 +192,13 @@ class IOManager:
     def load_references(self, catalog: Optional[Dict] = None) -> refclean.References:
         use_filter = self.get_filter()
         references = api.get_catalog(self.target.name)['references'] if catalog is None else catalog['references']
+
+        filter = (references["J_mag"] > 10) & (references["H_mag"] > 10) & (references["g_mag"] is not None) \
+                 & (references["H_mag"] is not None) & (references["gaia_variability"] != 1) \
+                 & (references["g_mag"] - references["r_mag"] < 10) & (references["starid"] != 107441912858406185) \
+                 & (references["starid"] != 107441912838383932)
+
+        references = references[filter]
         references.sort(use_filter)
         # Check that there actually are reference stars in that filter:
         if allnan(references[use_filter]):

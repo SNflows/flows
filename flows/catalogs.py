@@ -24,6 +24,7 @@ from astroquery import sdss
 from astroquery.simbad import Simbad
 from bottleneck import anynan
 from tendrils.utils import load_config, query_ztf_id
+from tendrils import api
 
 from .aadc_db import AADC_DB
 
@@ -567,3 +568,18 @@ def download_catalog(target=None, radius=24 * u.arcmin, radius_ztf=3 * u.arcsec,
                 except:  # noqa: E722, pragma: no cover
                     db.conn.rollback()
                     raise
+
+
+def delete_catalog(target):
+    cat = api.get_catalog(target)
+    ids = list(cat['references']['starid'])
+
+    id_list = ",".join([str(id) for id in ids])
+
+    print(id_list)
+
+    with AADC_DB() as db:
+        if target is not None and isinstance(target, (int, float)):
+            db.cursor.execute("DELETE FROM flows.refcat2 WHERE starid IN (%s);" % id_list)
+            db.cursor.execute("UPDATE flows.targets SET catalog_downloaded=FALSE,ztf_id=NULL WHERE targetid=%s;" % int(target))
+            db.conn.commit()
